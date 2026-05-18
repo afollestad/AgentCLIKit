@@ -1,0 +1,14 @@
+.build/
+.swiftpm/
+DerivedData/
+
+*.xcodeproj/
+*.xcworkspace/
+*.profraw
+
+.DS_Store
+
+.claude/*
+!.claude/skills
+.codex/*
+!.codex/skills
