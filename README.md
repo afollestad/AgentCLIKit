@@ -24,14 +24,14 @@ AgentCLIKit is split into provider-neutral subsystems and provider implementatio
 
 - `Core`: shared event, input, usage, interaction, session, error, and utility types.
 - `Runtime`: process lifecycle, stream pumping, event buffering, subscriptions, status, and input serialization.
-- `Providers`: provider metadata, registry, detection, setup contracts, and shell helpers.
+- `Providers`: provider metadata, registry, detection, adapters, and shell helpers.
 - `Sessions`: JSON and in-memory provider session stores.
 - `Interactions`: approvals, app-native prompts, hook listener primitives, and interaction persistence.
 - `Transcript`: provider-neutral transcript grouping driven by injected provider policy.
 - `Context`: context-window cache and context-handoff prompt helpers.
 - `MCP`: provider-agnostic MCP server management.
 - `Skills`: provider skill-directory scanning and sync helpers.
-- `Claude`: Claude Code adapter, config, hooks, approval policy, MCP bridge, and model metadata.
+- `Claude`: Claude Code adapter, config, hooks, approval policy, MCP bridge, and stream decoding.
 
 Host apps own UI state, persistence, drafts, notifications, and queueing policy. AgentCLIKit owns the runtime mechanics and emits provider-neutral events that the host can persist or render however it wants.
 
@@ -40,14 +40,18 @@ Host apps own UI state, persistence, drafts, notifications, and queueing policy.
 The intended host integration uses one runtime actor per app-level runtime service:
 
 ```swift
-let runtime = DefaultAgentRuntime(...)
+let runtime = DefaultAgentRuntime(
+    adapters: [
+        ClaudeProviderAdapter()
+    ],
+    sessionStore: JSONFileAgentSessionStore(fileURL: sessionsURL)
+)
 
 try await runtime.spawn(
     conversationId: conversationId,
     config: AgentSpawnConfig(
         providerId: "claude",
         workingDirectory: projectPath,
-        permissionMode: "default",
         model: nil,
         effort: nil,
         initialPrompt: nil
@@ -67,11 +71,13 @@ for await envelope in subscription.events {
     persist(envelope)
     await runtime.markPersisted(
         conversationId: conversationId,
-        generation: subscription.generation,
+        generation: envelope.generation,
         upTo: envelope.index
     )
 }
 ```
+
+Output arrives as provider-neutral `AgentEvent` values, including complete messages, streaming `messageDelta` chunks, reasoning/thinking events, tool calls and results, usage, diagnostics, lifecycle, and interaction requests. Message and tool events include metadata dictionaries for provider details such as parent tool identifiers, sub-agent callers, and tool result flags.
 
 Input also flows through the runtime:
 
@@ -84,6 +90,49 @@ try await runtime.send(
 
 Provider adapters serialize input in their native format. Claude writes stream JSON; a future provider can write JSONL, plain text, or use another bridge while sharing the same host-facing API.
 
+Claude-specific config, MCP bridging, hook approval, and stream decoding APIs live under the `Claude` source folder and use names such as `ClaudeConfigStore`, `ClaudeMCPBridge`, `ClaudeHookServer`, and `ClaudeStreamDecoder`. Generic host-facing code should depend on `AgentRuntime`, `AgentProviderAdapter`, `AgentEventEnvelope`, `AgentInput`, and the provider-neutral store/service protocols.
+
+Claude hook approval state is explicit so hosts can share it with their own approval UI:
+
+```swift
+let approvalPolicyStore = ClaudeApprovalPolicyStore()
+let hookServer = ClaudeHookServer(
+    tokenStore: AgentHookTokenStore(),
+    interactionStore: InMemoryAgentInteractionStore(),
+    approvalPolicyStore: approvalPolicyStore
+)
+
+await approvalPolicyStore.approveForSession(operation: "Edit")
+```
+
+Live decision providers are bounded by `decisionTimeout` and fall back to deferred hook responses if the host does not answer in
+time. The default decision timeout is shorter than the generated Claude hook transport timeout so a defer response can be returned
+before Claude closes the request.
+
+Hosts can generate Claude hook settings for their local listener from the same matcher used by the hook APIs:
+
+```swift
+guard let hookEndpointURL = URL(string: "http://127.0.0.1:1234/claude/hooks/pre-tool-use") else {
+    throw URLError(.badURL)
+}
+
+let settings = ClaudeHookSettings(
+    endpointURL: hookEndpointURL
+)
+let settingsData = try settings.encodedData()
+```
+
+Live Claude hook decisions can also carry Claude-specific response fields, such as `updatedInput` for tools that need echoed or augmented input:
+
+```swift
+let decision = ClaudeHookDecision.allow(updatedInput: .object([
+    "questions": .array([
+        .object(["question": .string("Proceed?")])
+    ]),
+    "answers": .object(["0": .string("Proceed")])
+]))
+```
+
 ## Validation
 
 ```sh
@@ -93,3 +142,7 @@ Provider adapters serialize input in their native format. Claude writes stream J
 ```
 
 The build and test scripts pipe `xcodebuild` through `xcsift -f toon -w` when `xcsift` is installed.
+
+## License
+
+AgentCLIKit is licensed under the [GNU General Public License v3.0](LICENSE.md).

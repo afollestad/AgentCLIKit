@@ -19,6 +19,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Put Claude-specific launch details, wire formats, config files, hook behavior, model defaults, and policies under `Sources/AgentCLIKit/Claude/`.
 - Future providers, such as Codex, should use their own sibling provider folders rather than adding provider-specific branches to generic runtime code.
 - Public APIs must use generic names and avoid host-app concepts such as SwiftData, view models, drafts, notifications, and keep-awake services.
+- Compatibility tests live under `Tests/AgentCLIKitTests/Compatibility/` and should prove host-mappable behavior without importing host app code.
 
 ## Build And Test
 
