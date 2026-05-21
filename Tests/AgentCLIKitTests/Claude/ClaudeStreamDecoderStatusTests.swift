@@ -54,6 +54,23 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         )) })
     }
 
+    func testResultToolDeferredClassifiesAskUserQuestionAsPrompt() throws {
+        let events = try ClaudeStreamDecoder().decodeLine(Self.deferredAskUserQuestionResultLine)
+
+        XCTAssertTrue(events.contains {
+            $0 == .interaction(AgentInteractionEvent(
+                id: "tool-2",
+                kind: .prompt,
+                prompt: "AskUserQuestion",
+                metadata: [
+                    "tool_name": .string("AskUserQuestion"),
+                    "tool_input": .object(["questions": .array([])]),
+                    "session_id": .string("session-123")
+                ]
+            ))
+        })
+    }
+
     func testSystemTaskEventsExposeSubAgentMetadata() throws {
         let events = try ClaudeStreamDecoder().decodeLine(Self.taskProgressLine)
 
@@ -184,6 +201,20 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         "id": "tool-1",
         "name": "Edit",
         "input": {"file_path": "README.md"}
+      },
+      "usage": {"input_tokens": 1, "output_tokens": 2}
+    }
+    """#
+
+    private static let deferredAskUserQuestionResultLine = #"""
+    {
+      "type": "result",
+      "session_id": "session-123",
+      "stop_reason": "tool_deferred",
+      "deferred_tool_use": {
+        "id": "tool-2",
+        "name": "AskUserQuestion",
+        "input": {"questions": []}
       },
       "usage": {"input_tokens": 1, "output_tokens": 2}
     }

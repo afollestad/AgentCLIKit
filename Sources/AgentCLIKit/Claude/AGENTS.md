@@ -5,3 +5,4 @@
 - Keep `--verbose` with `--output-format stream-json`; Claude structured streaming depends on it.
 - Resume with `--resume` only when the canonical Claude session file exists; otherwise preserve continuity with `--session-id`.
 - When invalidating a launch hook token, release live hook decision waits for that token with a deferred decision so teardown never waits for Claude's hook timeout.
+- `AskUserQuestion` deferred events should surface as `.prompt`, and `ExitPlanMode` deferred events as `.planModeExit`.

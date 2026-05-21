@@ -12,6 +12,7 @@ enum ComposerMetrics {
 
 struct ComposerView: View {
     @Binding var text: String
+    @Environment(\.isEnabled) private var isEnabled
     var onSend: () -> Void
 
     var body: some View {
@@ -26,7 +27,7 @@ struct ComposerView: View {
                     .allowsHitTesting(false)
             }
         }
-        .background(Color(nsColor: .textBackgroundColor))
+        .background(Color(nsColor: isEnabled ? .textBackgroundColor : .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -36,6 +37,7 @@ struct ComposerView: View {
 }
 
 private struct ComposerTextView: NSViewRepresentable {
+    @Environment(\.isEnabled) private var isEnabled
     @Binding var text: String
     var onSend: () -> Void
 
@@ -78,6 +80,8 @@ private struct ComposerTextView: NSViewRepresentable {
             return
         }
         textView.onSend = context.coordinator.send
+        textView.isEditable = isEnabled
+        textView.textColor = isEnabled ? .textColor : .disabledControlTextColor
         guard textView.string != text else {
             return
         }

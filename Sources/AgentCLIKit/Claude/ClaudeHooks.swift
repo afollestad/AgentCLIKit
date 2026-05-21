@@ -315,7 +315,7 @@ public actor ClaudeHookServer {
         case .deny:
             AgentHookResponse(statusCode: 200, body: decisionBody(decision, permissionDecision: "deny", interactionId: interactionId))
         case .deferDecision:
-            AgentHookResponse(statusCode: 202, body: decisionBody(decision, permissionDecision: "defer", interactionId: interactionId))
+            AgentHookResponse(statusCode: 200, body: decisionBody(decision, permissionDecision: "defer", interactionId: interactionId))
         }
     }
 

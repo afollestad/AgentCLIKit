@@ -38,7 +38,7 @@ final class ClaudeHookHTTPListenerTests: XCTestCase {
         let pending = await interactionStore.pending(conversationId: "conversation")
 
         XCTAssertGreaterThan(port, 0)
-        XCTAssertEqual(response.statusCode, 202)
+        XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "Edit")
     }

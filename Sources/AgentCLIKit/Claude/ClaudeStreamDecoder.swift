@@ -325,10 +325,23 @@ public struct ClaudeStreamDecoder: Sendable {
         }
         return .interaction(AgentInteractionEvent(
             id: AgentInteractionID(rawValue: deferredToolUse.id),
-            kind: .approval,
+            kind: Self.interactionKind(forToolName: deferredToolUse.name),
             prompt: deferredToolUse.name,
             metadata: metadata
         ))
+    }
+}
+
+extension ClaudeStreamDecoder {
+    static func interactionKind(forToolName toolName: String) -> AgentInteractionKind {
+        switch toolName {
+        case "AskUserQuestion":
+            .prompt
+        case "ExitPlanMode":
+            .planModeExit
+        default:
+            .approval
+        }
     }
 }
 

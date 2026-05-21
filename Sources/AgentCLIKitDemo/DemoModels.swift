@@ -14,6 +14,7 @@ enum DemoChatRowKind: Equatable {
     case diagnostic(severity: AgentDiagnosticSeverity, message: String)
     case rawOutput(String)
     case interaction(kind: AgentInteractionKind, prompt: String)
+    case prompt(DemoPrompt)
     case rateLimit(String)
     case usage(String)
     case status(String)

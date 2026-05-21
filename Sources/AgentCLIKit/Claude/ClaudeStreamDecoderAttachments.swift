@@ -40,7 +40,7 @@ extension ClaudeStreamDecoder {
         return [
             .interaction(AgentInteractionEvent(
                 id: AgentInteractionID(rawValue: toolUseId),
-                kind: .approval,
+                kind: Self.interactionKind(forToolName: toolName),
                 prompt: toolName,
                 metadata: metadata
             )),

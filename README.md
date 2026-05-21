@@ -124,6 +124,9 @@ Live decision providers are bounded by `decisionTimeout` and fall back to deferr
 time. The default decision timeout is shorter than the generated Claude hook transport timeout so a defer response can be returned
 before Claude closes the request.
 
+`ClaudeProviderAdapter` accepts the same live decision provider through `hookDecisionProvider` when hosts want the adapter-managed
+hook server to hold Claude's `PreToolUse` request open for app-native approval or prompt UI.
+
 Hosts can generate Claude hook settings for their local listener from the same matcher used by the hook APIs:
 
 ```swift
@@ -144,7 +147,7 @@ let decision = ClaudeHookDecision.allow(updatedInput: .object([
     "questions": .array([
         .object(["question": .string("Proceed?")])
     ]),
-    "answers": .object(["0": .string("Proceed")])
+    "answers": .object(["Proceed?": .string("Proceed")])
 ]))
 ```
 
@@ -166,7 +169,7 @@ Run the live Claude-backed macOS demo with:
 ./scripts/run-demo.sh
 ```
 
-The demo builds and launches the `AgentCLIKitDemo` executable target. It lists persisted AgentCLIKit session records, lets you add sessions, and renders live runtime output from Claude.
+The demo builds and launches the `AgentCLIKitDemo` executable target. It lists persisted AgentCLIKit session records, lets you add sessions, renders live runtime output from Claude, and answers `AskUserQuestion` prompts through AgentCLIKit's live hook decision provider.
 
 ## License
 

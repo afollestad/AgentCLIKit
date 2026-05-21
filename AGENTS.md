@@ -15,6 +15,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Sources/AgentCLIKit/Claude/AGENTS.md`: Claude provider adapter, config, stream decoding, and hook server behavior.
 - `Sources/AgentCLIKit/Claude/Hooks/AGENTS.md`: Claude hook transport.
 - `Sources/AgentCLIKitDemo/AGENTS.md`: macOS demo app.
+- `Sources/AgentCLIKitDemo/Interactions/AGENTS.md`: demo prompt and hook-decision UI.
 
 ## Architecture
 

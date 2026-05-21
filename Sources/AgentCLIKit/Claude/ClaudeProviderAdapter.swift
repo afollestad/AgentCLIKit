@@ -36,6 +36,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     ///   - enableHooks: Whether this adapter should manage a Claude hook listener and generated hook settings.
     ///   - interactionStore: Store used for hook-originated pending interactions.
     ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
+    ///   - hookDecisionProvider: Optional provider that can answer Claude hook decisions while the hook request is still live.
+    ///   - hookDecisionTimeout: Maximum live hook decision wait before Claude receives a deferred response.
     public init(
         executablePath: String = "/usr/bin/env",
         decoder: ClaudeStreamDecoder = ClaudeStreamDecoder(),
@@ -47,7 +49,9 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "AgentCLIKitClaudeHooks",
             isDirectory: true
-        )
+        ),
+        hookDecisionProvider: (any ClaudeHookDecisionProviding)? = nil,
+        hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout
     ) {
         self.executablePath = executablePath
         self.decoder = decoder
@@ -56,7 +60,12 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         self.sessionFileExists = sessionFileExists
         if enableHooks {
             let tokenStore = AgentHookTokenStore()
-            let hookServer = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+            let hookServer = ClaudeHookServer(
+                tokenStore: tokenStore,
+                interactionStore: interactionStore,
+                decisionProvider: hookDecisionProvider,
+                decisionTimeout: hookDecisionTimeout
+            )
             self.hookCoordinator = ClaudeHookCoordinator(
                 tokenStore: tokenStore,
                 server: hookServer,

@@ -24,7 +24,7 @@ final class ClaudeHookInvalidationTests: XCTestCase {
         let response = try await Self.value(of: responseTask, timeoutNanoseconds: 500_000_000)
         let record = await interactionStore.record(id: "tool-1")
 
-        XCTAssertEqual(response.statusCode, 202)
+        XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertNil(record?.resolution)
     }
@@ -51,7 +51,7 @@ final class ClaudeHookInvalidationTests: XCTestCase {
         let response = try await Self.value(of: responseTask, timeoutNanoseconds: 500_000_000)
         let hasStarted = await decisionProvider.hasStarted()
 
-        XCTAssertEqual(response.statusCode, 202)
+        XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertFalse(hasStarted)
     }

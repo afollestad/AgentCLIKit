@@ -95,7 +95,7 @@ final class ClaudeHookTests: XCTestCase {
         let response = await server.handle(preToolUse(token: token.value))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
-        XCTAssertEqual(response.statusCode, 202)
+        XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "Edit")
     }
@@ -115,7 +115,7 @@ final class ClaudeHookTests: XCTestCase {
         let pending = await interactionStore.pending(conversationId: "conversation")
         let record = await interactionStore.record(id: "tool-1")
 
-        XCTAssertEqual(response.statusCode, 202)
+        XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "Edit")
         XCTAssertNil(record?.resolution)
@@ -181,7 +181,7 @@ final class ClaudeHookTests: XCTestCase {
         let response = await server.handle(preToolUse(token: token.value, toolName: "AskUserQuestion", toolInput: payload))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
-        XCTAssertEqual(response.statusCode, 202)
+        XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.kind, .prompt)
         XCTAssertEqual(pending.first?.promptRequest?.prompt, "Pick one")
@@ -225,7 +225,7 @@ final class ClaudeHookTests: XCTestCase {
         let response = await server.handle(preToolUse(token: token.value, toolName: "ExitPlanMode"))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
-        XCTAssertEqual(response.statusCode, 202)
+        XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.kind, .planModeExit)
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "ExitPlanMode")
@@ -288,7 +288,7 @@ final class ClaudeHookTests: XCTestCase {
         ))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
-        XCTAssertEqual(question.statusCode, 202)
+        XCTAssertEqual(question.statusCode, 200)
         XCTAssertEqual(pending.first?.promptRequest?.prompt, "Proceed?")
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: planExit), .deferDecision)
         XCTAssertTrue(pending.contains { $0.kind == .planModeExit })

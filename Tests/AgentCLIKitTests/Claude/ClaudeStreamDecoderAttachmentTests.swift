@@ -40,6 +40,37 @@ final class ClaudeStreamDecoderAttachmentTests: XCTestCase {
         ])
     }
 
+    func testHookAttachmentEventClassifiesAskUserQuestionAsPrompt() throws {
+        let decoder = ClaudeStreamDecoder()
+        let deferred = #"""
+        {
+          "type": "attachment",
+          "sessionId": "session-123",
+          "attachment": {
+            "type": "hook_deferred_tool",
+            "toolUseID": "tool-2",
+            "toolName": "AskUserQuestion",
+            "toolInput": {"questions": []}
+          }
+        }
+        """#
+
+        let deferredEvents = try decoder.decodeLine(deferred)
+
+        XCTAssertTrue(deferredEvents.contains {
+            $0 == .interaction(AgentInteractionEvent(
+                id: "tool-2",
+                kind: .prompt,
+                prompt: "AskUserQuestion",
+                metadata: [
+                    "session_id": .string("session-123"),
+                    "tool_name": .string("AskUserQuestion"),
+                    "tool_input": .object(["questions": .array([])])
+                ]
+            ))
+        })
+    }
+
     func testHookAttachmentEventDecodesHookFailure() throws {
         let decoder = ClaudeStreamDecoder()
         let failure = #"""

@@ -29,10 +29,20 @@ struct DemoShellView: View {
                                 .lineLimit(1)
                         }
                         .tag(session.id)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                delete(session.id)
+                            } label: {
+                                Label("Delete Session", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
             .listStyle(.sidebar)
+            .onDeleteCommand {
+                deleteSelectedSession()
+            }
 
             Divider()
             Button {
@@ -61,6 +71,16 @@ struct DemoShellView: View {
         )
     }
 
+    private func delete(_ sessionID: AgentConversationID) {
+        model.deleteSession(sessionID)
+        draft = ""
+    }
+
+    private func deleteSelectedSession() {
+        model.deleteSelectedSession()
+        draft = ""
+    }
+
     @ViewBuilder
     private var detailView: some View {
         if let session = model.currentSession {
@@ -69,7 +89,8 @@ struct DemoShellView: View {
                 rows: model.currentRows,
                 turnState: model.currentTurnState,
                 draft: $draft,
-                onSend: { model.sendCurrentMessage($0) }
+                onSend: { model.sendCurrentMessage($0) },
+                onSubmitPrompt: { model.submitPromptAnswers(promptID: $0, answers: $1) }
             )
             .id(session.id)
         } else {
@@ -84,6 +105,7 @@ private struct ChatDetailView: View {
     let turnState: DemoTurnState
     @Binding var draft: String
     var onSend: (String) -> Void
+    var onSubmitPrompt: (AgentInteractionID, [DemoPromptAnswer]) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -93,7 +115,7 @@ private struct ChatDetailView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(visibleRows.enumerated()), id: \.element.id) { index, row in
-                            ChatRowView(row: row)
+                            ChatRowView(row: row, onSubmitPrompt: onSubmitPrompt)
                                 .padding(.top, topSpacing(for: index, row: row))
                                 .id(row.id)
                         }
@@ -122,6 +144,7 @@ private struct ChatDetailView: View {
                 draft = ""
                 onSend(outbound)
             }
+            .disabled(hasPendingPrompt)
             .frame(height: ComposerMetrics.height)
             .padding(12)
         }
@@ -160,7 +183,16 @@ private struct ChatDetailView: View {
     }
 
     private var shouldShowWorkingIndicator: Bool {
-        turnState.isActive && (turnState.streamingText?.isEmpty ?? true)
+        turnState.isActive && (turnState.streamingText?.isEmpty ?? true) && !hasPendingPrompt
+    }
+
+    private var hasPendingPrompt: Bool {
+        rows.contains { row in
+            guard case let .prompt(prompt) = row.kind else {
+                return false
+            }
+            return prompt.submittedAnswers == nil
+        }
     }
 
     private var workingIndicatorTopSpacing: CGFloat {
@@ -188,6 +220,7 @@ private struct ChatDetailView: View {
 
 private struct ChatRowView: View {
     let row: DemoChatRow
+    var onSubmitPrompt: (AgentInteractionID, [DemoPromptAnswer]) -> Void
 
     var body: some View {
         HStack {
@@ -219,6 +252,10 @@ private struct ChatRowView: View {
             EventBubble(title: "Raw Output", text: text, monospaced: true)
         case .interaction(let kind, let prompt):
             EventBubble(title: "Interaction: \(kind.rawValue)", text: prompt, monospaced: false)
+        case .prompt(let prompt):
+            PromptBubble(prompt: prompt) { answers in
+                onSubmitPrompt(prompt.id, answers)
+            }
         case .rateLimit(let summary):
             StatusRow(text: "Rate limit: \(summary)")
         case .usage(let summary):
