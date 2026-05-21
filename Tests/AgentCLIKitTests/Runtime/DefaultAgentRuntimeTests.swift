@@ -2,6 +2,7 @@ import XCTest
 
 @testable import AgentCLIKit
 
+// swiftlint:disable:next type_body_length
 final class DefaultAgentRuntimeTests: XCTestCase {
     func testSubscribeAfterIndexReplaysOnlyLaterEvents() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
@@ -229,6 +230,21 @@ final class DefaultAgentRuntimeTests: XCTestCase {
         })
 
         XCTAssertTrue(events.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "future")) })
+    }
+
+    func testRuntimeFlushesFinalStdoutLineWithoutTrailingNewline() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            FakeProviderAdapter(command: shell("printf 'message:final'"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let events = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "final")) }
+        })
+
+        XCTAssertTrue(events.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "final")) })
     }
 
     func testSubscribeBeforeSpawnReturnsUsableGenerationForPersistence() async throws {

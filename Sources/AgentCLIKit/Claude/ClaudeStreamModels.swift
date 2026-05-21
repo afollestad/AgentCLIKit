@@ -3,6 +3,7 @@ import Foundation
 struct ClaudeStreamEnvelope: Decodable {
     let type: String
     let subtype: String?
+    let uuid: String?
     let sessionId: String?
     let parentToolUseId: String?
     let model: String?
@@ -23,6 +24,9 @@ struct ClaudeStreamEnvelope: Decodable {
     let lastToolName: String?
     let status: String?
     let deferredToolUse: ClaudeDeferredToolUse?
+    let permissionMode: String?
+    let permissionDenials: [ClaudePermissionDenial]
+    let rateLimitInfo: ClaudeRateLimitInfo?
 
     var parentMetadata: [String: JSONValue] {
         guard let parentToolUseId else {
@@ -41,6 +45,9 @@ struct ClaudeStreamEnvelope: Decodable {
         }
         if let totalCostUSD {
             metadata["total_cost_usd"] = .number(totalCostUSD)
+        }
+        if let isError {
+            metadata["is_error"] = .bool(isError)
         }
         return metadata
     }
@@ -66,6 +73,7 @@ struct ClaudeStreamEnvelope: Decodable {
     enum CodingKeys: String, CodingKey {
         case type
         case subtype
+        case uuid
         case sessionId = "session_id"
         case sessionIdCamel = "sessionId"
         case parentToolUseId = "parent_tool_use_id"
@@ -87,33 +95,40 @@ struct ClaudeStreamEnvelope: Decodable {
         case lastToolName = "last_tool_name"
         case status
         case deferredToolUse = "deferred_tool_use"
+        case permissionMode
+        case permissionDenials = "permission_denials"
+        case rateLimitInfo = "rate_limit_info"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.type = try container.decode(String.self, forKey: .type)
-        self.subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
-        self.sessionId = try container.decodeIfPresent(String.self, forKey: .sessionId)
-            ?? container.decodeIfPresent(String.self, forKey: .sessionIdCamel)
-        self.parentToolUseId = try container.decodeIfPresent(String.self, forKey: .parentToolUseId)
-        self.model = try container.decodeIfPresent(String.self, forKey: .model)
-        self.message = try container.decodeIfPresent(ClaudeStreamMessage.self, forKey: .message)
-        self.event = try container.decodeIfPresent(ClaudeStreamEvent.self, forKey: .event)
-        self.attachment = try container.decodeIfPresent(ClaudeAttachment.self, forKey: .attachment)
-        self.toolUseResult = try container.decodeIfPresent(ClaudeToolUseResult.self, forKey: .toolUseResult)
-        self.result = try container.decodeIfPresent(String.self, forKey: .result)
-        self.usage = try container.decodeIfPresent(ClaudeUsage.self, forKey: .usage)
-        self.isError = try container.decodeIfPresent(Bool.self, forKey: .isError)
-        self.stopReason = try container.decodeIfPresent(String.self, forKey: .stopReason)
-        self.durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs)
-        self.totalCostUSD = try container.decodeIfPresent(Double.self, forKey: .totalCostUSD)
-        self.modelUsage = try container.decodeIfPresent([String: ClaudeModelUsage].self, forKey: .modelUsage)
-        self.toolUseId = try container.decodeIfPresent(String.self, forKey: .toolUseId)
-        self.description = try container.decodeIfPresent(String.self, forKey: .description)
-        self.taskType = try container.decodeIfPresent(String.self, forKey: .taskType)
-        self.lastToolName = try container.decodeIfPresent(String.self, forKey: .lastToolName)
-        self.status = try container.decodeIfPresent(String.self, forKey: .status)
-        self.deferredToolUse = try container.decodeIfPresent(ClaudeDeferredToolUse.self, forKey: .deferredToolUse)
+        self.subtype = container.decodeLenientIfPresent(String.self, forKey: .subtype)
+        self.uuid = container.decodeLenientIfPresent(String.self, forKey: .uuid)
+        self.sessionId = container.decodeLenientIfPresent(String.self, forKey: .sessionId)
+            ?? container.decodeLenientIfPresent(String.self, forKey: .sessionIdCamel)
+        self.parentToolUseId = container.decodeLenientIfPresent(String.self, forKey: .parentToolUseId)
+        self.model = container.decodeLenientIfPresent(String.self, forKey: .model)
+        self.message = container.decodeLenientIfPresent(ClaudeStreamMessage.self, forKey: .message)
+        self.event = container.decodeLenientIfPresent(ClaudeStreamEvent.self, forKey: .event)
+        self.attachment = container.decodeLenientIfPresent(ClaudeAttachment.self, forKey: .attachment)
+        self.toolUseResult = container.decodeLenientIfPresent(ClaudeToolUseResult.self, forKey: .toolUseResult)
+        self.result = container.decodeLenientIfPresent(String.self, forKey: .result)
+        self.usage = container.decodeLenientIfPresent(ClaudeUsage.self, forKey: .usage)
+        self.isError = container.decodeLenientIfPresent(Bool.self, forKey: .isError)
+        self.stopReason = container.decodeLenientIfPresent(String.self, forKey: .stopReason)
+        self.durationMs = container.decodeLenientIfPresent(Int.self, forKey: .durationMs)
+        self.totalCostUSD = container.decodeLenientIfPresent(Double.self, forKey: .totalCostUSD)
+        self.modelUsage = container.decodeLenientIfPresent([String: ClaudeModelUsage].self, forKey: .modelUsage)
+        self.toolUseId = container.decodeLenientIfPresent(String.self, forKey: .toolUseId)
+        self.description = container.decodeLenientIfPresent(String.self, forKey: .description)
+        self.taskType = container.decodeLenientIfPresent(String.self, forKey: .taskType)
+        self.lastToolName = container.decodeLenientIfPresent(String.self, forKey: .lastToolName)
+        self.status = container.decodeLenientIfPresent(String.self, forKey: .status)
+        self.deferredToolUse = container.decodeLenientIfPresent(ClaudeDeferredToolUse.self, forKey: .deferredToolUse)
+        self.permissionMode = container.decodeLenientIfPresent(String.self, forKey: .permissionMode)
+        self.permissionDenials = container.decodeLenientIfPresent([ClaudePermissionDenial].self, forKey: .permissionDenials) ?? []
+        self.rateLimitInfo = container.decodeLenientIfPresent(ClaudeRateLimitInfo.self, forKey: .rateLimitInfo)
     }
 }
 
@@ -259,6 +274,124 @@ struct ClaudeUsage: Decodable {
         case toolUses = "tool_uses"
         case totalTokens = "total_tokens"
         case durationMs = "duration_ms"
+    }
+}
+
+struct ClaudeRateLimitInfo: Decodable {
+    let status: String
+    let resetDate: Date?
+    let limitType: String?
+    let utilization: Double?
+    let overageStatus: String?
+    let overageResetDate: Date?
+    let overageDisabledReason: String?
+
+    var metadata: [String: JSONValue] {
+        var metadata: [String: JSONValue] = ["status": .string(status)]
+        if let resetDate {
+            metadata["resets_at"] = .number(resetDate.timeIntervalSince1970)
+        }
+        if let limitType {
+            metadata["rate_limit_type"] = .string(limitType)
+        }
+        if let utilization {
+            metadata["utilization"] = .number(utilization)
+        }
+        if let overageStatus {
+            metadata["overage_status"] = .string(overageStatus)
+        }
+        if let overageResetDate {
+            metadata["overage_resets_at"] = .number(overageResetDate.timeIntervalSince1970)
+        }
+        if let overageDisabledReason {
+            metadata["overage_disabled_reason"] = .string(overageDisabledReason)
+        }
+        return metadata
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case resetsAt
+        case resetsAtSnake = "resets_at"
+        case rateLimitType
+        case rateLimitTypeSnake = "rate_limit_type"
+        case utilization
+        case overageStatus
+        case overageStatusSnake = "overage_status"
+        case overageResetsAt
+        case overageResetsAtSnake = "overage_resets_at"
+        case overageDisabledReason
+        case overageDisabledReasonSnake = "overage_disabled_reason"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.status = container.decodeLenientIfPresent(String.self, forKey: .status) ?? "unknown"
+        self.resetDate = Self.decodeDate(from: container, keys: [.resetsAt, .resetsAtSnake])
+        self.limitType = container.decodeLenientIfPresent(String.self, forKey: .rateLimitType)
+            ?? container.decodeLenientIfPresent(String.self, forKey: .rateLimitTypeSnake)
+        self.utilization = container.decodeLenientIfPresent(Double.self, forKey: .utilization)
+        self.overageStatus = container.decodeLenientIfPresent(String.self, forKey: .overageStatus)
+            ?? container.decodeLenientIfPresent(String.self, forKey: .overageStatusSnake)
+        self.overageResetDate = Self.decodeDate(from: container, keys: [.overageResetsAt, .overageResetsAtSnake])
+        self.overageDisabledReason = container.decodeLenientIfPresent(String.self, forKey: .overageDisabledReason)
+            ?? container.decodeLenientIfPresent(String.self, forKey: .overageDisabledReasonSnake)
+    }
+
+    private static func decodeDate(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        keys: [CodingKeys]
+    ) -> Date? {
+        for key in keys {
+            if let seconds = container.decodeLenientIfPresent(Double.self, forKey: key) {
+                return Date(timeIntervalSince1970: normalizedUnixSeconds(seconds))
+            }
+            if let seconds = container.decodeLenientIfPresent(Int.self, forKey: key) {
+                return Date(timeIntervalSince1970: normalizedUnixSeconds(TimeInterval(seconds)))
+            }
+        }
+        return nil
+    }
+
+    private static func normalizedUnixSeconds(_ value: TimeInterval) -> TimeInterval {
+        abs(value) > 10_000_000_000 ? value / 1_000 : value
+    }
+}
+
+struct ClaudePermissionDenial: Decodable {
+    let toolUseId: String?
+    let toolName: String?
+    let reason: String?
+
+    var summary: AgentPermissionDenialSummary {
+        AgentPermissionDenialSummary(toolUseId: toolUseId, toolName: toolName, reason: reason)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case toolUseId = "tool_use_id"
+        case toolUseIdCamel = "toolUseId"
+        case toolName = "tool_name"
+        case toolNameCamel = "toolName"
+        case reason
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.toolUseId = try container.decodeIfPresent(String.self, forKey: .toolUseId)
+            ?? container.decodeIfPresent(String.self, forKey: .toolUseIdCamel)
+        self.toolName = try container.decodeIfPresent(String.self, forKey: .toolName)
+            ?? container.decodeIfPresent(String.self, forKey: .toolNameCamel)
+        self.reason = try container.decodeIfPresent(String.self, forKey: .reason)
+    }
+}
+
+private extension KeyedDecodingContainer {
+    func decodeLenientIfPresent<T: Decodable>(_ type: T.Type, forKey key: Key) -> T? {
+        do {
+            return try decodeIfPresent(type, forKey: key)
+        } catch {
+            return nil
+        }
     }
 }
 

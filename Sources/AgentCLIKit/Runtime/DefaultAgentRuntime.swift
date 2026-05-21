@@ -105,6 +105,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         let removedPendingSubscribers = pendingSubscribers.removeValue(forKey: conversationId)
         removedState?.subscribers.values.forEach { $0.finish() }
         removedPendingSubscribers?.values.forEach { $0.finish() }
+        removedState?.outputPumps.forEach { $0.cancel() }
         // Remove runtime state before killing so the process termination callback cannot publish stale lifecycle events.
         forceKill(removedState?.process)
     }
@@ -192,6 +193,11 @@ public actor DefaultAgentRuntime: AgentRuntime {
         }
 
         emitLifecycle(.running, conversationId: conversationId)
+        emitSessionContinuity(
+            launch.sessionContinuity,
+            providerSessionId: resumedSession?.providerSessionId,
+            conversationId: conversationId
+        )
         pump(preparedProcess.stdout.fileHandleForReading, source: .stdout, conversationId: conversationId, processToken: processToken)
         pump(preparedProcess.stderr.fileHandleForReading, source: .stderr, conversationId: conversationId, processToken: processToken)
         installTerminationHandler(
@@ -238,7 +244,8 @@ public actor DefaultAgentRuntime: AgentRuntime {
             lifecycleState: .starting,
             providerSessionId: input.resumedSession?.providerSessionId,
             providerSessionCreatedAt: input.resumedSession?.createdAt,
-            persistedIndex: persistedIndex
+            persistedIndex: persistedIndex,
+            outputPumps: []
         )
     }
 
@@ -308,20 +315,13 @@ private extension DefaultAgentRuntime {
         conversationId: AgentConversationID,
         processToken: UUID
     ) {
-        Task {
-            do {
-                for try await line in fileHandle.bytes.lines {
-                    await self.consumeLine(line, source: source, conversationId: conversationId, processToken: processToken)
-                }
-            } catch {
-                self.emitStreamReadFailure(
-                    error,
-                    source: source,
-                    conversationId: conversationId,
-                    processToken: processToken
-                )
-            }
+        // Claude stream-json can finish a record at EOF without a trailing newline.
+        // A readability handler lets the runtime flush that final record instead of leaving hosts stuck waiting.
+        let pump = OutputLinePump(handle: fileHandle) { line in
+            Task { await self.consumeLine(line, source: source, conversationId: conversationId, processToken: processToken) }
         }
+        states[conversationId]?.outputPumps.append(pump)
+        pump.start()
     }
 
     private func emitStreamReadFailure(
@@ -463,6 +463,33 @@ private extension DefaultAgentRuntime {
         conversationId: AgentConversationID
     ) {
         append(.diagnostic(AgentDiagnosticEvent(severity: severity, message: message)), source: source, conversationId: conversationId)
+    }
+
+    private func emitSessionContinuity(
+        _ continuity: AgentSessionContinuity?,
+        providerSessionId: AgentSessionID?,
+        conversationId: AgentConversationID
+    ) {
+        guard let continuity else {
+            return
+        }
+        let message: String? = switch continuity {
+        case .fresh:
+            "Started a fresh provider session."
+        case .resumed:
+            "Resumed provider session."
+        case .restartedFresh:
+            "Provider session artifact was unavailable; restarted with the saved session identifier."
+        }
+        append(
+            .sessionContinuity(AgentSessionContinuityEvent(
+                continuity: continuity,
+                providerSessionId: providerSessionId,
+                message: message
+            )),
+            source: .runtime,
+            conversationId: conversationId
+        )
     }
 
     private func appendStderr(_ line: String, conversationId: AgentConversationID) {

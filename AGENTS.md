@@ -19,6 +19,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Put Claude-specific launch details, wire formats, config files, hook behavior, model defaults, and policies under `Sources/AgentCLIKit/Claude/`.
 - Future providers, such as Codex, should use their own sibling provider folders rather than adding provider-specific branches to generic runtime code.
 - Public APIs must use generic names and avoid host-app concepts such as SwiftData, view models, drafts, notifications, and keep-awake services.
+- Additive public `Codable` changes should decode older persisted values with defaults.
 - Compatibility tests live under `Tests/AgentCLIKitTests/Compatibility/` and should prove host-mappable behavior without importing host app code.
 
 ## Build And Test
@@ -27,6 +28,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Build: `./scripts/build.sh`.
 - Test: `./scripts/test.sh`, or pass focused test identifiers as arguments.
 - Lint: `./scripts/lint.sh`.
+- Demo app: `./scripts/run-demo.sh` builds and launches the `AgentCLIKitDemo` executable.
 - Ordered workflows must stay serial, never via `multi_tool_use.parallel`: build-then-test, lint-then-commit, self-review-then-commit.
 
 ### `xcsift` Output

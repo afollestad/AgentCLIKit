@@ -42,6 +42,7 @@ final class ClaudeProviderAdapterTests: XCTestCase {
             "Continue"
         ])
         XCTAssertEqual(launch.workingDirectory?.path, "/tmp/project")
+        XCTAssertEqual(launch.sessionContinuity, .resumed)
     }
 
     func testLaunchConfigurationFallsBackToSessionIDWhenResumeArtifactIsMissing() async throws {
@@ -63,6 +64,7 @@ final class ClaudeProviderAdapterTests: XCTestCase {
 
         XCTAssertFalse(launch.arguments.contains("--resume"))
         XCTAssertEqual(Array(launch.arguments.suffix(2)), ["--session-id", "session-id"])
+        XCTAssertEqual(launch.sessionContinuity, .restartedFresh)
     }
 
     func testDefaultLaunchUsesEnvClaudeFallback() async throws {
@@ -84,6 +86,7 @@ final class ClaudeProviderAdapterTests: XCTestCase {
             "--verbose",
             "--include-partial-messages"
         ])
+        XCTAssertEqual(launch.sessionContinuity, .fresh)
     }
 
     func testInputEncoderWritesStreamJSONLine() throws {

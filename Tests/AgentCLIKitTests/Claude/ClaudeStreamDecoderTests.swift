@@ -18,7 +18,33 @@ final class ClaudeStreamDecoderTests: XCTestCase {
             return diagnostic.metadata["session_id"] == .string("abc")
         })
         XCTAssertTrue(result.contains { $0 == .message(AgentMessageEvent(role: .assistant, text: "Done")) })
-        XCTAssertTrue(result.contains { $0 == .usage(AgentUsageEvent(model: "sonnet", inputTokens: 10, outputTokens: 5)) })
+        XCTAssertTrue(result.contains { $0 == .usage(AgentUsageEvent(
+            model: "sonnet",
+            inputTokens: 10,
+            outputTokens: 5,
+            isTerminal: false
+        )) })
+    }
+
+    func testResultWithoutUsageStillEmitsTerminalUsageMetadata() throws {
+        let decoder = ClaudeStreamDecoder()
+
+        let result = try decoder.decodeLine(#"{"type":"result","subtype":"success","stop_reason":"end_turn","duration_ms":50}"#)
+
+        XCTAssertEqual(result, [
+            .usage(AgentUsageEvent(
+                model: nil,
+                inputTokens: nil,
+                outputTokens: nil,
+                durationMs: 50,
+                stopReason: "end_turn",
+                isTerminal: true,
+                metadata: [
+                    "stop_reason": .string("end_turn"),
+                    "duration_ms": .number(50)
+                ]
+            ))
+        ])
     }
 
     func testDecodesAssistantMessageUsageEvent() throws {
@@ -48,6 +74,8 @@ final class ClaudeStreamDecoderTests: XCTestCase {
                 model: "sonnet",
                 inputTokens: 12,
                 outputTokens: 3,
+                cacheReadInputTokens: 4,
+                cacheCreationInputTokens: 5,
                 metadata: [
                     "cache_read_input_tokens": .number(4),
                     "cache_creation_input_tokens": .number(5)
@@ -141,6 +169,12 @@ final class ClaudeStreamDecoderTests: XCTestCase {
                 model: "opus",
                 inputTokens: 10,
                 outputTokens: 5,
+                cacheReadInputTokens: 2,
+                cacheCreationInputTokens: 1,
+                durationMs: 1234,
+                contextWindow: 200000,
+                stopReason: "end_turn",
+                isTerminal: true,
                 metadata: [
                     "cache_read_input_tokens": .number(2),
                     "cache_creation_input_tokens": .number(1),
@@ -187,6 +221,8 @@ final class ClaudeStreamDecoderTests: XCTestCase {
             model: nil,
             inputTokens: 1,
             outputTokens: 2,
+            stopReason: "tool_deferred",
+            isTerminal: true,
             metadata: ["stop_reason": .string("tool_deferred")]
         )) })
     }
@@ -211,9 +247,14 @@ final class ClaudeStreamDecoderTests: XCTestCase {
         let events = try decoder.decodeLine(line)
 
         XCTAssertEqual(events, [
-            .diagnostic(AgentDiagnosticEvent(
-                severity: .info,
-                message: "task_progress",
+            .task(AgentTaskEvent(
+                id: "task-1",
+                phase: .progress,
+                description: "Review files",
+                lastToolName: "Read",
+                toolUses: 3,
+                totalTokens: 400,
+                durationMs: 250,
                 metadata: [
                     "tool_use_id": .string("task-1"),
                     "description": .string("Review files"),
@@ -224,6 +265,38 @@ final class ClaudeStreamDecoderTests: XCTestCase {
                 ]
             ))
         ])
+    }
+
+    func testDecodesPermissionModeAndPermissionDenials() throws {
+        let decoder = ClaudeStreamDecoder()
+
+        let system = try decoder.decodeLine(#"{"type":"system","subtype":"status","permissionMode":"plan"}"#)
+        let result = try decoder.decodeLine(
+            #"""
+            {
+              "type": "result",
+              "subtype": "error",
+              "stop_reason": "permission_denial",
+              "usage": {"input_tokens": 1, "output_tokens": 0},
+              "permission_denials": [{"tool_use_id": "tool-1", "tool_name": "Bash", "reason": "Denied"}]
+            }
+            """#
+        )
+
+        XCTAssertTrue(system.contains { $0 == .permissionMode(AgentPermissionModeEvent(mode: "plan")) })
+        XCTAssertTrue(result.contains { $0 == .usage(AgentUsageEvent(
+            model: nil,
+            inputTokens: 1,
+            outputTokens: 0,
+            stopReason: "permission_denial",
+            isTerminal: true,
+            isError: true,
+            permissionDenials: [AgentPermissionDenialSummary(toolUseId: "tool-1", toolName: "Bash", reason: "Denied")],
+            metadata: [
+                "stop_reason": .string("permission_denial"),
+                "is_error": .bool(true)
+            ]
+        )) })
     }
 
     func testDecodesMessageAndToolUseEventsWithMetadata() throws {

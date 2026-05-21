@@ -26,6 +26,8 @@ public struct ClaudeStreamDecoder: Sendable {
             return streamEvents(from: envelope)
         case "result":
             return resultEvents(from: envelope)
+        case "rate_limit_event":
+            return rateLimitEvents(from: envelope)
         case "hook":
             return hookEvents(from: envelope)
         case "attachment":
@@ -36,6 +38,7 @@ public struct ClaudeStreamDecoder: Sendable {
     }
 
     private func systemEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
+        var events: [AgentEvent] = []
         var metadata: [String: JSONValue] = [:]
         if let sessionId = envelope.sessionId {
             metadata["session_id"] = .string(sessionId)
@@ -59,7 +62,15 @@ public struct ClaudeStreamDecoder: Sendable {
             metadata["status"] = .string(status)
         }
         metadata.merge(envelope.usage?.taskMetadata ?? [:]) { _, new in new }
-        return [.diagnostic(AgentDiagnosticEvent(severity: .info, message: envelope.subtype ?? "system", metadata: metadata))]
+        if let permissionMode = envelope.permissionMode {
+            events.append(.permissionMode(AgentPermissionModeEvent(mode: permissionMode, metadata: metadata)))
+        }
+        if let taskEvent = taskEvent(from: envelope, metadata: metadata) {
+            events.append(taskEvent)
+        } else {
+            events.append(.diagnostic(AgentDiagnosticEvent(severity: .info, message: envelope.subtype ?? "system", metadata: metadata)))
+        }
+        return events
     }
 
     private func messageEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
@@ -178,10 +189,34 @@ public struct ClaudeStreamDecoder: Sendable {
         }
         if let usage = envelope.usage {
             var metadata = envelope.resultMetadata
+            if envelope.subtype == "error", metadata["is_error"] == nil {
+                metadata["is_error"] = .bool(true)
+            }
             if let contextWindow = matchedModelUsage?.contextWindow {
                 metadata["context_window"] = .number(Double(contextWindow))
             }
-            events.append(usageEvent(usage, model: matchedModelUsage?.modelId ?? envelope.model, extraMetadata: metadata))
+            events.append(usageEvent(
+                usage,
+                model: matchedModelUsage?.modelId ?? envelope.model,
+                extraMetadata: metadata,
+                permissionDenials: envelope.permissionDenials.map(\.summary)
+            ))
+        } else if !envelope.resultMetadata.isEmpty {
+            var metadata = envelope.resultMetadata
+            if envelope.subtype == "error", metadata["is_error"] == nil {
+                metadata["is_error"] = .bool(true)
+            }
+            events.append(.usage(AgentUsageEvent(
+                model: matchedModelUsage?.modelId ?? envelope.model,
+                inputTokens: nil,
+                outputTokens: nil,
+                durationMs: envelope.durationMs,
+                stopReason: envelope.stopReason,
+                isTerminal: true,
+                isError: envelope.isError == true || envelope.subtype == "error",
+                permissionDenials: envelope.permissionDenials.map(\.summary),
+                metadata: metadata
+            )))
         }
         if envelope.subtype == "interrupted" {
             events.append(.lifecycle(AgentLifecycleEvent(state: .cancelled, message: "Claude reported interruption.")))
@@ -196,13 +231,78 @@ public struct ClaudeStreamDecoder: Sendable {
         return [.diagnostic(AgentDiagnosticEvent(severity: .info, message: envelope.subtype ?? "hook"))]
     }
 
-    private func usageEvent(_ usage: ClaudeUsage, model: String?, extraMetadata: [String: JSONValue]) -> AgentEvent {
+    private func rateLimitEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
+        guard let rateLimitInfo = envelope.rateLimitInfo else {
+            return [.diagnostic(AgentDiagnosticEvent(
+                severity: .warning,
+                message: "Claude rate-limit event was missing rate_limit_info."
+            ))]
+        }
+        var metadata = rateLimitInfo.metadata
+        if let uuid = envelope.uuid {
+            metadata["uuid"] = .string(uuid)
+        }
+        if let sessionId = envelope.sessionId {
+            metadata["session_id"] = .string(sessionId)
+        }
+        return [.rateLimit(AgentRateLimitEvent(
+            status: AgentRateLimitStatus(rawValue: rateLimitInfo.status),
+            resetDate: rateLimitInfo.resetDate,
+            limitType: rateLimitInfo.limitType,
+            utilization: rateLimitInfo.utilization,
+            overageStatus: rateLimitInfo.overageStatus.map(AgentRateLimitStatus.init(rawValue:)),
+            overageResetDate: rateLimitInfo.overageResetDate,
+            overageDisabledReason: rateLimitInfo.overageDisabledReason,
+            metadata: metadata
+        ))]
+    }
+
+    private func usageEvent(
+        _ usage: ClaudeUsage,
+        model: String?,
+        extraMetadata: [String: JSONValue],
+        permissionDenials: [AgentPermissionDenialSummary] = []
+    ) -> AgentEvent {
         var metadata = usage.metadata
         metadata.merge(extraMetadata) { _, new in new }
+        let stopReason = stringValue(metadata["stop_reason"])
+        let durationMs = intValue(metadata["duration_ms"]) ?? usage.durationMs
+        let contextWindow = intValue(metadata["context_window"])
         return .usage(AgentUsageEvent(
             model: model,
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
+            cacheReadInputTokens: usage.cacheReadInputTokens,
+            cacheCreationInputTokens: usage.cacheCreationInputTokens,
+            totalTokens: usage.totalTokens,
+            toolUses: usage.toolUses,
+            durationMs: durationMs,
+            contextWindow: contextWindow,
+            stopReason: stopReason,
+            isTerminal: stopReason != nil && stopReason != "usage_update",
+            isError: boolValue(metadata["is_error"]) ?? false,
+            permissionDenials: permissionDenials,
+            metadata: metadata
+        ))
+    }
+
+    private func taskEvent(from envelope: ClaudeStreamEnvelope, metadata: [String: JSONValue]) -> AgentEvent? {
+        guard let subtype = envelope.subtype,
+              let phase = AgentTaskPhase(claudeSubtype: subtype),
+              let id = envelope.toolUseId,
+              !id.isEmpty else {
+            return nil
+        }
+        return .task(AgentTaskEvent(
+            id: id,
+            phase: phase,
+            description: envelope.description,
+            taskType: envelope.taskType,
+            lastToolName: envelope.lastToolName,
+            toolUses: envelope.usage?.toolUses,
+            totalTokens: envelope.usage?.totalTokens,
+            durationMs: envelope.usage?.durationMs,
+            status: envelope.status,
             metadata: metadata
         ))
     }
@@ -228,6 +328,44 @@ public struct ClaudeStreamDecoder: Sendable {
             metadata: metadata
         ))
     }
+}
+
+private extension AgentTaskPhase {
+    init?(claudeSubtype: String) {
+        switch claudeSubtype {
+        case "task_started":
+            self = .started
+        case "task_progress":
+            self = .progress
+        case "task_notification":
+            self = .notification
+        case "task_completed":
+            self = .completed
+        default:
+            return nil
+        }
+    }
+}
+
+private func stringValue(_ value: JSONValue?) -> String? {
+    guard case let .string(string)? = value else {
+        return nil
+    }
+    return string
+}
+
+private func intValue(_ value: JSONValue?) -> Int? {
+    guard case let .number(number)? = value else {
+        return nil
+    }
+    return Int(number)
+}
+
+private func boolValue(_ value: JSONValue?) -> Bool? {
+    guard case let .bool(bool)? = value else {
+        return nil
+    }
+    return bool
 }
 
 /// Removes Claude caveat prefixes that should not be persisted as assistant content.

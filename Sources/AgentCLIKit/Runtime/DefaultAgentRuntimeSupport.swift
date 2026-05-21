@@ -15,6 +15,7 @@ struct ConversationState {
     var providerSessionId: AgentSessionID?
     var providerSessionCreatedAt: Date?
     var persistedIndex: Int
+    var outputPumps: [OutputLinePump]
 
     mutating func compactReplayBuffer(replayLimit: Int) {
         // Acknowledged events can be trimmed to a small tail; unacknowledged events stay available for host recovery.
@@ -32,6 +33,92 @@ struct ConversationState {
             lastEventIndex: events.last?.index ?? -1,
             providerSessionId: providerSessionId
         )
+    }
+}
+
+final class OutputLinePump: @unchecked Sendable {
+    private let lock = NSLock()
+    private let handle: FileHandle
+    private let onLine: @Sendable (String) -> Void
+
+    private var buffer = Data()
+    private var hasFinished = false
+
+    init(handle: FileHandle, onLine: @escaping @Sendable (String) -> Void) {
+        self.handle = handle
+        self.onLine = onLine
+    }
+
+    deinit {
+        cancel()
+    }
+
+    func start() {
+        handle.readabilityHandler = { [weak self] handle in
+            self?.handleReadable(handle)
+        }
+    }
+
+    func cancel() {
+        finish(flushPendingLine: false)
+    }
+
+    private func handleReadable(_ handle: FileHandle) {
+        let chunk = handle.availableData
+        if chunk.isEmpty {
+            finish(flushPendingLine: true)
+            return
+        }
+
+        for line in appendAndTakeLines(from: chunk) {
+            onLine(line)
+        }
+    }
+
+    private func appendAndTakeLines(from chunk: Data) -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard !hasFinished else {
+            return []
+        }
+
+        buffer.append(chunk)
+        var lines: [String] = []
+        while let newlineIndex = buffer.firstIndex(of: 0x0A) {
+            var lineData = Data(buffer[..<newlineIndex])
+            if lineData.last == 0x0D {
+                lineData.removeLast()
+            }
+            lines.append(String(data: lineData, encoding: .utf8) ?? "")
+            buffer.removeSubrange(...newlineIndex)
+        }
+        return lines
+    }
+
+    private func finish(flushPendingLine: Bool) {
+        let pendingLine: String?
+
+        lock.lock()
+        guard !hasFinished else {
+            lock.unlock()
+            return
+        }
+
+        hasFinished = true
+        handle.readabilityHandler = nil
+        if flushPendingLine, !buffer.isEmpty {
+            let pendingData = buffer.last == 0x0D ? Data(buffer.dropLast()) : buffer
+            pendingLine = String(data: pendingData, encoding: .utf8)
+        } else {
+            pendingLine = nil
+        }
+        buffer.removeAll(keepingCapacity: false)
+        lock.unlock()
+
+        if let pendingLine, !pendingLine.isEmpty {
+            onLine(pendingLine)
+        }
     }
 }
 

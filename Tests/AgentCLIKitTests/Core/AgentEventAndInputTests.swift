@@ -40,6 +40,22 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(decoded, events)
     }
 
+    func testRateLimitEventRoundTripsThroughJSON() throws {
+        let event = AgentEvent.rateLimit(AgentRateLimitEvent(
+            status: .allowedWarning,
+            resetDate: Date(timeIntervalSince1970: 1_779_375_000),
+            limitType: "five_hour",
+            utilization: 0.82,
+            overageStatus: .rejected,
+            metadata: ["provider": .string("claude")]
+        ))
+
+        let data = try JSONEncoder().encode(event)
+        let decoded = try JSONDecoder().decode(AgentEvent.self, from: data)
+
+        XCTAssertEqual(decoded, event)
+    }
+
     func testMessageAndToolEventsDecodeWhenMetadataIsMissing() throws {
         let messageData = Data(#"{"role":"assistant","text":"Done."}"#.utf8)
         let toolCallData = Data(#"{"id":"tool-1","name":"Edit","input":{"file_path":"README.md"}}"#.utf8)

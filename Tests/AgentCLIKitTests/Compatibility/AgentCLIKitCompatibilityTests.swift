@@ -100,6 +100,30 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertEqual(snapshot.lastEventIndex, 12)
         XCTAssertEqual(snapshot.providerSessionId, "provider-session")
     }
+
+    func testOlderUsageEventPayloadDefaultsNewTypedFields() throws {
+        let data = Data(#"{"model":"sonnet","inputTokens":1,"outputTokens":2,"metadata":{"stop_reason":"end_turn","duration_ms":50}}"#.utf8)
+
+        let usage = try JSONDecoder().decode(AgentUsageEvent.self, from: data)
+
+        XCTAssertEqual(usage.model, "sonnet")
+        XCTAssertEqual(usage.inputTokens, 1)
+        XCTAssertEqual(usage.outputTokens, 2)
+        XCTAssertEqual(usage.stopReason, "end_turn")
+        XCTAssertEqual(usage.durationMs, 50)
+        XCTAssertTrue(usage.isTerminal)
+        XCTAssertFalse(usage.isError)
+        XCTAssertEqual(usage.permissionDenials, [])
+    }
+
+    func testOlderLaunchConfigurationPayloadDefaultsSessionContinuity() throws {
+        let data = Data(#"{"executable":"/usr/bin/env","arguments":["claude"],"environment":{}}"#.utf8)
+
+        let launch = try JSONDecoder().decode(AgentLaunchConfiguration.self, from: data)
+
+        XCTAssertEqual(launch.executable, "/usr/bin/env")
+        XCTAssertNil(launch.sessionContinuity)
+    }
 }
 
 private struct HostSubscriptionCursor {

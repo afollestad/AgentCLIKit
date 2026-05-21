@@ -39,17 +39,31 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
     public let environment: [String: String]
     /// Working directory for the process.
     public let workingDirectory: URL?
+    /// Provider session continuity outcome for this launch when known.
+    public let sessionContinuity: AgentSessionContinuity?
 
     /// Creates a launch configuration.
     public init(
         executable: String,
         arguments: [String] = [],
         environment: [String: String] = [:],
-        workingDirectory: URL? = nil
+        workingDirectory: URL? = nil,
+        sessionContinuity: AgentSessionContinuity? = nil
     ) {
         self.executable = executable
         self.arguments = arguments
         self.environment = environment
         self.workingDirectory = workingDirectory
+        self.sessionContinuity = sessionContinuity
+    }
+
+    /// Decodes launch configuration, defaulting newer optional fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.executable = try container.decode(String.self, forKey: .executable)
+        self.arguments = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
+        self.environment = try container.decodeIfPresent([String: String].self, forKey: .environment) ?? [:]
+        self.workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory)
+        self.sessionContinuity = try container.decodeIfPresent(AgentSessionContinuity.self, forKey: .sessionContinuity)
     }
 }

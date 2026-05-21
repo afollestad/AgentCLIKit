@@ -67,15 +67,16 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         if let effort = spawnConfig.effort {
             arguments.append(contentsOf: ["--effort", effort])
         }
+        var sessionContinuity: AgentSessionContinuity = resumedSession == nil ? .fresh : .resumed
         if let sessionId = resumedSession?.providerSessionId {
             let sessionFileURL = ClaudePathEncoder.sessionFileURL(
                 sessionId: sessionId,
                 workingDirectory: spawnConfig.workingDirectory,
                 homeDirectory: homeDirectory
             )
-            let sessionArguments = sessionFileExists(sessionFileURL)
-                ? ["--resume", sessionId.rawValue]
-                : ["--session-id", sessionId.rawValue]
+            let canResume = sessionFileExists(sessionFileURL)
+            sessionContinuity = canResume ? .resumed : .restartedFresh
+            let sessionArguments = canResume ? ["--resume", sessionId.rawValue] : ["--session-id", sessionId.rawValue]
             arguments.append(contentsOf: sessionArguments)
         }
         if let initialPrompt = spawnConfig.initialPrompt {
@@ -85,7 +86,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             executable: executablePath,
             arguments: arguments,
             environment: spawnConfig.environment,
-            workingDirectory: spawnConfig.workingDirectory
+            workingDirectory: spawnConfig.workingDirectory,
+            sessionContinuity: sessionContinuity
         )
     }
 

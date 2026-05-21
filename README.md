@@ -77,7 +77,7 @@ for await envelope in subscription.events {
 }
 ```
 
-Output arrives as provider-neutral `AgentEvent` values, including complete messages, streaming `messageDelta` chunks, reasoning/thinking events, tool calls and results, usage, diagnostics, lifecycle, and interaction requests. Message and tool events include metadata dictionaries for provider details such as parent tool identifiers, sub-agent callers, and tool result flags.
+Output arrives as provider-neutral `AgentEvent` values, including complete messages, streaming `messageDelta` chunks, reasoning/thinking events, tool calls and results, typed usage, rate-limit state, permission mode, task/sub-agent, session-continuity, diagnostics, lifecycle, and interaction requests. Message and tool events include metadata dictionaries for provider details such as parent tool identifiers, sub-agent callers, and tool result flags.
 
 Input also flows through the runtime:
 
@@ -90,7 +90,14 @@ try await runtime.send(
 
 Provider adapters serialize input in their native format. Claude writes stream JSON; a future provider can write JSONL, plain text, or use another bridge while sharing the same host-facing API.
 
-Claude-specific config, MCP bridging, hook approval, and stream decoding APIs live under the `Claude` source folder and use names such as `ClaudeConfigStore`, `ClaudeMCPBridge`, `ClaudeHookServer`, and `ClaudeStreamDecoder`. Generic host-facing code should depend on `AgentRuntime`, `AgentProviderAdapter`, `AgentEventEnvelope`, `AgentInput`, and the provider-neutral store/service protocols.
+Claude-specific config, setup, MCP bridging, hook approval, and stream decoding APIs live under the `Claude` source folder and use names such as `ClaudeConfigStore`, `ClaudeProviderSetup`, `ClaudeMCPBridge`, `ClaudeHookServer`, and `ClaudeStreamDecoder`. Generic host-facing code should depend on `AgentRuntime`, `AgentProviderAdapter`, `AgentProviderSetup`, `AgentEventEnvelope`, `AgentInput`, and the provider-neutral store/service protocols.
+
+Provider setup services prepare local provider config before launch. Claude setup can trust a project while preserving unrelated Claude config such as MCP servers:
+
+```swift
+let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: claudeConfigURL)
+try await setup.trustProject(at: projectPath)
+```
 
 Claude hook approval state is explicit so hosts can share it with their own approval UI:
 
@@ -142,6 +149,16 @@ let decision = ClaudeHookDecision.allow(updatedInput: .object([
 ```
 
 The build and test scripts pipe `xcodebuild` through `xcsift -f toon -w` when `xcsift` is installed.
+
+## Demo App
+
+Run the live Claude-backed macOS demo with:
+
+```sh
+./scripts/run-demo.sh
+```
+
+The demo builds and launches the `AgentCLIKitDemo` executable target. It lists persisted AgentCLIKit session records, lets you add sessions, and renders live runtime output from Claude.
 
 ## License
 

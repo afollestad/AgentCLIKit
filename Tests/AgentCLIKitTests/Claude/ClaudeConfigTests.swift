@@ -54,6 +54,21 @@ final class ClaudeConfigTests: XCTestCase {
         XCTAssertEqual(project?["hasTrustDialogAccepted"] as? Bool, true)
     }
 
+    func testProviderSetupTrustsClaudeProject() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("claude.json")
+        let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: fileURL)
+
+        try await setup.trustProject(at: URL(fileURLWithPath: "/tmp/project"))
+
+        let root = try readJSONObject(fileURL: fileURL)
+        let project = (root["projects"] as? [String: Any])?["/tmp/project"] as? [String: Any]
+        XCTAssertEqual(setup.providerId, "claude")
+        XCTAssertEqual(project?["hasTrustDialogAccepted"] as? Bool, true)
+        XCTAssertEqual(project?["hasCompletedProjectOnboarding"] as? Bool, true)
+    }
+
     func testConfigStoreSavePreservesExistingProjectEntries() async throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

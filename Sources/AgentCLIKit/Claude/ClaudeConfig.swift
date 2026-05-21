@@ -140,6 +140,29 @@ public actor ClaudeConfigStore {
     }
 }
 
+/// Claude setup service backed by Claude's native config file.
+public struct ClaudeProviderSetup: AgentProviderSetup {
+    /// Claude provider identifier.
+    public let providerId = ClaudeProviderAdapter.providerId
+
+    private let configStore: ClaudeConfigStore
+
+    /// Creates a Claude provider setup service.
+    public init(configStore: ClaudeConfigStore) {
+        self.configStore = configStore
+    }
+
+    /// Creates a Claude provider setup service for a Claude config file URL.
+    public init(configFileURL: URL) {
+        self.configStore = ClaudeConfigStore(fileURL: configFileURL)
+    }
+
+    /// Marks a project as trusted in Claude config while preserving unrelated config keys.
+    public func trustProject(at projectURL: URL) async throws {
+        try await configStore.trustProject(projectURL)
+    }
+}
+
 private enum ClaudeConfigKey {
     static let projects = "projects"
     static let mcpServers = "mcpServers"
