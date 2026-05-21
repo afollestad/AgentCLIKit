@@ -24,6 +24,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     private let inputEncoder: ClaudeInputEncoder
     private let homeDirectory: URL
     private let sessionFileExists: @Sendable (URL) -> Bool
+    private let hookCoordinator: ClaudeHookCoordinator?
 
     /// Creates a Claude provider adapter.
     /// - Parameters:
@@ -32,18 +33,38 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     ///   - inputEncoder: Stream JSON input encoder.
     ///   - homeDirectory: Home directory containing `.claude/projects`.
     ///   - sessionFileExists: Predicate used to decide whether a saved Claude session can be resumed.
+    ///   - enableHooks: Whether this adapter should manage a Claude hook listener and generated hook settings.
+    ///   - interactionStore: Store used for hook-originated pending interactions.
+    ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
     public init(
         executablePath: String = "/usr/bin/env",
         decoder: ClaudeStreamDecoder = ClaudeStreamDecoder(),
         inputEncoder: ClaudeInputEncoder = ClaudeInputEncoder(),
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        sessionFileExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }
+        sessionFileExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) },
+        enableHooks: Bool = true,
+        interactionStore: any AgentInteractionStore = InMemoryAgentInteractionStore(),
+        hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "AgentCLIKitClaudeHooks",
+            isDirectory: true
+        )
     ) {
         self.executablePath = executablePath
         self.decoder = decoder
         self.inputEncoder = inputEncoder
         self.homeDirectory = homeDirectory
         self.sessionFileExists = sessionFileExists
+        if enableHooks {
+            let tokenStore = AgentHookTokenStore()
+            let hookServer = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+            self.hookCoordinator = ClaudeHookCoordinator(
+                tokenStore: tokenStore,
+                server: hookServer,
+                supportDirectory: hookSupportDirectory
+            )
+        } else {
+            self.hookCoordinator = nil
+        }
     }
 
     /// Builds the Claude launch configuration for stream JSON mode.
@@ -111,6 +132,44 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     /// Encodes host input as Claude stream JSON stdin.
     public func encodeInput(_ input: AgentInput) async throws -> Data {
         try inputEncoder.encode(input)
+    }
+
+    /// Adds generated Claude hook settings and bearer token environment for this launch.
+    public func prepareLaunchConfiguration(
+        _ launch: AgentLaunchConfiguration,
+        spawnConfig: AgentSpawnConfig,
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async throws -> AgentLaunchConfiguration {
+        guard let hookCoordinator else {
+            return launch
+        }
+        do {
+            let hooks = try await hookCoordinator.prepareLaunch(
+                conversationId: conversationId,
+                processToken: processToken
+            )
+            return AgentLaunchConfiguration(
+                executable: launch.executable,
+                arguments: launch.arguments + hooks.arguments,
+                environment: launch.environment.merging(hooks.environment) { _, new in new },
+                workingDirectory: launch.workingDirectory,
+                sessionContinuity: launch.sessionContinuity
+            )
+        } catch {
+            await hookCoordinator.invalidate(processToken: processToken)
+            throw error
+        }
+    }
+
+    /// Invalidates the hook token associated with a finished or superseded Claude process.
+    public func processDidTerminate(processToken: UUID) async {
+        await hookCoordinator?.invalidate(processToken: processToken)
+    }
+
+    /// Stops the shared Claude hook listener and invalidates active launch tokens.
+    public func shutdownProviderResources() async {
+        await hookCoordinator?.shutdown()
     }
 }
 

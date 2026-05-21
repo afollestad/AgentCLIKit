@@ -99,6 +99,14 @@ let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: claudeCon
 try await setup.trustProject(at: projectPath)
 ```
 
+`ClaudeProviderAdapter` owns Claude's local hook listener when hooks are enabled. `DefaultAgentRuntime` drives the provider
+lifecycle, so Claude starts a loopback listener lazily, generates per-launch `--settings` files and bearer tokens, invalidates
+launch tokens on teardown, and stops the listener from `shutdown()`:
+
+```swift
+await runtime.shutdown()
+```
+
 Claude hook approval state is explicit so hosts can share it with their own approval UI:
 
 ```swift

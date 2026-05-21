@@ -31,7 +31,7 @@ public enum ClaudeHookPolicy {
     /// Matcher used for the Claude `PreToolUse` hook registration.
     public static let preToolUseMatcher = "AskUserQuestion|Bash|Write|Edit|MultiEdit|NotebookEdit|EnterPlanMode|ExitPlanMode|mcp__.*"
     /// Claude hook transport timeout registered in generated settings.
-    public static let defaultHookTimeoutSeconds = 120
+    public static let defaultHookTimeoutSeconds = 600
     /// Default maximum wait for app-owned decisions before returning a deferred response.
     public static let defaultDecisionTimeout: TimeInterval = 115
 }
@@ -92,6 +92,7 @@ public actor ClaudeHookServer {
     private let approvalPolicyStore: ClaudeApprovalPolicyStore
     private let decisionProvider: (any ClaudeHookDecisionProviding)?
     private let decisionTimeout: TimeInterval?
+    private var pendingDecisionRaces: [String: [UUID: ClaudeHookDecisionRace]] = [:]
 
     /// Creates a Claude hook server.
     /// - Parameters:
@@ -118,7 +119,7 @@ public actor ClaudeHookServer {
     /// Handles a Claude hook request.
     public func handle(_ request: ClaudeHookRequest) async -> AgentHookResponse {
         guard let token = request.bearerToken, await tokenStore.validate(token) else {
-            return AgentHookResponse(statusCode: 401, body: .object(["error": .string("invalid_token")]))
+            return response(for: .deny(reason: "invalid_token"))
         }
         switch request.hookName {
         case "PreToolUse":
@@ -135,6 +136,7 @@ public actor ClaudeHookServer {
     /// Invalidates a hook bearer token.
     public func invalidateToken(_ token: String) async {
         await tokenStore.invalidate(token)
+        releasePendingDecisionRaces(for: token)
     }
 
     private func handlePreToolUse(_ request: ClaudeHookRequest) async -> AgentHookResponse {
@@ -213,23 +215,49 @@ public actor ClaudeHookServer {
         guard let decisionProvider else {
             return .deferDecision
         }
-        guard let decisionTimeout, decisionTimeout > 0 else {
-            return await decisionProvider.decision(for: request, interactionId: interactionId)
-        }
-        let timeoutNanoseconds = Self.timeoutNanoseconds(from: decisionTimeout)
+
+        let raceId = UUID()
         let race = ClaudeHookDecisionRace()
-        // Hook transports have hard deadlines, so an unstructured race lets the timeout return even if a UI provider ignores cancellation.
-        return await withCheckedContinuation { continuation in
+        let token = request.bearerToken
+        if let token {
+            guard await tokenStore.validate(token) else {
+                return .deferDecision
+            }
+            pendingDecisionRaces[token, default: [:]][raceId] = race
+        }
+
+        // Hook transports have hard deadlines and launch teardown can invalidate tokens, so an unstructured race keeps the HTTP
+        // request releasable even if a host UI provider is still waiting on user input.
+        let decision = await withCheckedContinuation { continuation in
+            race.setContinuation(continuation)
             let decisionTask = Task {
                 let decision = await decisionProvider.decision(for: request, interactionId: interactionId)
-                race.resolve(continuation, with: decision, winner: .decision)
+                race.resolve(with: decision, winner: .decision)
             }
             race.setDecisionTask(decisionTask)
-            let timeoutTask = Task {
-                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
-                race.resolve(continuation, with: .deferDecision, winner: .timeout)
+            if let decisionTimeout, decisionTimeout > 0 {
+                let timeoutNanoseconds = Self.timeoutNanoseconds(from: decisionTimeout)
+                let timeoutTask = Task {
+                    try? await Task.sleep(nanoseconds: timeoutNanoseconds)
+                    race.resolve(with: .deferDecision, winner: .timeout)
+                }
+                race.setTimeoutTask(timeoutTask)
             }
-            race.setTimeoutTask(timeoutTask)
+        }
+
+        if let token {
+            pendingDecisionRaces[token]?[raceId] = nil
+            if pendingDecisionRaces[token]?.isEmpty == true {
+                pendingDecisionRaces[token] = nil
+            }
+        }
+        return decision
+    }
+
+    private func releasePendingDecisionRaces(for token: String) {
+        let races: [ClaudeHookDecisionRace] = pendingDecisionRaces.removeValue(forKey: token).map { Array($0.values) } ?? []
+        for race in races {
+            race.resolve(with: .deferDecision, winner: .invalidation)
         }
     }
 
@@ -382,70 +410,6 @@ private struct ClaudeHookTransport: Codable {
     let timeout: Int
     let headers: [String: String]
     let allowedEnvVars: [String]
-}
-
-private final class ClaudeHookDecisionRace: @unchecked Sendable {
-    enum Winner {
-        case decision
-        case timeout
-    }
-
-    private let lock = NSLock()
-    private var hasResolved = false
-    private var decisionTask: Task<Void, Never>?
-    private var timeoutTask: Task<Void, Never>?
-
-    func setDecisionTask(_ task: Task<Void, Never>) {
-        let shouldCancel = lock.withLock {
-            guard !hasResolved else {
-                return true
-            }
-            decisionTask = task
-            return false
-        }
-        if shouldCancel {
-            task.cancel()
-        }
-    }
-
-    func setTimeoutTask(_ task: Task<Void, Never>) {
-        let shouldCancel = lock.withLock {
-            guard !hasResolved else {
-                return true
-            }
-            timeoutTask = task
-            return false
-        }
-        if shouldCancel {
-            task.cancel()
-        }
-    }
-
-    func resolve(
-        _ continuation: CheckedContinuation<ClaudeHookDecision, Never>,
-        with decision: ClaudeHookDecision,
-        winner: Winner
-    ) {
-        var didResolve = false
-        let taskToCancel: Task<Void, Never>? = lock.withLock {
-            guard !hasResolved else {
-                return nil
-            }
-            hasResolved = true
-            didResolve = true
-            switch winner {
-            case .decision:
-                return timeoutTask
-            case .timeout:
-                return decisionTask
-            }
-        }
-        guard didResolve else {
-            return
-        }
-        continuation.resume(returning: decision)
-        taskToCancel?.cancel()
-    }
 }
 
 private extension JSONValue {

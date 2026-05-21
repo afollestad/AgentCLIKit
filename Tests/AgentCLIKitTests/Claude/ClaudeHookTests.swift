@@ -50,11 +50,13 @@ final class ClaudeHookTests: XCTestCase {
         let token = await tokenStore.issue(validFor: 60)
 
         let invalid = await server.handle(preToolUse(token: "bad"))
-        XCTAssertEqual(invalid.statusCode, 401)
+        XCTAssertEqual(invalid.statusCode, 200)
+        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: invalid), .deny)
 
         await server.invalidateToken(token.value)
         let invalidated = await server.handle(preToolUse(token: token.value))
-        XCTAssertEqual(invalidated.statusCode, 401)
+        XCTAssertEqual(invalidated.statusCode, 200)
+        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: invalidated), .deny)
     }
 
     func testPreToolUseStoresApprovalAndUsesLiveDecision() async {

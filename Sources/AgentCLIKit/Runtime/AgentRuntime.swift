@@ -100,6 +100,8 @@ public protocol AgentRuntime: Sendable {
     func kill(conversationId: AgentConversationID) async
     /// Destroys runtime state for a conversation.
     func destroy(conversationId: AgentConversationID) async
+    /// Shuts down runtime-owned shared resources such as local hook listeners.
+    func shutdown() async
     /// Reconfigures a conversation by spawning a replacement process.
     func reconfigure(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws
     /// Starts a fresh generation for the conversation.

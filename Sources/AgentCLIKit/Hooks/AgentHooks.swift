@@ -78,6 +78,13 @@ public actor AgentHookTokenStore {
         return token
     }
 
+    /// Issues and stores a token that remains valid until explicitly invalidated.
+    public func issueProcessScoped() -> AgentHookToken {
+        let token = AgentHookToken(expiresAt: .distantFuture)
+        tokens[token.value] = token
+        return token
+    }
+
     /// Returns whether the token exists and has not expired.
     public func validate(_ value: String) -> Bool {
         guard let token = tokens[value], token.expiresAt > now() else {
@@ -89,6 +96,10 @@ public actor AgentHookTokenStore {
     /// Invalidates a token immediately.
     public func invalidate(_ value: String) {
         tokens[value] = nil
+    }
+
+    func token(for value: String) -> AgentHookToken? {
+        tokens[value]
     }
 
     /// Removes all expired tokens.

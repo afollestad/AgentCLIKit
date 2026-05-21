@@ -3,11 +3,11 @@ import Foundation
 
 /// Default process-backed implementation of `AgentRuntime`.
 public actor DefaultAgentRuntime: AgentRuntime {
-    private let adapters: [AgentProviderID: any AgentProviderAdapter]
-    private let sessionStore: any AgentSessionStore
-    private let replayLimit: Int
-    private var states: [AgentConversationID: ConversationState] = [:]
-    private var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
+    let adapters: [AgentProviderID: any AgentProviderAdapter]
+    let sessionStore: any AgentSessionStore
+    let replayLimit: Int
+    var states: [AgentConversationID: ConversationState] = [:]
+    var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
 
     /// Creates a default runtime.
     /// - Parameters:
@@ -106,8 +106,27 @@ public actor DefaultAgentRuntime: AgentRuntime {
         removedState?.subscribers.values.forEach { $0.finish() }
         removedPendingSubscribers?.values.forEach { $0.finish() }
         removedState?.outputPumps.forEach { $0.cancel() }
+        if let removedState {
+            await removedState.adapter.processDidTerminate(processToken: removedState.processToken)
+        }
         // Remove runtime state before killing so the process termination callback cannot publish stale lifecycle events.
         forceKill(removedState?.process)
+    }
+
+    /// Shuts down runtime-owned shared resources.
+    public func shutdown() async {
+        for state in states.values {
+            state.outputPumps.forEach { $0.cancel() }
+            state.subscribers.values.forEach { $0.finish() }
+            await state.adapter.processDidTerminate(processToken: state.processToken)
+            forceKill(state.process)
+        }
+        states.removeAll()
+        pendingSubscribers.values.flatMap(\.values).forEach { $0.finish() }
+        pendingSubscribers.removeAll()
+        for adapter in adapters.values {
+            await adapter.shutdownProviderResources()
+        }
     }
 
     /// Reconfigures a conversation by spawning a replacement process.
@@ -159,10 +178,16 @@ public actor DefaultAgentRuntime: AgentRuntime {
         let previous = states[conversationId]
         let generation = fresh ? (previous?.generation ?? 0) + 1 : max(previous?.generation ?? 0, 1)
         let resumedSession = fresh ? nil : try await sessionStore.record(conversationId: conversationId, providerId: config.providerId)
-        let launch = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: resumedSession)
+        let processToken = UUID()
+        let launch = try await prepareLaunch(
+            try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: resumedSession),
+            adapter: adapter,
+            config: config,
+            conversationId: conversationId,
+            processToken: processToken
+        )
 
         let preparedProcess = makeProcess(launch: launch, config: config)
-        let processToken = UUID()
         let stateInput = StateInput(
             conversationId: conversationId,
             providerId: config.providerId,
@@ -174,23 +199,13 @@ public actor DefaultAgentRuntime: AgentRuntime {
             fresh: fresh
         )
 
-        if previous?.process?.isRunning == true {
-            // Keep the current session alive until the replacement process has definitely launched.
-            try runProcess(preparedProcess.process, launch: launch, conversationId: conversationId, recordsFailure: false)
-            let latestPrevious = states[conversationId] ?? previous
-            let oldProcess = previous?.process
-            // Swap tokens before terminating the previous process so its exit handler is ignored.
-            states[conversationId] = makeState(input: stateInput, previous: latestPrevious)
-            emitLifecycle(.starting, conversationId: conversationId)
-            forceKill(oldProcess)
-        } else {
-            let oldProcess = previous?.process
-            // Swap tokens before cleaning up any previous process so delayed callbacks are ignored.
-            states[conversationId] = makeState(input: stateInput, previous: previous)
-            emitLifecycle(.starting, conversationId: conversationId)
-            forceKill(oldProcess)
-            try runProcess(preparedProcess.process, launch: launch, conversationId: conversationId, recordsFailure: true)
-        }
+        try await installPreparedProcess(
+            preparedProcess.process,
+            launch: launch,
+            previous: previous,
+            stateInput: stateInput,
+            adapter: adapter
+        )
 
         emitLifecycle(.running, conversationId: conversationId)
         emitSessionContinuity(
@@ -225,6 +240,77 @@ public actor DefaultAgentRuntime: AgentRuntime {
         process.standardError = stderr
         process.standardInput = stdin
         return PreparedProcess(process: process, stdout: stdout, stderr: stderr, stdin: stdin)
+    }
+
+    private func prepareLaunch(
+        _ launch: AgentLaunchConfiguration,
+        adapter: any AgentProviderAdapter,
+        config: AgentSpawnConfig,
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async throws -> AgentLaunchConfiguration {
+        do {
+            return try await adapter.prepareLaunchConfiguration(
+                launch,
+                spawnConfig: config,
+                conversationId: conversationId,
+                processToken: processToken
+            )
+        } catch {
+            await adapter.processDidTerminate(processToken: processToken)
+            // Launch augmentation runs before conversation state exists, so fail rather than silently drop provider-managed resources.
+            throw error
+        }
+    }
+
+    private func installPreparedProcess(
+        _ process: Process,
+        launch: AgentLaunchConfiguration,
+        previous: ConversationState?,
+        stateInput: StateInput,
+        adapter: any AgentProviderAdapter
+    ) async throws {
+        if previous?.process?.isRunning == true {
+            // Keep the current session alive until the replacement process has definitely launched.
+            try await runPreparedProcess(process, launch: launch, stateInput: stateInput, adapter: adapter, recordsFailure: false)
+            let latestPrevious = states[stateInput.conversationId] ?? previous
+            let oldProcess = previous?.process
+            await invalidatePreviousProcessToken(previous)
+            // Swap tokens before terminating the previous process so its exit handler is ignored.
+            states[stateInput.conversationId] = makeState(input: stateInput, previous: latestPrevious)
+            emitLifecycle(.starting, conversationId: stateInput.conversationId)
+            forceKill(oldProcess)
+        } else {
+            let oldProcess = previous?.process
+            await invalidatePreviousProcessToken(previous)
+            // Swap tokens before cleaning up any previous process so delayed callbacks are ignored.
+            states[stateInput.conversationId] = makeState(input: stateInput, previous: previous)
+            emitLifecycle(.starting, conversationId: stateInput.conversationId)
+            forceKill(oldProcess)
+            try await runPreparedProcess(process, launch: launch, stateInput: stateInput, adapter: adapter, recordsFailure: true)
+        }
+    }
+
+    private func runPreparedProcess(
+        _ process: Process,
+        launch: AgentLaunchConfiguration,
+        stateInput: StateInput,
+        adapter: any AgentProviderAdapter,
+        recordsFailure: Bool
+    ) async throws {
+        do {
+            try runProcess(process, launch: launch, conversationId: stateInput.conversationId, recordsFailure: recordsFailure)
+        } catch {
+            await adapter.processDidTerminate(processToken: stateInput.processToken)
+            throw error
+        }
+    }
+
+    private func invalidatePreviousProcessToken(_ previous: ConversationState?) async {
+        guard let previous else {
+            return
+        }
+        await previous.adapter.processDidTerminate(processToken: previous.processToken)
     }
 
     private func makeState(input: StateInput, previous: ConversationState?) -> ConversationState {
@@ -279,246 +365,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         }
         // A very short-lived process can terminate before its handler is installed.
         if !process.isRunning {
-            processExited(conversationId: conversationId, processToken: processToken, exitCode: process.terminationStatus)
+            Task { await self.processExited(conversationId: conversationId, processToken: processToken, exitCode: process.terminationStatus) }
         }
-    }
-}
-
-private extension DefaultAgentRuntime {
-    private func addSubscriber(
-        _ continuation: AsyncStream<AgentEventEnvelope>.Continuation,
-        conversationId: AgentConversationID,
-        afterIndex: Int?
-    ) {
-        guard var state = states[conversationId] else {
-            let id = UUID()
-            pendingSubscribers[conversationId, default: [:]][id] = continuation
-            continuation.onTermination = { _ in Task { await self.removeSubscriber(id, conversationId: conversationId) } }
-            return
-        }
-        let id = UUID()
-        state.subscribers[id] = continuation
-        continuation.onTermination = { _ in Task { await self.removeSubscriber(id, conversationId: conversationId) } }
-        let cursor = afterIndex ?? -1
-        state.events.filter { $0.index > cursor }.forEach { continuation.yield($0) }
-        states[conversationId] = state
-    }
-
-    private func removeSubscriber(_ id: UUID, conversationId: AgentConversationID) {
-        states[conversationId]?.subscribers[id] = nil
-        pendingSubscribers[conversationId]?[id] = nil
-    }
-
-    private func pump(
-        _ fileHandle: FileHandle,
-        source: AgentEventSource,
-        conversationId: AgentConversationID,
-        processToken: UUID
-    ) {
-        // Claude stream-json can finish a record at EOF without a trailing newline.
-        // A readability handler lets the runtime flush that final record instead of leaving hosts stuck waiting.
-        let pump = OutputLinePump(handle: fileHandle) { line in
-            Task { await self.consumeLine(line, source: source, conversationId: conversationId, processToken: processToken) }
-        }
-        states[conversationId]?.outputPumps.append(pump)
-        pump.start()
-    }
-
-    private func emitStreamReadFailure(
-        _ error: Error,
-        source: AgentEventSource,
-        conversationId: AgentConversationID,
-        processToken: UUID
-    ) {
-        // Stream pumps can report read failures after replacement teardown; keep those diagnostics with the process that caused them.
-        guard states[conversationId]?.processToken == processToken else {
-            return
-        }
-        emitDiagnostic(
-            severity: .warning,
-            message: "Provider stream read failed: \(error.localizedDescription)",
-            source: source,
-            conversationId: conversationId
-        )
-    }
-
-    private func consumeLine(
-        _ line: String,
-        source: AgentEventSource,
-        conversationId: AgentConversationID,
-        processToken: UUID
-    ) async {
-        // Stream pumps can outlive a replaced process; the token prevents stale output from entering the new session.
-        guard let state = states[conversationId], state.processToken == processToken else {
-            return
-        }
-        if source == .stderr {
-            appendStderr(line, conversationId: conversationId)
-            append(.diagnostic(AgentDiagnosticEvent(severity: .info, message: line)), source: .stderr, conversationId: conversationId)
-            return
-        }
-        do {
-            let events = try await state.adapter.decodeStdoutLine(line)
-            // Decoders can suspend, so re-check the token before accepting output for a replaced process.
-            guard states[conversationId]?.processToken == processToken else {
-                return
-            }
-            for event in events {
-                await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
-                guard states[conversationId]?.processToken == processToken else {
-                    return
-                }
-                append(event, source: .stdout, conversationId: conversationId)
-            }
-        } catch {
-            // Stdout and stderr are pumped independently; a short grace period lets earlier stderr lines reach the tail.
-            try? await Task.sleep(nanoseconds: 50_000_000)
-            guard states[conversationId]?.processToken == processToken else {
-                return
-            }
-            let tail = states[conversationId]?.stderrTail.joined(separator: "\n") ?? ""
-            let message = tail.isEmpty ? error.localizedDescription : "\(error.localizedDescription)\nRecent stderr:\n\(tail)"
-            append(.diagnostic(AgentDiagnosticEvent(severity: .error, message: message)), source: .runtime, conversationId: conversationId)
-        }
-    }
-
-    private func recordProviderSessionIfNeeded(
-        from event: AgentEvent,
-        conversationId: AgentConversationID,
-        processToken: UUID
-    ) async {
-        guard
-            var state = states[conversationId],
-            state.processToken == processToken,
-            let providerSessionId = state.adapter.sessionID(from: event)
-        else {
-            return
-        }
-        guard state.providerSessionId != providerSessionId else {
-            return
-        }
-
-        // Session IDs are discovered from provider output; update runtime status before awaiting durable storage.
-        state.providerSessionId = providerSessionId
-        let createdAt = state.providerSessionCreatedAt ?? Date()
-        state.providerSessionCreatedAt = createdAt
-        states[conversationId] = state
-
-        let record = AgentSessionRecord(
-            conversationId: conversationId,
-            providerId: state.providerId,
-            providerSessionId: providerSessionId,
-            generation: state.generation,
-            createdAt: createdAt,
-            metadata: ["source": .string("runtime")]
-        )
-        do {
-            try await sessionStore.save(record)
-        } catch {
-            guard states[conversationId]?.processToken == processToken else {
-                return
-            }
-            emitDiagnostic(
-                severity: .warning,
-                message: "Could not persist provider session: \(error.localizedDescription)",
-                source: .runtime,
-                conversationId: conversationId
-            )
-        }
-    }
-
-    private func processExited(conversationId: AgentConversationID, processToken: UUID, exitCode: Int32) {
-        // Termination handlers may race with reconfigure/freshSession; ignore callbacks from older processes.
-        guard states[conversationId]?.processToken == processToken else {
-            return
-        }
-        switch states[conversationId]?.lifecycleState {
-        case .cancelled, .exited, .failed:
-            states[conversationId]?.stdin = nil
-            states[conversationId]?.stdinWriter = nil
-            return
-        case .starting, .running, nil:
-            break
-        }
-        let state: AgentLifecycleState = exitCode == 0 ? .exited : .failed
-        emitLifecycle(state, conversationId: conversationId, exitCode: exitCode)
-        states[conversationId]?.stdin = nil
-        states[conversationId]?.stdinWriter = nil
-    }
-
-    private func emitLifecycle(
-        _ state: AgentLifecycleState,
-        conversationId: AgentConversationID,
-        exitCode: Int32? = nil,
-        message: String? = nil
-    ) {
-        append(.lifecycle(AgentLifecycleEvent(state: state, exitCode: exitCode, message: message)), source: .process, conversationId: conversationId)
-        states[conversationId]?.lifecycleState = state
-    }
-
-    private func emitDiagnostic(
-        severity: AgentDiagnosticSeverity,
-        message: String,
-        source: AgentEventSource,
-        conversationId: AgentConversationID
-    ) {
-        append(.diagnostic(AgentDiagnosticEvent(severity: severity, message: message)), source: source, conversationId: conversationId)
-    }
-
-    private func emitSessionContinuity(
-        _ continuity: AgentSessionContinuity?,
-        providerSessionId: AgentSessionID?,
-        conversationId: AgentConversationID
-    ) {
-        guard let continuity else {
-            return
-        }
-        let message: String? = switch continuity {
-        case .fresh:
-            "Started a fresh provider session."
-        case .resumed:
-            "Resumed provider session."
-        case .restartedFresh:
-            "Provider session artifact was unavailable; restarted with the saved session identifier."
-        }
-        append(
-            .sessionContinuity(AgentSessionContinuityEvent(
-                continuity: continuity,
-                providerSessionId: providerSessionId,
-                message: message
-            )),
-            source: .runtime,
-            conversationId: conversationId
-        )
-    }
-
-    private func appendStderr(_ line: String, conversationId: AgentConversationID) {
-        guard var state = states[conversationId] else {
-            return
-        }
-        state.stderrTail.append(line)
-        if state.stderrTail.count > 20 {
-            state.stderrTail.removeFirst(state.stderrTail.count - 20)
-        }
-        states[conversationId] = state
-    }
-
-    private func append(_ event: AgentEvent, source: AgentEventSource, conversationId: AgentConversationID) {
-        guard var state = states[conversationId] else {
-            return
-        }
-        let envelope = AgentEventEnvelope(
-            generation: state.generation,
-            index: (state.events.last?.index ?? -1) + 1,
-            providerId: state.providerId,
-            conversationId: conversationId,
-            providerSessionId: state.providerSessionId,
-            source: source,
-            event: event
-        )
-        state.events.append(envelope)
-        state.compactReplayBuffer(replayLimit: replayLimit)
-        state.subscribers.values.forEach { $0.yield(envelope) }
-        states[conversationId] = state
     }
 }

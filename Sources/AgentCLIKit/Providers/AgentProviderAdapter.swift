@@ -11,6 +11,19 @@ public protocol AgentProviderAdapter: Sendable {
         resumedSession: AgentSessionRecord?
     ) async throws -> AgentLaunchConfiguration
 
+    /// Gives the provider a chance to augment a launch before the runtime starts the process.
+    /// - Parameters:
+    ///   - launch: Base launch configuration returned by `makeLaunchConfiguration(spawnConfig:resumedSession:)`.
+    ///   - spawnConfig: Host spawn configuration for the conversation.
+    ///   - conversationId: Runtime conversation identifier for the launch.
+    ///   - processToken: Runtime-scoped token that identifies this specific process generation.
+    func prepareLaunchConfiguration(
+        _ launch: AgentLaunchConfiguration,
+        spawnConfig: AgentSpawnConfig,
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async throws -> AgentLaunchConfiguration
+
     /// Decodes one complete stdout line into provider-neutral events.
     func decodeStdoutLine(_ line: String) async throws -> [AgentEvent]
 
@@ -19,14 +32,36 @@ public protocol AgentProviderAdapter: Sendable {
 
     /// Encodes host input into provider stdin data.
     func encodeInput(_ input: AgentInput) async throws -> Data
+
+    /// Notifies the provider that a process generation has ended or been superseded.
+    func processDidTerminate(processToken: UUID) async
+
+    /// Shuts down provider-owned resources retained across process launches.
+    func shutdownProviderResources() async
 }
 
 /// Default behavior for optional provider adapter capabilities.
 public extension AgentProviderAdapter {
+    /// Returns the launch unchanged for providers that do not need runtime-managed launch augmentation.
+    func prepareLaunchConfiguration(
+        _ launch: AgentLaunchConfiguration,
+        spawnConfig: AgentSpawnConfig,
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async throws -> AgentLaunchConfiguration {
+        launch
+    }
+
     /// Returns no session identifier for providers that do not expose resumable sessions in events.
     func sessionID(from event: AgentEvent) -> AgentSessionID? {
         nil
     }
+
+    /// Does nothing for providers that do not retain process-scoped resources.
+    func processDidTerminate(processToken: UUID) async {}
+
+    /// Does nothing for providers that do not retain shared runtime resources.
+    func shutdownProviderResources() async {}
 }
 
 /// Process launch configuration produced by a provider adapter.
