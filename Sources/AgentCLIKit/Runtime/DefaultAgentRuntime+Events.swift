@@ -40,7 +40,7 @@ extension DefaultAgentRuntime {
         // Claude stream-json can finish a record at EOF without a trailing newline.
         // A readability handler lets the runtime flush that final record instead of leaving hosts stuck waiting.
         let pump = OutputLinePump(handle: fileHandle) { line in
-            Task { await self.consumeLine(line, source: source, conversationId: conversationId, processToken: processToken) }
+            await self.consumeLine(line, source: source, conversationId: conversationId, processToken: processToken)
         }
         states[conversationId]?.outputPumps.append(pump)
         pump.start()
@@ -82,7 +82,12 @@ extension DefaultAgentRuntime {
             }
             let tail = states[conversationId]?.stderrTail.joined(separator: "\n") ?? ""
             let message = tail.isEmpty ? error.localizedDescription : "\(error.localizedDescription)\nRecent stderr:\n\(tail)"
-            append(.diagnostic(AgentDiagnosticEvent(severity: .error, message: message)), source: .runtime, conversationId: conversationId)
+            // Preserve the raw stdout frame in metadata so provider decoder gaps can be fixed from host logs.
+            append(.diagnostic(AgentDiagnosticEvent(
+                severity: .error,
+                message: message,
+                metadata: ["raw_stdout_line": .string(line)]
+            )), source: .runtime, conversationId: conversationId)
         }
     }
 

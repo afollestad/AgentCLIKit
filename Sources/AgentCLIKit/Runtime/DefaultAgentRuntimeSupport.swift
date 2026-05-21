@@ -39,14 +39,14 @@ struct ConversationState {
 final class OutputLinePump: @unchecked Sendable {
     private let lock = NSLock()
     private let handle: FileHandle
-    private let onLine: @Sendable (String) -> Void
+    private let lineQueue: OutputLineQueue
 
     private var buffer = Data()
     private var hasFinished = false
 
-    init(handle: FileHandle, onLine: @escaping @Sendable (String) -> Void) {
+    init(handle: FileHandle, onLine: @escaping @Sendable (String) async -> Void) {
         self.handle = handle
-        self.onLine = onLine
+        self.lineQueue = OutputLineQueue(onLine: onLine)
     }
 
     deinit {
@@ -61,6 +61,7 @@ final class OutputLinePump: @unchecked Sendable {
 
     func cancel() {
         finish(flushPendingLine: false)
+        lineQueue.cancel()
     }
 
     private func handleReadable(_ handle: FileHandle) {
@@ -70,9 +71,7 @@ final class OutputLinePump: @unchecked Sendable {
             return
         }
 
-        for line in appendAndTakeLines(from: chunk) {
-            onLine(line)
-        }
+        schedule(appendAndTakeLines(from: chunk))
     }
 
     private func appendAndTakeLines(from chunk: Data) -> [String] {
@@ -117,7 +116,76 @@ final class OutputLinePump: @unchecked Sendable {
         lock.unlock()
 
         if let pendingLine, !pendingLine.isEmpty {
-            onLine(pendingLine)
+            schedule([pendingLine])
+        }
+    }
+
+    private func schedule(_ lines: [String]) {
+        guard !lines.isEmpty else {
+            return
+        }
+        lineQueue.enqueue(lines)
+    }
+}
+
+private final class OutputLineQueue: @unchecked Sendable {
+    private let lock = NSLock()
+    private let onLine: @Sendable (String) async -> Void
+    private var pendingLines: [String] = []
+    private var nextLineIndex = 0
+    private var isProcessing = false
+    private var isCancelled = false
+
+    init(onLine: @escaping @Sendable (String) async -> Void) {
+        self.onLine = onLine
+    }
+
+    func enqueue(_ lines: [String]) {
+        lock.lock()
+        guard !isCancelled, !lines.isEmpty else {
+            lock.unlock()
+            return
+        }
+        pendingLines.append(contentsOf: lines)
+        guard !isProcessing else {
+            lock.unlock()
+            return
+        }
+
+        isProcessing = true
+        lock.unlock()
+        Task { await drain() }
+    }
+
+    func cancel() {
+        lock.withLock {
+            isCancelled = true
+            pendingLines.removeAll()
+            nextLineIndex = 0
+        }
+    }
+
+    private func drain() async {
+        while let line = nextLine() {
+            await onLine(line)
+        }
+    }
+
+    private func nextLine() -> String? {
+        lock.withLock {
+            guard !isCancelled, nextLineIndex < pendingLines.count else {
+                isProcessing = false
+                pendingLines.removeAll(keepingCapacity: true)
+                nextLineIndex = 0
+                return nil
+            }
+            let line = pendingLines[nextLineIndex]
+            nextLineIndex += 1
+            if nextLineIndex > 1_024, nextLineIndex * 2 > pendingLines.count {
+                pendingLines.removeFirst(nextLineIndex)
+                nextLineIndex = 0
+            }
+            return line
         }
     }
 }
