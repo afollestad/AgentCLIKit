@@ -11,11 +11,22 @@ let package = Package(
         .library(
             name: "AgentCLIKit",
             targets: ["AgentCLIKit"]
+        ),
+        .executable(
+            name: "AgentCLIKitDemo",
+            targets: ["AgentCLIKitDemo"]
         )
     ],
     targets: [
         .target(
             name: "AgentCLIKit",
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+        .executableTarget(
+            name: "AgentCLIKitDemo",
+            dependencies: ["AgentCLIKit"],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]

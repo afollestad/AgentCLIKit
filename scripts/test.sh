@@ -14,7 +14,7 @@ run_and_format() {
 
 if [ "$#" -eq 0 ]; then
   run_and_format xcodebuild \
-    -scheme AgentCLIKit \
+    -scheme AgentCLIKit-Package \
     -destination 'platform=macOS' \
     -derivedDataPath .build/xcode \
     test
@@ -30,7 +30,7 @@ for test_name in "$@"; do
 done
 
 run_and_format xargs -0 xcodebuild \
-  -scheme AgentCLIKit \
+  -scheme AgentCLIKit-Package \
   -destination 'platform=macOS' \
   -derivedDataPath .build/xcode \
   test < "$tmp_args"

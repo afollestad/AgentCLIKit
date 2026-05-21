@@ -185,7 +185,9 @@ public struct ClaudeStreamDecoder: Sendable {
             events.append(.diagnostic(AgentDiagnosticEvent(severity: .error, message: envelope.result ?? "Claude result error")))
         }
         if let result = envelope.result.map(ClaudeCaveatStripper.strip), !result.isEmpty {
-            events.append(.message(AgentMessageEvent(role: .assistant, text: result)))
+            var metadata = envelope.resultMetadata
+            metadata["claude_event_type"] = .string("result")
+            events.append(.message(AgentMessageEvent(role: .assistant, text: result, metadata: metadata)))
         }
         if let usage = envelope.usage {
             var metadata = envelope.resultMetadata
