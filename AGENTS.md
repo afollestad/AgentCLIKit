@@ -57,7 +57,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 ## Repo-Local Workflows
 
 - For release bumps or release dry runs, follow `.agents/skills/create-release/SKILL.md`.
-- For self reviews or audits, follow `.agents/checks/self-review/SKILL.md`.
+- For self reviews or audits, follow `.agents/checks/self-review.md`.
 
 ## Commits
 
