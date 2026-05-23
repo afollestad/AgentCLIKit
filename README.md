@@ -161,6 +161,8 @@ let decision = ClaudeHookDecision.allow(updatedInput: .object([
 
 The build and test scripts pipe `xcodebuild` through `xcsift -f toon -w` when `xcsift` is installed.
 
+Repo-local agent workflows live under `.agents`: capability skills in `.agents/skills` and review, audit, or check workflows in `.agents/checks`.
+
 ## Demo App
 
 Run the live Claude-backed macOS demo with:

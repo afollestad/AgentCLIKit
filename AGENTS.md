@@ -11,7 +11,8 @@
 Read the nearest `AGENTS.md` before editing. Current scopes:
 
 - `AGENTS.md`: repo-wide workflow.
-- `.agents/AGENTS.md`: repo-local agent skills.
+- `.agents/AGENTS.md`: repo-local agent workflows.
+- `.agents/checks/AGENTS.md`: repo-local review, audit, and check workflows.
 - `Sources/AgentCLIKit/Claude/AGENTS.md`: Claude provider adapter, config, stream decoding, and hook server behavior.
 - `Sources/AgentCLIKit/Claude/Hooks/AGENTS.md`: Claude hook transport.
 - `Sources/AgentCLIKitDemo/AGENTS.md`: macOS demo app.
@@ -53,10 +54,10 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Add concise implementation comments for non-obvious concurrency, process teardown, stream pumping, hook timeout, replay-buffer eviction, approval replay, and session continuity logic.
 - Avoid comments that restate what the next line of code already says.
 
-## Repo-Local Skills
+## Repo-Local Workflows
 
-- For self reviews or audits, follow `.agents/skills/self-review/SKILL.md`.
 - For release bumps or release dry runs, follow `.agents/skills/create-release/SKILL.md`.
+- For self reviews or audits, follow `.agents/checks/self-review/SKILL.md`.
 
 ## Commits
 

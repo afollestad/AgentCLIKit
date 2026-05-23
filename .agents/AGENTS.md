@@ -1,8 +1,10 @@
-## Repo-Local Skills
+## Repo-Local Agent Workflows
 
-- **Keep `.agents/skills` canonical.** Store project-local skills under `.agents/skills`; expose them to individual agents through symlinks like `.claude/skills` and `.codex/skills`.
-- **Keep skills concise.** Put only agent-facing workflow details in `SKILL.md`; keep human-facing docs in `README.md`.
+- **Keep `.agents` canonical.** Store project-local workflows under `.agents`; expose them to individual agents through symlinks like `.claude/skills`, `.codex/skills`, `.claude/checks`, and `.codex/checks`.
+- **Use `.agents/skills` for capabilities.** Store repo-local capability workflows under `.agents/skills`.
+- **Use `.agents/checks` for audits.** Store review, audit, and check workflows under `.agents/checks`.
+- **Keep workflows concise.** Put only agent-facing workflow details in `SKILL.md`; keep human-facing docs in `README.md`.
 - **Use release skill.** For release bumps or release dry runs, follow `.agents/skills/create-release/SKILL.md`.
-- **Use self-review skill.** For self reviews or audits, follow `.agents/skills/self-review/SKILL.md`.
+- **Use self-review check.** For self reviews or audits, follow `.agents/checks/self-review/SKILL.md`.
 - **Protect secrets.** Never commit signing keys, tokens, passwords, or base64 secret values.
-- **Validate changes.** Run the skill validator after editing `.agents/skills/*/SKILL.md` when one is available.
+- **Validate changes.** Run the workflow validator after editing `.agents/skills/*/SKILL.md` or `.agents/checks/*/SKILL.md` when one is available.

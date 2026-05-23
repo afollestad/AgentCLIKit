@@ -10,5 +10,7 @@ DerivedData/
 
 .claude/*
 !.claude/skills
+!.claude/checks
 .codex/*
 !.codex/skills
+!.codex/checks
