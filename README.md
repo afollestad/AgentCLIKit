@@ -90,6 +90,27 @@ try await runtime.send(
 
 Provider adapters serialize input in their native format. Claude writes stream JSON; a future provider can write JSONL, plain text, or use another bridge while sharing the same host-facing API.
 
+Hosts can also subscribe to runtime status snapshots for lifecycle, permission mode, waiting state, and input availability:
+
+```swift
+for await status in await runtime.statusUpdates(conversationId: conversationId) {
+    if case let .blocked(reason) = status.inputAvailability {
+        showWaitingState(reason)
+    }
+}
+```
+
+When a provider interaction owns the turn, `send(.userMessage(...))` throws a typed `invalidInput` error. Resolve the interaction instead:
+
+```swift
+try await runtime.resolveInteraction(
+    AgentInteractionResolution(id: interactionId, outcome: .answered, responseText: "Use the API"),
+    conversationId: conversationId
+)
+```
+
+Resolution is idempotent for a runtime conversation so duplicate UI actions do not send duplicate provider input.
+
 Claude-specific config, setup, MCP bridging, hook approval, and stream decoding APIs live under the `Claude` source folder and use names such as `ClaudeConfigStore`, `ClaudeProviderSetup`, `ClaudeMCPBridge`, `ClaudeHookServer`, and `ClaudeStreamDecoder`. Generic host-facing code should depend on `AgentRuntime`, `AgentProviderAdapter`, `AgentProviderSetup`, `AgentEventEnvelope`, `AgentInput`, and the provider-neutral store/service protocols.
 
 Provider setup services prepare local provider config before launch. Claude setup can trust a project while preserving unrelated Claude config such as MCP servers:
@@ -120,12 +141,42 @@ let hookServer = ClaudeHookServer(
 await approvalPolicyStore.approveForSession(operation: "Edit")
 ```
 
+For host persistence, implement the provider-neutral store protocols instead of storing runtime internals. `AgentSessionStore`,
+`AgentInteractionStore`, and `AgentApprovalPolicyStore` are durable async boundaries that a host can back with SwiftData, SQLite,
+files, or another store. Live hook continuations, launch tokens, listener ports, and in-flight decision races remain internal to
+the runtime and should not be persisted.
+
+Pending approvals and prompts can be surfaced through `AgentInteractionInbox`:
+
+```swift
+let inbox = InMemoryAgentInteractionInbox(store: interactionStore)
+
+for await actions in await inbox.subscribe(conversationId: conversationId) {
+    render(actions)
+}
+```
+
+Prompt questions support fixed options and custom responses:
+
+```swift
+let answer = AgentPromptAnswer(
+    interactionId: interactionId,
+    responseText: "Use the public API",
+    source: .customResponse
+)
+try await runtime.resolveInteraction(answer.resolution(), conversationId: conversationId)
+```
+
 Live decision providers are bounded by `decisionTimeout` and fall back to deferred hook responses if the host does not answer in
 time. The default decision timeout is shorter than the generated Claude hook transport timeout so a defer response can be returned
 before Claude closes the request.
 
 `ClaudeProviderAdapter` accepts the same live decision provider through `hookDecisionProvider` when hosts want the adapter-managed
 hook server to hold Claude's `PreToolUse` request open for app-native approval or prompt UI.
+
+Claude hook policy handles `AskUserQuestion`, Bash/edit tools, MCP tools, `EnterPlanMode`, and `ExitPlanMode`. `EnterPlanMode`
+is allowed without creating a host interaction; `ExitPlanMode` is surfaced as a plan-mode approval. Approval records include the
+latest known permission mode when Claude reports it.
 
 Hosts can generate Claude hook settings for their local listener from the same matcher used by the hook APIs:
 
@@ -149,6 +200,21 @@ let decision = ClaudeHookDecision.allow(updatedInput: .object([
     ]),
     "answers": .object(["Proceed?": .string("Proceed")])
 ]))
+```
+
+Provider readiness and selection UI can observe the registry:
+
+```swift
+for await readiness in await providerRegistry.readinessUpdates() {
+    updateProviderPicker(readiness)
+}
+```
+
+Transcript and metrics helpers provide renderable host projections without requiring provider-specific UI code:
+
+```swift
+let projections = AgentTranscriptProjector().project(envelopes)
+let metrics = AgentConversationMetricsBuilder().build(from: envelopes)
 ```
 
 ## Validation
