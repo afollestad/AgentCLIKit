@@ -31,6 +31,10 @@ extension DefaultAgentRuntime {
         pendingSubscribers[conversationId]?[id] = nil
     }
 
+    func removeStatusSubscriber(_ id: UUID, conversationId: AgentConversationID) {
+        statusSubscribers[conversationId]?[id] = nil
+    }
+
     func pump(
         _ fileHandle: FileHandle,
         source: AgentEventSource,
@@ -112,6 +116,7 @@ extension DefaultAgentRuntime {
         let createdAt = state.providerSessionCreatedAt ?? Date()
         state.providerSessionCreatedAt = createdAt
         states[conversationId] = state
+        publishStatus(conversationId: conversationId)
 
         let record = providerSessionRecord(
             conversationId: conversationId,
@@ -214,6 +219,11 @@ extension DefaultAgentRuntime {
     ) {
         append(.lifecycle(AgentLifecycleEvent(state: state, exitCode: exitCode, message: message)), source: .process, conversationId: conversationId)
         states[conversationId]?.lifecycleState = state
+        if state.isTerminal {
+            states[conversationId]?.inputAvailability = .blocked(reason: "The provider process is \(state.rawValue).")
+            states[conversationId]?.waitingState = .idle
+        }
+        publishStatus(conversationId: conversationId)
     }
 
     func emitDiagnostic(
@@ -277,8 +287,42 @@ extension DefaultAgentRuntime {
             event: event
         )
         state.events.append(envelope)
+        applyStatusSideEffects(for: event, state: &state)
         state.compactReplayBuffer(replayLimit: replayLimit)
         state.subscribers.values.forEach { $0.yield(envelope) }
         states[conversationId] = state
+        publishStatus(conversationId: conversationId)
+    }
+
+    private func applyStatusSideEffects(for event: AgentEvent, state: inout ConversationState) {
+        switch event {
+        case let .permissionMode(permissionMode):
+            state.permissionMode = permissionMode.mode
+        case let .interaction(interaction):
+            switch interaction.kind {
+            case .approval:
+                state.waitingState = .approval
+                state.inputAvailability = .blocked(reason: "Waiting for approval.")
+            case .prompt:
+                state.waitingState = .prompt
+                state.inputAvailability = .blocked(reason: "Waiting for a prompt answer.")
+            case .planModeExit:
+                state.waitingState = .planModeExit
+                state.inputAvailability = .blocked(reason: "Waiting for plan-mode approval.")
+            }
+        case let .lifecycle(lifecycle):
+            if lifecycle.state == .running {
+                state.inputAvailability = .available
+            }
+        default:
+            break
+        }
+    }
+
+    private func publishStatus(conversationId: AgentConversationID) {
+        guard let status = states[conversationId]?.status(conversationId: conversationId) else {
+            return
+        }
+        statusSubscribers[conversationId]?.values.forEach { $0.yield(status) }
     }
 }

@@ -14,6 +14,9 @@ struct ConversationState {
     var lifecycleState: AgentLifecycleState
     var providerSessionId: AgentSessionID?
     var providerSessionCreatedAt: Date?
+    var permissionMode: String?
+    var waitingState: AgentRuntimeWaitingState
+    var inputAvailability: AgentInputAvailability
     var persistedIndex: Int
     var outputPumps: [OutputLinePump]
 
@@ -31,7 +34,10 @@ struct ConversationState {
             generation: generation,
             state: lifecycleState,
             lastEventIndex: events.last?.index ?? -1,
-            providerSessionId: providerSessionId
+            providerSessionId: providerSessionId,
+            permissionMode: permissionMode,
+            inputAvailability: inputAvailability,
+            waitingState: waitingState
         )
     }
 }

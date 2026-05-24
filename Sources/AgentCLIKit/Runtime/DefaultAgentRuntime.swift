@@ -8,6 +8,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     let replayLimit: Int
     var states: [AgentConversationID: ConversationState] = [:]
     var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
+    var statusSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentRuntimeStatus>.Continuation]] = [:]
 
     /// Creates a default runtime.
     /// - Parameters:
@@ -36,6 +37,20 @@ public actor DefaultAgentRuntime: AgentRuntime {
         addSubscriber(stream.continuation, conversationId: conversationId, afterIndex: afterIndex)
         let generation = states[conversationId]?.generation ?? 1
         return AgentEventSubscription(generation: generation, events: stream.stream)
+    }
+
+    /// Subscribes to runtime status snapshots for a conversation.
+    public func statusUpdates(conversationId: AgentConversationID) async -> AsyncStream<AgentRuntimeStatus> {
+        let stream = AsyncStream<AgentRuntimeStatus>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        let id = UUID()
+        statusSubscribers[conversationId, default: [:]][id] = stream.continuation
+        stream.continuation.onTermination = { _ in
+            Task { await self.removeStatusSubscriber(id, conversationId: conversationId) }
+        }
+        if let status = states[conversationId]?.status(conversationId: conversationId) {
+            stream.continuation.yield(status)
+        }
+        return stream.stream
     }
 
     /// Marks events as persisted by the host so replay buffers can be compacted.
@@ -105,6 +120,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         let removedPendingSubscribers = pendingSubscribers.removeValue(forKey: conversationId)
         removedState?.subscribers.values.forEach { $0.finish() }
         removedPendingSubscribers?.values.forEach { $0.finish() }
+        statusSubscribers.removeValue(forKey: conversationId)?.values.forEach { $0.finish() }
         removedState?.outputPumps.forEach { $0.cancel() }
         if let removedState {
             await removedState.adapter.processDidTerminate(processToken: removedState.processToken)
@@ -124,6 +140,8 @@ public actor DefaultAgentRuntime: AgentRuntime {
         states.removeAll()
         pendingSubscribers.values.flatMap(\.values).forEach { $0.finish() }
         pendingSubscribers.removeAll()
+        statusSubscribers.values.flatMap(\.values).forEach { $0.finish() }
+        statusSubscribers.removeAll()
         for adapter in adapters.values {
             await adapter.shutdownProviderResources()
         }
@@ -330,6 +348,9 @@ public actor DefaultAgentRuntime: AgentRuntime {
             lifecycleState: .starting,
             providerSessionId: input.resumedSession?.providerSessionId,
             providerSessionCreatedAt: input.resumedSession?.createdAt,
+            permissionMode: nil,
+            waitingState: .idle,
+            inputAvailability: .available,
             persistedIndex: persistedIndex,
             outputPumps: []
         )

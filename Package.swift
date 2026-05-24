@@ -24,9 +24,16 @@ let package = Package(
                 .enableExperimentalFeature("StrictConcurrency")
             ]
         ),
+        .target(
+            name: "AgentCLIKitDemoSupport",
+            dependencies: ["AgentCLIKit"],
+            swiftSettings: [
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
         .executableTarget(
             name: "AgentCLIKitDemo",
-            dependencies: ["AgentCLIKit"],
+            dependencies: ["AgentCLIKit", "AgentCLIKitDemoSupport"],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]

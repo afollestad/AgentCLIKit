@@ -14,6 +14,8 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
     public let reason: String
     /// JSON-compatible operation input.
     public let input: JSONValue
+    /// Provider permission mode active when the approval was requested.
+    public let permissionMode: String?
     /// Date the request was created.
     public let createdAt: Date
 
@@ -25,6 +27,7 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         operation: String,
         reason: String,
         input: JSONValue,
+        permissionMode: String? = nil,
         createdAt: Date = Date()
     ) {
         self.id = id
@@ -33,7 +36,21 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         self.operation = operation
         self.reason = reason
         self.input = input
+        self.permissionMode = permissionMode
         self.createdAt = createdAt
+    }
+
+    /// Decodes an approval request, defaulting additive fields for older persisted records.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(AgentInteractionID.self, forKey: .id)
+        self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
+        self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
+        self.operation = try container.decode(String.self, forKey: .operation)
+        self.reason = try container.decode(String.self, forKey: .reason)
+        self.input = try container.decode(JSONValue.self, forKey: .input)
+        self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        self.createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 }
 
@@ -47,18 +64,108 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
     public let prompt: String
     /// Optional default answer.
     public let defaultResponse: String?
+    /// Structured answer options when the provider asks a fixed-choice question.
+    public let options: [AgentPromptOption]
+    /// Whether the host may submit text that is not one of `options`.
+    public let allowsCustomResponse: Bool
 
     /// Creates a prompt request.
     public init(
         id: AgentInteractionID,
         conversationId: AgentConversationID,
         prompt: String,
-        defaultResponse: String? = nil
+        defaultResponse: String? = nil,
+        options: [AgentPromptOption] = [],
+        allowsCustomResponse: Bool = true
     ) {
         self.id = id
         self.conversationId = conversationId
         self.prompt = prompt
         self.defaultResponse = defaultResponse
+        self.options = options
+        self.allowsCustomResponse = allowsCustomResponse
+    }
+
+    /// Decodes a prompt request, defaulting additive fields for older persisted records.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(AgentInteractionID.self, forKey: .id)
+        self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
+        self.prompt = try container.decode(String.self, forKey: .prompt)
+        self.defaultResponse = try container.decodeIfPresent(String.self, forKey: .defaultResponse)
+        self.options = try container.decodeIfPresent([AgentPromptOption].self, forKey: .options) ?? []
+        self.allowsCustomResponse = try container.decodeIfPresent(Bool.self, forKey: .allowsCustomResponse) ?? true
+    }
+}
+
+/// One selectable answer for a structured provider prompt.
+public struct AgentPromptOption: Codable, Equatable, Sendable, Identifiable {
+    /// Stable option identifier used when resolving the prompt.
+    public let id: String
+    /// User-facing option label.
+    public let label: String
+    /// Text sent back to the provider when this option is selected.
+    public let responseText: String
+    /// Provider-neutral option metadata.
+    public let metadata: [String: JSONValue]
+
+    /// Creates a prompt option.
+    public init(id: String, label: String, responseText: String, metadata: [String: JSONValue] = [:]) {
+        self.id = id
+        self.label = label
+        self.responseText = responseText
+        self.metadata = metadata
+    }
+}
+
+/// Source of an answer submitted for a provider prompt.
+public enum AgentPromptAnswerSource: Codable, Equatable, Sendable {
+    /// A fixed prompt option was selected.
+    case option(id: String)
+    /// User-authored text was supplied.
+    case customResponse
+}
+
+/// Host answer for a pending provider prompt.
+public struct AgentPromptAnswer: Codable, Equatable, Sendable {
+    /// Interaction being answered.
+    public let interactionId: AgentInteractionID
+    /// Answer text sent to the provider.
+    public let responseText: String
+    /// Whether the answer came from a fixed option or custom input.
+    public let source: AgentPromptAnswerSource
+    /// Provider-neutral answer metadata.
+    public let metadata: [String: JSONValue]
+
+    /// Creates a prompt answer.
+    public init(
+        interactionId: AgentInteractionID,
+        responseText: String,
+        source: AgentPromptAnswerSource,
+        metadata: [String: JSONValue] = [:]
+    ) {
+        self.interactionId = interactionId
+        self.responseText = responseText
+        self.source = source
+        self.metadata = metadata
+    }
+
+    /// Converts the answer into a generic interaction resolution.
+    public func resolution() -> AgentInteractionResolution {
+        var resolutionMetadata = metadata
+        switch source {
+        case let .option(id):
+            resolutionMetadata["prompt_answer_source"] = .string("option")
+            resolutionMetadata["prompt_option_id"] = .string(id)
+        case .customResponse:
+            resolutionMetadata["prompt_answer_source"] = .string("customResponse")
+        }
+        return AgentInteractionResolution(
+            id: interactionId,
+            outcome: .answered,
+            responseText: responseText,
+            metadata: resolutionMetadata
+        )
     }
 }
 

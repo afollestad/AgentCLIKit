@@ -51,6 +51,12 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
     public let lastEventIndex: Int
     /// Provider session identifier when known.
     public let providerSessionId: AgentSessionID?
+    /// Latest provider permission mode when known.
+    public let permissionMode: String?
+    /// Whether host input can currently be sent to the provider.
+    public let inputAvailability: AgentInputAvailability
+    /// Runtime wait state derived from lifecycle and pending interactions.
+    public let waitingState: AgentRuntimeWaitingState
 
     /// Creates a runtime status snapshot.
     public init(
@@ -59,7 +65,10 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         generation: Int,
         state: AgentLifecycleState,
         lastEventIndex: Int,
-        providerSessionId: AgentSessionID?
+        providerSessionId: AgentSessionID?,
+        permissionMode: String? = nil,
+        inputAvailability: AgentInputAvailability = .available,
+        waitingState: AgentRuntimeWaitingState = .idle
     ) {
         self.conversationId = conversationId
         self.providerId = providerId
@@ -67,7 +76,44 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.state = state
         self.lastEventIndex = lastEventIndex
         self.providerSessionId = providerSessionId
+        self.permissionMode = permissionMode
+        self.inputAvailability = inputAvailability
+        self.waitingState = waitingState
     }
+
+    /// Decodes a status snapshot, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
+        self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
+        self.generation = try container.decode(Int.self, forKey: .generation)
+        self.state = try container.decode(AgentLifecycleState.self, forKey: .state)
+        self.lastEventIndex = try container.decode(Int.self, forKey: .lastEventIndex)
+        self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
+        self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        self.inputAvailability = try container.decodeIfPresent(AgentInputAvailability.self, forKey: .inputAvailability) ?? .available
+        self.waitingState = try container.decodeIfPresent(AgentRuntimeWaitingState.self, forKey: .waitingState) ?? .idle
+    }
+}
+
+/// Host input availability for a running conversation.
+public enum AgentInputAvailability: Codable, Equatable, Sendable {
+    /// Input can be sent immediately.
+    case available
+    /// Input is temporarily blocked by a pending interaction or lifecycle state.
+    case blocked(reason: String)
+}
+
+/// Runtime state that explains why a conversation is waiting.
+public enum AgentRuntimeWaitingState: String, Codable, Hashable, Sendable {
+    /// Runtime is not waiting on host action.
+    case idle
+    /// Runtime is waiting for a tool approval.
+    case approval
+    /// Runtime is waiting for a prompt answer.
+    case prompt
+    /// Runtime is waiting for permission to leave plan mode.
+    case planModeExit
 }
 
 /// Async event subscription returned by an agent runtime.
@@ -90,6 +136,8 @@ public protocol AgentRuntime: Sendable {
     func spawn(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws
     /// Subscribes to events after a previously persisted event index.
     func subscribe(conversationId: AgentConversationID, afterIndex: Int?) async -> AgentEventSubscription
+    /// Subscribes to runtime status snapshots for a conversation.
+    func statusUpdates(conversationId: AgentConversationID) async -> AsyncStream<AgentRuntimeStatus>
     /// Marks events as persisted by the host so replay buffers can be compacted.
     func markPersisted(conversationId: AgentConversationID, generation: Int, upTo index: Int) async
     /// Sends input to the provider process.
