@@ -319,7 +319,7 @@ extension DefaultAgentRuntime {
         }
     }
 
-    private func publishStatus(conversationId: AgentConversationID) {
+    func publishStatus(conversationId: AgentConversationID) {
         guard let status = states[conversationId]?.status(conversationId: conversationId) else {
             return
         }

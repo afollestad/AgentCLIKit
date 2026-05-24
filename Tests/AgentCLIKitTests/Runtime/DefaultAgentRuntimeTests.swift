@@ -125,6 +125,58 @@ final class DefaultAgentRuntimeTests: XCTestCase {
         XCTAssertEqual(messages, ["hello", "again"])
     }
 
+    func testSendUserMessageFailsWhileInteractionIsPending() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            FakeProviderAdapter(command: shell("printf 'interaction:prompt\\n'; sleep 1"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+        _ = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.contains { $0.event == .interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?")) }
+        })
+
+        do {
+            try await runtime.send(.userMessage(AgentMessageInput(text: "hello")), conversationId: conversationId)
+            XCTFail("Expected blocked input to throw.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(
+                error,
+                .invalidInput("Input is blocked for conversation 'conversation': Waiting for a prompt answer.")
+            )
+        }
+        await runtime.shutdown()
+    }
+
+    func testResolveInteractionSendsResolutionOnceAndUnblocksInput() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            FakeProviderAdapter(command: shell("""
+            printf 'interaction:prompt\\n'
+            read resolution
+            read message
+            printf "message:$resolution,$message\\n"
+            """))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+        _ = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.contains { $0.event == .interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?")) }
+        })
+
+        let resolution = AgentInteractionResolution(id: "prompt", outcome: .answered, responseText: "yes")
+        try await runtime.resolveInteraction(resolution, conversationId: conversationId)
+        try await runtime.resolveInteraction(resolution, conversationId: conversationId)
+        try await runtime.send(.userMessage(AgentMessageInput(text: "next")), conversationId: conversationId)
+        let events = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "yes,next")) }
+        })
+
+        XCTAssertTrue(events.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "yes,next")) })
+    }
+
     func testConcurrentSendsPreserveCallOrderThroughAsyncEncoding() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
             DelayedEncodingProviderAdapter(command: shell("read first; read second; printf \"message:$first,$second\\n\""))

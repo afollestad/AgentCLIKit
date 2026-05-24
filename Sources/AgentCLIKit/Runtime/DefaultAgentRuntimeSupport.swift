@@ -5,6 +5,7 @@ struct ConversationState {
     let generation: Int
     let processToken: UUID
     let adapter: any AgentProviderAdapter
+    let spawnConfig: AgentSpawnConfig
     var process: Process?
     var stdin: FileHandle?
     var stdinWriter: StdinWriteQueue?
@@ -17,6 +18,7 @@ struct ConversationState {
     var permissionMode: String?
     var waitingState: AgentRuntimeWaitingState
     var inputAvailability: AgentInputAvailability
+    var resolvedInteractions: Set<AgentInteractionID>
     var persistedIndex: Int
     var outputPumps: [OutputLinePump]
 
@@ -214,6 +216,7 @@ struct StateInput {
     let processToken: UUID
     let adapter: any AgentProviderAdapter
     let preparedProcess: PreparedProcess
+    let spawnConfig: AgentSpawnConfig
     let resumedSession: AgentSessionRecord?
     let fresh: Bool
 }

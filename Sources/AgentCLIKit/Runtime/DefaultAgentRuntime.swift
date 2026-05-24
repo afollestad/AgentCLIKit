@@ -70,6 +70,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
 
     /// Sends input to the provider process.
     public func send(_ input: AgentInput, conversationId: AgentConversationID) async throws {
+        try ensureInputIsAvailable(input, conversationId: conversationId)
         guard let state = states[conversationId], let stdinWriter = state.stdinWriter else {
             throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
         }
@@ -79,6 +80,39 @@ public actor DefaultAgentRuntime: AgentRuntime {
             let data = try await adapter.encodeInput(input)
             try await self.writeInputData(data, conversationId: conversationId, processToken: processToken)
         }
+    }
+
+    /// Resolves a pending interaction and sends the resolution to the provider process.
+    public func resolveInteraction(_ resolution: AgentInteractionResolution, conversationId: AgentConversationID) async throws {
+        guard states[conversationId]?.stdinWriter != nil else {
+            throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
+        }
+        guard states[conversationId]?.resolvedInteractions.contains(resolution.id) != true else {
+            return
+        }
+        let previousWaitingState = states[conversationId]?.waitingState ?? .idle
+        let previousInputAvailability = states[conversationId]?.inputAvailability ?? .available
+        states[conversationId]?.waitingState = .idle
+        states[conversationId]?.inputAvailability = .available
+        publishStatus(conversationId: conversationId)
+        do {
+            try await send(.interactionResolution(resolution), conversationId: conversationId)
+            states[conversationId]?.resolvedInteractions.insert(resolution.id)
+        } catch {
+            states[conversationId]?.waitingState = previousWaitingState
+            states[conversationId]?.inputAvailability = previousInputAvailability
+            publishStatus(conversationId: conversationId)
+            throw error
+        }
+    }
+
+    private func ensureInputIsAvailable(_ input: AgentInput, conversationId: AgentConversationID) throws {
+        guard case .userMessage = input,
+              let state = states[conversationId],
+              case let .blocked(reason) = state.inputAvailability else {
+            return
+        }
+        throw AgentCLIError.invalidInput("Input is blocked for conversation '\(conversationId.rawValue)': \(reason)")
     }
 
     private func writeInputData(_ data: Data, conversationId: AgentConversationID, processToken: UUID) throws {
@@ -213,6 +247,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
             processToken: processToken,
             adapter: adapter,
             preparedProcess: preparedProcess,
+            spawnConfig: config,
             resumedSession: resumedSession,
             fresh: fresh
         )
@@ -339,6 +374,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
             generation: input.generation,
             processToken: input.processToken,
             adapter: input.adapter,
+            spawnConfig: input.spawnConfig,
             process: input.preparedProcess.process,
             stdin: input.preparedProcess.stdin.fileHandleForWriting,
             stdinWriter: StdinWriteQueue(),
@@ -351,6 +387,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
             permissionMode: nil,
             waitingState: .idle,
             inputAvailability: .available,
+            resolvedInteractions: input.fresh ? [] : previous?.resolvedInteractions ?? [],
             persistedIndex: persistedIndex,
             outputPumps: []
         )

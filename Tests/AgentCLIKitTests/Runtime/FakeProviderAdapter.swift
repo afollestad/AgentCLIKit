@@ -20,6 +20,9 @@ struct FakeProviderAdapter: AgentProviderAdapter {
         if let text = line.removingPrefix("message:") {
             return [.message(AgentMessageEvent(role: .assistant, text: text))]
         }
+        if line == "interaction:prompt" {
+            return [.interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?"))]
+        }
         return [.rawOutput(AgentRawOutputEvent(text: line, isComplete: true))]
     }
 
