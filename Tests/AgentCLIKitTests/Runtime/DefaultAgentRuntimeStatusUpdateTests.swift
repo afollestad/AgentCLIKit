@@ -39,7 +39,7 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 }
 
 private struct StatusReportingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(

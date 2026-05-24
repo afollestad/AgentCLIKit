@@ -7,36 +7,36 @@ final class AgentSessionStoreTests: XCTestCase {
         let store = InMemoryAgentSessionStore()
         let record = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "session",
             generation: 2
         )
 
         try await store.save(record)
-        let saved = try await store.record(conversationId: "conversation", providerId: "claude")
+        let saved = try await store.record(conversationId: "conversation", providerId: .claude)
         XCTAssertEqual(saved, record)
 
-        try await store.remove(conversationId: "conversation", providerId: "claude")
-        let removed = try await store.record(conversationId: "conversation", providerId: "claude")
+        try await store.remove(conversationId: "conversation", providerId: .claude)
+        let removed = try await store.record(conversationId: "conversation", providerId: .claude)
         XCTAssertNil(removed)
     }
 
     func testInMemoryStoreUsesLastDuplicateRecord() async throws {
         let first = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "first",
             generation: 1
         )
         let second = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "second",
             generation: 2
         )
         let store = InMemoryAgentSessionStore(records: [first, second])
 
-        let saved = try await store.record(conversationId: "conversation", providerId: "claude")
+        let saved = try await store.record(conversationId: "conversation", providerId: .claude)
 
         XCTAssertEqual(saved, second)
     }
@@ -47,29 +47,29 @@ final class AgentSessionStoreTests: XCTestCase {
         let fileURL = directory.appendingPathComponent("sessions.json")
         let store = JSONFileAgentSessionStore(fileURL: fileURL)
         let date = Date(timeIntervalSince1970: 10)
-        let codex = AgentSessionRecord(
+        let secondConversation = AgentSessionRecord(
             conversationId: "b",
-            providerId: "codex",
-            providerSessionId: "codex-session",
+            providerId: .claude,
+            providerSessionId: "second-session",
             generation: 1,
             createdAt: date,
             updatedAt: date
         )
         let claude = AgentSessionRecord(
             conversationId: "a",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "claude-session",
             generation: 1,
             createdAt: date,
             updatedAt: date
         )
 
-        try await store.save(codex)
+        try await store.save(secondConversation)
         try await store.save(claude)
 
         let reloaded = JSONFileAgentSessionStore(fileURL: fileURL)
         let records = try await reloaded.allRecords()
-        let savedClaude = try await reloaded.record(conversationId: "a", providerId: "claude")
+        let savedClaude = try await reloaded.record(conversationId: "a", providerId: .claude)
         XCTAssertEqual(records.map(\.conversationId.rawValue), ["a", "b"])
         XCTAssertEqual(savedClaude, claude)
     }
@@ -82,7 +82,7 @@ final class AgentSessionStoreTests: XCTestCase {
         let date = Date(timeIntervalSince1970: 10)
         let first = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "first",
             generation: 1,
             createdAt: date,
@@ -90,7 +90,7 @@ final class AgentSessionStoreTests: XCTestCase {
         )
         let second = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "second",
             generation: 2,
             createdAt: date,
@@ -101,7 +101,7 @@ final class AgentSessionStoreTests: XCTestCase {
         try encoder.encode([first, second]).write(to: fileURL)
 
         let store = JSONFileAgentSessionStore(fileURL: fileURL)
-        let saved = try await store.record(conversationId: "conversation", providerId: "claude")
+        let saved = try await store.record(conversationId: "conversation", providerId: .claude)
 
         XCTAssertEqual(saved, second)
     }

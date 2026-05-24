@@ -7,7 +7,7 @@ final class AgentEventAndInputTests: XCTestCase {
         let envelope = AgentEventEnvelope(
             generation: 1,
             index: 3,
-            providerId: "claude",
+            providerId: .claude,
             conversationId: "conversation",
             providerSessionId: "provider-session",
             source: .stdout,
@@ -74,7 +74,7 @@ final class AgentEventAndInputTests: XCTestCase {
         let envelope = AgentEventEnvelope(
             generation: 1,
             index: 3,
-            providerId: "claude",
+            providerId: .claude,
             conversationId: "conversation",
             providerSessionId: "provider-session",
             source: .stdout,

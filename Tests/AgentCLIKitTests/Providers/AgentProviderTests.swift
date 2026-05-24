@@ -3,24 +3,23 @@ import XCTest
 @testable import AgentCLIKit
 
 final class AgentProviderTests: XCTestCase {
-    func testRegistryReturnsDefinitionsSortedByProviderId() async {
+    func testRegistryReturnsRegisteredDefinitions() async {
         let registry = AgentProviderRegistry(definitions: [
-            AgentProviderDefinition(id: "codex", displayName: "Codex", executableNames: ["codex"]),
-            AgentProviderDefinition(id: "claude", displayName: "Claude", executableNames: ["claude"])
+            AgentProviderDefinition(id: .claude, displayName: "Claude", executableNames: ["claude"])
         ])
 
         let definitions = await registry.allDefinitions()
 
-        XCTAssertEqual(definitions.map(\.id.rawValue), ["claude", "codex"])
+        XCTAssertEqual(definitions.map(\.id), [.claude])
     }
 
     func testRegistryUsesLastDuplicateDefinition() async {
         let registry = AgentProviderRegistry(definitions: [
-            AgentProviderDefinition(id: "agent", displayName: "Old", executableNames: ["old"]),
-            AgentProviderDefinition(id: "agent", displayName: "New", executableNames: ["new"])
+            AgentProviderDefinition(id: .claude, displayName: "Old", executableNames: ["old"]),
+            AgentProviderDefinition(id: .claude, displayName: "New", executableNames: ["new"])
         ])
 
-        let definition = await registry.definition(for: "agent")
+        let definition = await registry.definition(for: .claude)
 
         XCTAssertEqual(definition?.displayName, "New")
         XCTAssertEqual(definition?.executableNames, ["new"])
@@ -36,7 +35,7 @@ final class AgentProviderTests: XCTestCase {
         let detector = AgentProviderDetector(shellRunner: shell)
 
         let availability = await detector.availability(
-            for: AgentProviderDefinition(id: "claude", displayName: "Claude", executableNames: ["claude"])
+            for: AgentProviderDefinition(id: .claude, displayName: "Claude", executableNames: ["claude"])
         )
 
         XCTAssertTrue(availability.isAvailable)
@@ -49,7 +48,7 @@ final class AgentProviderTests: XCTestCase {
         let detector = AgentProviderDetector(shellRunner: shell)
 
         let availability = await detector.availability(
-            for: AgentProviderDefinition(id: "missing", displayName: "Missing", executableNames: ["missing"])
+            for: AgentProviderDefinition(id: .claude, displayName: "Missing", executableNames: ["missing"])
         )
 
         XCTAssertFalse(availability.isAvailable)
@@ -65,7 +64,7 @@ final class AgentProviderTests: XCTestCase {
         let detector = AgentProviderDetector(shellRunner: shell)
 
         let availability = await detector.availability(
-            for: AgentProviderDefinition(id: "agent", displayName: "Agent", executableNames: [executableURL.path])
+            for: AgentProviderDefinition(id: .claude, displayName: "Agent", executableNames: [executableURL.path])
         )
 
         XCTAssertEqual(availability.executablePath, executableURL.path)

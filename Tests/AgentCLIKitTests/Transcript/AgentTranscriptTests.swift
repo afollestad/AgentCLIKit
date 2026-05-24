@@ -38,11 +38,11 @@ final class AgentTranscriptTests: XCTestCase {
         XCTAssertEqual(entries.map(\.indexRange), [0...0, 0...0])
     }
 
-    func testDefaultPolicyDoesNotGroupAcrossConversationOrProvider() {
+    func testDefaultPolicyDoesNotGroupAcrossConversations() {
         let entries = AgentTranscriptBuilder().build(from: [
-            envelope(index: 0, providerId: "claude", conversationId: "one", role: .assistant, text: "A"),
-            envelope(index: 1, providerId: "codex", conversationId: "one", role: .assistant, text: "B"),
-            envelope(index: 2, providerId: "codex", conversationId: "two", role: .assistant, text: "C")
+            envelope(index: 0, providerId: .claude, conversationId: "one", role: .assistant, text: "A"),
+            envelope(index: 1, providerId: .claude, conversationId: "two", role: .assistant, text: "B"),
+            envelope(index: 2, providerId: .claude, conversationId: "three", role: .assistant, text: "C")
         ])
 
         XCTAssertEqual(entries.map(\.text), ["A", "B", "C"])
@@ -61,11 +61,11 @@ final class AgentTranscriptTests: XCTestCase {
     }
 
     private func envelope(index: Int, role: AgentMessageRole, text: String) -> AgentEventEnvelope {
-        envelope(index: index, providerId: "provider", conversationId: "conversation", role: role, text: text)
+        envelope(index: index, providerId: .claude, conversationId: "conversation", role: role, text: text)
     }
 
     private func envelope(generation: Int, index: Int, role: AgentMessageRole, text: String) -> AgentEventEnvelope {
-        envelope(index: index, providerId: "provider", conversationId: "conversation", generation: generation, role: role, text: text)
+        envelope(index: index, providerId: .claude, conversationId: "conversation", generation: generation, role: role, text: text)
     }
 
     private func envelope(
@@ -92,7 +92,7 @@ final class AgentTranscriptTests: XCTestCase {
         AgentEventEnvelope(
             generation: 1,
             index: index,
-            providerId: "provider",
+            providerId: .claude,
             conversationId: "conversation",
             providerSessionId: nil,
             source: .stderr,

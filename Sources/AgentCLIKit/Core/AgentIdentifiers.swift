@@ -1,19 +1,9 @@
 import Foundation
 
-/// Stable identifier for a pluggable agent provider.
-public struct AgentProviderID: RawRepresentable, Codable, Hashable, Sendable, ExpressibleByStringLiteral {
-    /// The provider identifier value used in configuration and events.
-    public let rawValue: String
-
-    /// Creates a provider identifier.
-    public init(rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    /// Creates a provider identifier from a string literal.
-    public init(stringLiteral value: String) {
-        self.init(rawValue: value)
-    }
+/// Stable identifier for an agent provider supported by AgentCLIKit.
+public enum AgentProviderID: String, Codable, Hashable, Sendable, CaseIterable {
+    /// Claude Code provider.
+    case claude
 }
 
 /// Host-defined identifier for an app-level agent conversation.

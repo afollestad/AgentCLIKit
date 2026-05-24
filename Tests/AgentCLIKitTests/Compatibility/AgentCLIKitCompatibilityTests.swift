@@ -7,7 +7,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         let envelope = AgentEventEnvelope(
             generation: 2,
             index: 7,
-            providerId: "claude",
+            providerId: .claude,
             conversationId: "conversation",
             providerSessionId: "session",
             source: .stdout,
@@ -37,7 +37,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         let first = AgentEventEnvelope(
             generation: 3,
             index: 10,
-            providerId: "codex",
+            providerId: .claude,
             conversationId: "conversation",
             providerSessionId: "session",
             source: .stdout,
@@ -46,7 +46,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         let second = AgentEventEnvelope(
             generation: 3,
             index: 11,
-            providerId: "codex",
+            providerId: .claude,
             conversationId: "conversation",
             providerSessionId: "session",
             source: .stdout,
@@ -69,11 +69,11 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         )
         let session = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "session",
             generation: 1
         )
-        let config = AgentSpawnConfig(providerId: "claude", workingDirectory: URL(fileURLWithPath: "/tmp"))
+        let config = AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp"))
 
         let resumed = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: session)
         let fresh = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
@@ -86,7 +86,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
     func testRuntimeStatusSnapshotRemainsHostMappable() {
         let status = AgentRuntimeStatus(
             conversationId: "conversation",
-            providerId: "codex",
+            providerId: .claude,
             generation: 3,
             state: .running,
             lastEventIndex: 12,
@@ -95,10 +95,26 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
 
         let snapshot = HostStatusSnapshot(status: status)
 
-        XCTAssertEqual(snapshot.providerId, "codex")
+        XCTAssertEqual(snapshot.providerId, "claude")
         XCTAssertEqual(snapshot.state, "running")
         XCTAssertEqual(snapshot.lastEventIndex, 12)
         XCTAssertEqual(snapshot.providerSessionId, "provider-session")
+    }
+
+    func testProviderIdDecodesKnownPersistedValue() throws {
+        let data = Data(#""claude""#.utf8)
+
+        let providerId = try JSONDecoder().decode(AgentProviderID.self, from: data)
+        let encoded = try JSONEncoder().encode(providerId)
+
+        XCTAssertEqual(providerId, .claude)
+        XCTAssertEqual(String(data: encoded, encoding: .utf8), #""claude""#)
+    }
+
+    func testProviderIdRejectsUnknownPersistedValue() {
+        let data = Data(#""codex""#.utf8)
+
+        XCTAssertThrowsError(try JSONDecoder().decode(AgentProviderID.self, from: data))
     }
 
     func testOlderUsageEventPayloadDefaultsNewTypedFields() throws {

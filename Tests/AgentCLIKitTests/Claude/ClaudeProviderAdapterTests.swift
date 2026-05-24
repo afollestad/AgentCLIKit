@@ -10,12 +10,12 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         )
         let session = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "session-id",
             generation: 1
         )
         let config = AgentSpawnConfig(
-            providerId: "claude",
+            providerId: .claude,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
             model: "sonnet",
             effort: "high",
@@ -52,13 +52,13 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         )
         let session = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: "claude",
+            providerId: .claude,
             providerSessionId: "session-id",
             generation: 1
         )
 
         let launch = try await adapter.makeLaunchConfiguration(
-            spawnConfig: AgentSpawnConfig(providerId: "claude", workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
             resumedSession: session
         )
 
@@ -71,7 +71,7 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         let adapter = ClaudeProviderAdapter()
 
         let launch = try await adapter.makeLaunchConfiguration(
-            spawnConfig: AgentSpawnConfig(providerId: "claude", workingDirectory: URL(fileURLWithPath: "/tmp")),
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp")),
             resumedSession: nil
         )
 

@@ -7,19 +7,19 @@ final class AgentContextTests: XCTestCase {
         let cache = AgentContextWindowCache()
         let snapshot = AgentContextWindowSnapshot(
             conversationId: "conversation",
-            providerId: "provider",
+            providerId: .claude,
             usedTokens: 50,
             maximumTokens: 100,
             measuredAt: Date(timeIntervalSince1970: 10)
         )
 
         await cache.save(snapshot)
-        let saved = await cache.snapshot(conversationId: "conversation", providerId: "provider")
+        let saved = await cache.snapshot(conversationId: "conversation", providerId: .claude)
         XCTAssertEqual(saved, snapshot)
         XCTAssertEqual(snapshot.usageFraction, 0.5)
 
-        await cache.remove(conversationId: "conversation", providerId: "provider")
-        let removed = await cache.snapshot(conversationId: "conversation", providerId: "provider")
+        await cache.remove(conversationId: "conversation", providerId: .claude)
+        let removed = await cache.snapshot(conversationId: "conversation", providerId: .claude)
         XCTAssertNil(removed)
     }
 

@@ -3,7 +3,7 @@ import Foundation
 /// Claude Code provider adapter.
 public struct ClaudeProviderAdapter: AgentProviderAdapter {
     /// Claude provider identifier.
-    public static let providerId: AgentProviderID = "claude"
+    public static let providerId: AgentProviderID = .claude
 
     /// Static Claude provider metadata.
     public let definition = AgentProviderDefinition(

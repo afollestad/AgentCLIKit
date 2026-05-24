@@ -8,7 +8,7 @@ final class AgentInteractionStoreTests: XCTestCase {
         let store = InMemoryAgentInteractionStore()
         let request = AgentApprovalRequest(
             id: "approval",
-            providerId: "provider",
+            providerId: .claude,
             conversationId: "conversation",
             operation: "Write",
             reason: "Needs file access",

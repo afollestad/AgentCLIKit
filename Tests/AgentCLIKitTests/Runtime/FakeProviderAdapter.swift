@@ -3,7 +3,7 @@ import Foundation
 @testable import AgentCLIKit
 
 struct FakeProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     var command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(

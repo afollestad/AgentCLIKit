@@ -13,7 +13,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: "fake")
+        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
 
         XCTAssertEqual(status?.providerSessionId, "provider-session")
         XCTAssertEqual(persisted?.providerSessionId, "provider-session")
@@ -95,7 +95,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
         try await runtime.reconfigure(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
         try await Task.sleep(nanoseconds: 350_000_000)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: "fake")
+        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
 
         XCTAssertEqual(status?.providerSessionId, "new-session")
         XCTAssertEqual(persisted?.providerSessionId, "new-session")

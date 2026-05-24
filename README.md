@@ -56,7 +56,7 @@ Start a provider with a conversation identifier and working directory:
 try await runtime.spawn(
     conversationId: conversationId,
     config: AgentSpawnConfig(
-        providerId: "claude",
+        providerId: .claude,
         workingDirectory: projectPath
     )
 )

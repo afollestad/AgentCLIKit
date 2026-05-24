@@ -46,7 +46,7 @@ final class AgentTranscriptProjectionTests: XCTestCase {
         AgentEventEnvelope(
             generation: 1,
             index: index,
-            providerId: "provider",
+            providerId: .claude,
             conversationId: "conversation",
             providerSessionId: nil,
             source: .stdout,

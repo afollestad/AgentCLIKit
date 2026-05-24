@@ -5,7 +5,7 @@ import XCTest
 
 extension XCTestCase {
     func spawnConfig() -> AgentSpawnConfig {
-        AgentSpawnConfig(providerId: "fake", workingDirectory: FileManager.default.temporaryDirectory)
+        AgentSpawnConfig(providerId: .claude, workingDirectory: FileManager.default.temporaryDirectory)
     }
 
     func shell(_ script: String) -> AgentLaunchConfiguration {
@@ -66,7 +66,7 @@ private actor EventAccumulator {
 }
 
 struct DelayedEncodingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(
@@ -95,7 +95,7 @@ struct DelayedEncodingProviderAdapter: AgentProviderAdapter {
 }
 
 struct SequencedProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
 
     func makeLaunchConfiguration(
@@ -118,7 +118,7 @@ struct SequencedProviderAdapter: AgentProviderAdapter {
 }
 
 struct DelayedDecodingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
 
     func makeLaunchConfiguration(
@@ -144,7 +144,7 @@ struct DelayedDecodingProviderAdapter: AgentProviderAdapter {
 }
 
 struct FailableLaunchProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: FailableLaunchSequence
 
     func makeLaunchConfiguration(
@@ -167,7 +167,7 @@ struct FailableLaunchProviderAdapter: AgentProviderAdapter {
 }
 
 struct SessionReportingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(
@@ -201,7 +201,7 @@ struct SessionReportingProviderAdapter: AgentProviderAdapter {
 }
 
 struct SequencedSessionReportingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
 
     func makeLaunchConfiguration(
@@ -256,7 +256,7 @@ actor ProviderLifecycleProbe {
 }
 
 struct LifecycleTrackingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
     let probe: ProviderLifecycleProbe
 
@@ -304,7 +304,7 @@ struct LifecycleTrackingProviderAdapter: AgentProviderAdapter {
 }
 
 struct FailingPrepareProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: "fake", displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
     let probe: ProviderLifecycleProbe
 

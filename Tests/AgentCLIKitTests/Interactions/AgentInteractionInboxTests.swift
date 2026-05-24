@@ -34,17 +34,17 @@ final class AgentInteractionInboxTests: XCTestCase {
         let store = InMemoryAgentApprovalPolicyStore()
         await store.save(AgentApprovalSelection(
             interactionId: "approval",
-            providerId: "provider",
+            providerId: .claude,
             outcome: .approved,
             grantKind: .session,
             operation: "Bash"
         ))
 
-        let matching = await store.isApprovedForSession(providerId: "provider", operation: "Bash")
-        let otherProvider = await store.isApprovedForSession(providerId: "other", operation: "Bash")
+        let matching = await store.isApprovedForSession(providerId: .claude, operation: "Bash")
+        let otherOperation = await store.isApprovedForSession(providerId: .claude, operation: "Write")
 
         XCTAssertTrue(matching)
-        XCTAssertFalse(otherProvider)
+        XCTAssertFalse(otherOperation)
     }
 
     func testInboxPublishesInitialAndUpdatedSnapshots() async {

@@ -64,7 +64,7 @@ final class ClaudeConfigTests: XCTestCase {
 
         let root = try readJSONObject(fileURL: fileURL)
         let project = (root["projects"] as? [String: Any])?["/tmp/project"] as? [String: Any]
-        XCTAssertEqual(setup.providerId, "claude")
+        XCTAssertEqual(setup.providerId, .claude)
         XCTAssertEqual(project?["hasTrustDialogAccepted"] as? Bool, true)
         XCTAssertEqual(project?["hasCompletedProjectOnboarding"] as? Bool, true)
     }

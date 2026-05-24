@@ -27,7 +27,7 @@ final class AgentHookTests: XCTestCase {
     func testHookEventRoundTripsThroughJSON() throws {
         let event = AgentHookEvent(
             id: "hook",
-            providerId: "provider",
+            providerId: .claude,
             name: "PreToolUse",
             conversationId: "conversation",
             payload: .object(["tool": .string("Edit")]),
