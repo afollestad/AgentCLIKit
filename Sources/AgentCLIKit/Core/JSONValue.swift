@@ -1,7 +1,7 @@
 import Foundation
 
-/// Codable, sendable representation of JSON-compatible values.
-public enum JSONValue: Codable, Equatable, Sendable {
+/// Codable, hashable, sendable representation of JSON-compatible values.
+public enum JSONValue: Codable, Equatable, Hashable, Sendable {
     /// JSON null.
     case null
     /// JSON boolean.
@@ -49,6 +49,32 @@ public enum JSONValue: Codable, Equatable, Sendable {
             try container.encode(value)
         case let .object(value):
             try container.encode(value)
+        }
+    }
+
+    /// Hashes the value using stable object-key ordering.
+    public func hash(into hasher: inout Hasher) {
+        switch self {
+        case .null:
+            hasher.combine(0)
+        case let .bool(value):
+            hasher.combine(1)
+            hasher.combine(value)
+        case let .number(value):
+            hasher.combine(2)
+            hasher.combine(value)
+        case let .string(value):
+            hasher.combine(3)
+            hasher.combine(value)
+        case let .array(value):
+            hasher.combine(4)
+            hasher.combine(value)
+        case let .object(value):
+            hasher.combine(5)
+            for key in value.keys.sorted() {
+                hasher.combine(key)
+                hasher.combine(value[key])
+            }
         }
     }
 }

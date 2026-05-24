@@ -93,6 +93,7 @@ public actor ClaudeHookServer {
     private let decisionProvider: (any ClaudeHookDecisionProviding)?
     private let decisionTimeout: TimeInterval?
     private var pendingDecisionRaces: [String: [UUID: ClaudeHookDecisionRace]] = [:]
+    private var permissionModes: [AgentConversationID: String] = [:]
 
     /// Creates a Claude hook server.
     /// - Parameters:
@@ -140,10 +141,13 @@ public actor ClaudeHookServer {
     }
 
     private func handlePreToolUse(_ request: ClaudeHookRequest) async -> AgentHookResponse {
+        rememberPermissionMode(from: request)
         let operation = request.toolName
         switch operation {
         case "AskUserQuestion":
             return await handlePrompt(request)
+        case "EnterPlanMode":
+            return response(for: .allow())
         case "ExitPlanMode":
             return await handlePlanModeExit(request)
         default:
@@ -160,7 +164,8 @@ public actor ClaudeHookServer {
             conversationId: request.conversationId,
             operation: operation,
             reason: "Claude requested tool approval.",
-            input: request.payload
+            input: request.payload,
+            permissionMode: permissionMode(for: request)
         )
         await interactionStore.save(AgentInteractionRecord(
             id: interactionId,
@@ -174,13 +179,20 @@ public actor ClaudeHookServer {
     }
 
     private func handlePrompt(_ request: ClaudeHookRequest) async -> AgentHookResponse {
+        rememberPermissionMode(from: request)
         let interactionId = request.interactionId
         let prompt = request.promptText ?? "Claude asked a question."
         await interactionStore.save(AgentInteractionRecord(
             id: interactionId,
             conversationId: request.conversationId,
             kind: .prompt,
-            promptRequest: AgentPromptRequest(id: interactionId, conversationId: request.conversationId, prompt: prompt)
+            promptRequest: AgentPromptRequest(
+                id: interactionId,
+                conversationId: request.conversationId,
+                prompt: prompt,
+                options: request.promptOptions,
+                allowsCustomResponse: request.allowsCustomPromptResponse
+            )
         ))
         let decision = await liveDecision(for: request, interactionId: interactionId)
         await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .answered, deniedOutcome: .cancelled)
@@ -188,6 +200,7 @@ public actor ClaudeHookServer {
     }
 
     private func handlePlanModeExit(_ request: ClaudeHookRequest) async -> AgentHookResponse {
+        rememberPermissionMode(from: request)
         let interactionId = request.interactionId
         if let policyDecision = await policyDecision(operation: "ExitPlanMode", interactionId: interactionId, request: request) {
             return response(for: policyDecision)
@@ -198,7 +211,8 @@ public actor ClaudeHookServer {
             conversationId: request.conversationId,
             operation: "ExitPlanMode",
             reason: "Claude requested to exit planning mode.",
-            input: request.payload
+            input: request.payload,
+            permissionMode: permissionMode(for: request)
         )
         await interactionStore.save(AgentInteractionRecord(
             id: interactionId,
@@ -277,12 +291,22 @@ public actor ClaudeHookServer {
             await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .approved, deniedOutcome: .denied)
             return decision
         }
-        if await approvalPolicyStore.isSessionApproved(operation: operation) {
+        if await approvalPolicyStore.isSessionApproved(operation: operation, input: request.toolInput ?? .object([:])) {
             let decision = ClaudeHookDecision.allow(updatedInput: request.updatedInputForAllowedOperation(operation))
             await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .approved, deniedOutcome: .denied)
             return decision
         }
         return nil
+    }
+
+    private func rememberPermissionMode(from request: ClaudeHookRequest) {
+        if let permissionMode = request.permissionMode {
+            permissionModes[request.conversationId] = permissionMode
+        }
+    }
+
+    private func permissionMode(for request: ClaudeHookRequest) -> String? {
+        request.permissionMode ?? permissionModes[request.conversationId]
     }
 
     private func resolveInteractionIfNeeded(
@@ -351,79 +375,5 @@ private extension ClaudeHookDecision {
             metadata["updated_input"] = updatedInput
         }
         return metadata
-    }
-}
-
-private extension ClaudeHookRequest {
-    var interactionId: AgentInteractionID {
-        if let toolUseId = payload.objectValue?["tool_use_id"]?.stringValue ?? payload.objectValue?["toolUseId"]?.stringValue,
-           !toolUseId.isEmpty {
-            return AgentInteractionID(rawValue: toolUseId)
-        }
-        return AgentInteractionID(rawValue: UUID().uuidString)
-    }
-
-    var toolName: String {
-        payload.objectValue?["tool_name"]?.stringValue
-            ?? payload.objectValue?["toolName"]?.stringValue
-            ?? "tool"
-    }
-
-    var promptText: String? {
-        if let question = payload.objectValue?["question"]?.stringValue {
-            return question
-        }
-        let toolInput = payload.objectValue?["tool_input"] ?? payload.objectValue?["toolInput"]
-        guard case let .array(questions)? = toolInput?.objectValue?["questions"],
-              case let .object(firstQuestion)? = questions.first else {
-            return nil
-        }
-        return firstQuestion["question"]?.stringValue
-    }
-
-    func updatedInputForAllowedOperation(_ operation: String) -> JSONValue? {
-        switch operation {
-        case "AskUserQuestion", "ExitPlanMode":
-            toolInput
-        default:
-            nil
-        }
-    }
-
-    var toolInput: JSONValue? {
-        payload.objectValue?["tool_input"] ?? payload.objectValue?["toolInput"]
-    }
-}
-
-private struct ClaudeHookSettingsPayload: Codable {
-    let hooks: [String: [ClaudeHookMatcher]]
-}
-
-private struct ClaudeHookMatcher: Codable {
-    let matcher: String
-    let hooks: [ClaudeHookTransport]
-}
-
-private struct ClaudeHookTransport: Codable {
-    let type: String
-    let url: String
-    let timeout: Int
-    let headers: [String: String]
-    let allowedEnvVars: [String]
-}
-
-private extension JSONValue {
-    var objectValue: [String: JSONValue]? {
-        guard case let .object(value) = self else {
-            return nil
-        }
-        return value
-    }
-
-    var stringValue: String? {
-        guard case let .string(value) = self else {
-            return nil
-        }
-        return value
     }
 }

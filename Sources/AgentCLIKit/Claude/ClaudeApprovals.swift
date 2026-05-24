@@ -44,7 +44,7 @@ public struct ClaudeHookDecision: Codable, Equatable, Sendable {
 
 /// Store for session and transient Claude approvals.
 public actor ClaudeApprovalPolicyStore {
-    private var sessionApprovedOperations: Set<String> = []
+    private var sessionApprovedOperations: Set<ClaudeApprovalOperationKey> = []
     private var transientApprovals: Set<AgentInteractionID> = []
 
     /// Creates an approval policy store.
@@ -52,12 +52,23 @@ public actor ClaudeApprovalPolicyStore {
 
     /// Approves an operation for the rest of the session.
     public func approveForSession(operation: String) {
-        sessionApprovedOperations.insert(operation)
+        sessionApprovedOperations.insert(ClaudeApprovalOperationKey(operation: operation))
+    }
+
+    /// Approves an operation input for the rest of the session.
+    public func approveForSession(operation: String, input: JSONValue) {
+        sessionApprovedOperations.insert(ClaudeApprovalOperationKey(operation: operation, input: input))
     }
 
     /// Returns whether an operation is approved for the session.
     public func isSessionApproved(operation: String) -> Bool {
-        sessionApprovedOperations.contains(operation)
+        sessionApprovedOperations.contains(ClaudeApprovalOperationKey(operation: operation))
+    }
+
+    /// Returns whether an operation input is approved for the session.
+    public func isSessionApproved(operation: String, input: JSONValue) -> Bool {
+        sessionApprovedOperations.contains(ClaudeApprovalOperationKey(operation: operation, input: input))
+            || isSessionApproved(operation: operation)
     }
 
     /// Adds transient one-shot approvals.
@@ -68,6 +79,16 @@ public actor ClaudeApprovalPolicyStore {
     /// Consumes and removes a transient approval.
     public func consumeTransientApproval(id: AgentInteractionID) -> Bool {
         transientApprovals.remove(id) != nil
+    }
+}
+
+private struct ClaudeApprovalOperationKey: Hashable {
+    let operation: String
+    let input: JSONValue?
+
+    init(operation: String, input: JSONValue? = nil) {
+        self.operation = operation
+        self.input = input
     }
 }
 

@@ -100,6 +100,20 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "Edit")
     }
 
+    func testPreToolUseStoresCurrentPermissionModeOnApproval() async {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let token = await tokenStore.issue(validFor: 60)
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+
+        _ = await server.handle(preToolUse(token: token.value, permissionMode: "plan"))
+        let response = await server.handle(preToolUse(token: token.value, permissionMode: nil))
+        let pending = await interactionStore.pending(conversationId: "conversation")
+
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(pending.last?.approvalRequest?.permissionMode, "plan")
+    }
+
     func testPreToolUseDefersWhenLiveDecisionTimesOut() async {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
@@ -139,6 +153,29 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .allow)
         XCTAssertEqual(pending, [])
+    }
+
+    func testSessionApprovalCanMatchExactToolInput() async {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let approvalPolicyStore = ClaudeApprovalPolicyStore()
+        let token = await tokenStore.issue(validFor: 60)
+        let toolInput: JSONValue = .object(["file_path": .string("README.md")])
+        await approvalPolicyStore.approveForSession(operation: "Edit", input: toolInput)
+        let server = ClaudeHookServer(
+            tokenStore: tokenStore,
+            interactionStore: interactionStore,
+            approvalPolicyStore: approvalPolicyStore
+        )
+
+        let allowed = await server.handle(preToolUse(token: token.value, toolInput: toolInput))
+        let deferred = await server.handle(preToolUse(
+            token: token.value,
+            toolInput: .object(["file_path": .string("Package.swift")])
+        ))
+
+        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: allowed), .allow)
+        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: deferred), .deferDecision)
     }
 
     func testPreToolUseConsumesTransientApprovalForStableToolUseID() async {
@@ -185,6 +222,29 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.kind, .prompt)
         XCTAssertEqual(pending.first?.promptRequest?.prompt, "Pick one")
+        XCTAssertEqual(pending.first?.promptRequest?.options, [
+            AgentPromptOption(
+                id: "0",
+                label: "A",
+                responseText: "A",
+                metadata: ["label": .string("A"), "description": .string("First")]
+            )
+        ])
+        XCTAssertTrue(pending.first?.promptRequest?.allowsCustomResponse == true)
+    }
+
+    func testPreToolUseEnterPlanModeAllowsWithoutStoringInteraction() async {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let token = await tokenStore.issue(validFor: 60)
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+
+        let response = await server.handle(preToolUse(token: token.value, toolName: "EnterPlanMode"))
+        let pending = await interactionStore.pending(conversationId: "conversation")
+
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .allow)
+        XCTAssertEqual(pending, [])
     }
 
     func testPreToolUseAskUserQuestionLiveDecisionReturnsUpdatedInput() async {
@@ -325,18 +385,27 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .allow)
     }
 
-    private func preToolUse(token: String?, toolName: String = "Edit", toolInput: JSONValue = .object([:])) -> ClaudeHookRequest {
-        ClaudeHookRequest(
+    private func preToolUse(
+        token: String?,
+        toolName: String = "Edit",
+        toolInput: JSONValue = .object([:]),
+        permissionMode: String? = nil
+    ) -> ClaudeHookRequest {
+        var payload: [String: JSONValue] = [
+            "hook_event_name": .string("PreToolUse"),
+            "session_id": .string("session-123"),
+            "tool_use_id": .string("tool-1"),
+            "tool_name": .string(toolName),
+            "tool_input": toolInput
+        ]
+        if let permissionMode {
+            payload["permissionMode"] = .string(permissionMode)
+        }
+        return ClaudeHookRequest(
             bearerToken: token,
             hookName: "PreToolUse",
             conversationId: "conversation",
-            payload: .object([
-                "hook_event_name": .string("PreToolUse"),
-                "session_id": .string("session-123"),
-                "tool_use_id": .string("tool-1"),
-                "tool_name": .string(toolName),
-                "tool_input": toolInput
-            ])
+            payload: .object(payload)
         )
     }
 
