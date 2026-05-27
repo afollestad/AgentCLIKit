@@ -19,6 +19,7 @@ final class ClaudeProviderAdapterTests: XCTestCase {
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
             model: "sonnet",
             effort: "high",
+            permissionMode: "acceptEdits",
             initialPrompt: "Continue"
         )
 
@@ -37,6 +38,8 @@ final class ClaudeProviderAdapterTests: XCTestCase {
             "sonnet",
             "--effort",
             "high",
+            "--permission-mode",
+            "acceptEdits",
             "--resume",
             "session-id",
             "Continue"

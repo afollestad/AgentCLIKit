@@ -14,6 +14,8 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     public let model: String?
     /// Optional provider effort setting.
     public let effort: String?
+    /// Optional provider permission mode.
+    public let permissionMode: String?
     /// Optional initial prompt sent by the provider launch command.
     public let initialPrompt: String?
 
@@ -25,6 +27,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         environment: [String: String] = [:],
         model: String? = nil,
         effort: String? = nil,
+        permissionMode: String? = nil,
         initialPrompt: String? = nil
     ) {
         self.providerId = providerId
@@ -33,6 +36,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.environment = environment
         self.model = model
         self.effort = effort
+        self.permissionMode = permissionMode
         self.initialPrompt = initialPrompt
     }
 }

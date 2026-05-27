@@ -97,6 +97,9 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         if let effort = spawnConfig.effort {
             arguments.append(contentsOf: ["--effort", effort])
         }
+        if let permissionMode = spawnConfig.permissionMode {
+            arguments.append(contentsOf: ["--permission-mode", permissionMode])
+        }
         var sessionContinuity: AgentSessionContinuity = resumedSession == nil ? .fresh : .resumed
         if let sessionId = resumedSession?.providerSessionId {
             let sessionFileURL = ClaudePathEncoder.sessionFileURL(

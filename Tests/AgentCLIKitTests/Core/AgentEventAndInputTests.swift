@@ -113,6 +113,25 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(decoded, input)
     }
 
+    func testAgentSpawnConfigRoundTripsPermissionModeThroughJSON() throws {
+        let config = AgentSpawnConfig(
+            providerId: .claude,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            permissionMode: "plan"
+        )
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: data)
+        var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        legacyObject.removeValue(forKey: "permissionMode")
+        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
+        let legacyDecoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: legacyData)
+
+        XCTAssertEqual(decoded.permissionMode, "plan")
+        XCTAssertEqual(decoded, config)
+        XCTAssertNil(legacyDecoded.permissionMode)
+    }
+
     func testPathHelpersExpandTilde() {
         let home = URL(fileURLWithPath: "/Users/example")
 
