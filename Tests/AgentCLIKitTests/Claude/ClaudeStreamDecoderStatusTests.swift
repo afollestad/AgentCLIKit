@@ -31,7 +31,7 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
     }
 
     func testResultUsageMatchesModelUsageWhenOptionalZeroFieldsAreOmitted() throws {
-        let events = try ClaudeStreamDecoder().decodeLine(Self.modelUsageWithOmittedZeroFieldsLine)
+        let events = try ClaudeStreamDecoder().decodeLine(Self.fixture(named: "model_usage_omitted_zero_fields"))
 
         XCTAssertTrue(events.contains {
             $0 == .usage(AgentUsageEvent(
@@ -219,34 +219,6 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
     }
     """#
 
-    private static let modelUsageWithOmittedZeroFieldsLine = #"""
-    {
-      "type": "result",
-      "stop_reason": "end_turn",
-      "is_error": false,
-      "usage": {
-        "input_tokens": 10,
-        "output_tokens": 2
-      },
-      "duration_ms": "42",
-      "total_cost_usd": "0.01",
-      "modelUsage": {
-        "claude-opus-4-7": {
-          "inputTokens": 100,
-          "outputTokens": 20,
-          "cacheReadInputTokens": 10,
-          "cacheCreationInputTokens": 10,
-          "contextWindow": 1000000
-        },
-        "claude-sonnet-4-6": {
-          "inputTokens": 10,
-          "outputTokens": 2,
-          "contextWindow": 200000
-        }
-      }
-    }
-    """#
-
     private static let deferredToolResultLine = #"""
     {
       "type": "result",
@@ -328,4 +300,9 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
       }
     }
     """#
+
+    private static func fixture(named name: String) throws -> String {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json"))
+        return try String(contentsOf: url, encoding: .utf8)
+    }
 }

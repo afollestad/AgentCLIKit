@@ -41,6 +41,9 @@ let package = Package(
         .testTarget(
             name: "AgentCLIKitTests",
             dependencies: ["AgentCLIKit"],
+            resources: [
+                .process("Resources")
+            ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]
