@@ -26,6 +26,30 @@ public protocol ClaudeHookDecisionProviding: Sendable {
     func decision(for request: ClaudeHookRequest, interactionId: AgentInteractionID) async -> ClaudeHookDecision
 }
 
+/// Main-actor bridge for host UI objects that collect live Claude hook decisions.
+public struct MainActorClaudeHookDecisionProvider: ClaudeHookDecisionProviding {
+    private let handler: @MainActor @Sendable (ClaudeHookRequest, AgentInteractionID) async -> ClaudeHookDecision
+
+    /// Creates a provider that always evaluates decisions on the main actor.
+    public init(_ handler: @escaping @MainActor @Sendable (ClaudeHookRequest, AgentInteractionID) async -> ClaudeHookDecision) {
+        self.handler = handler
+    }
+
+    /// Returns a decision by hopping to the main actor before invoking the host handler.
+    public func decision(for request: ClaudeHookRequest, interactionId: AgentInteractionID) async -> ClaudeHookDecision {
+        await handler(request, interactionId)
+    }
+}
+
+public extension ClaudeHookDecisionProviding where Self == MainActorClaudeHookDecisionProvider {
+    /// Creates a main-actor provider for app-owned approval UI.
+    static func mainActor(
+        _ handler: @escaping @MainActor @Sendable (ClaudeHookRequest, AgentInteractionID) async -> ClaudeHookDecision
+    ) -> MainActorClaudeHookDecisionProvider {
+        MainActorClaudeHookDecisionProvider(handler)
+    }
+}
+
 /// Claude hook policy values shared by settings generation and host integrations.
 public enum ClaudeHookPolicy {
     private static let directlyApprovalControlledTools = [
