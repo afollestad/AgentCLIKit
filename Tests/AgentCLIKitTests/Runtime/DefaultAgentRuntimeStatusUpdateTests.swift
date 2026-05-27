@@ -20,6 +20,26 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
+    func testStatusReportsProcessLifecycleFlags() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("sleep 1"))
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        let running = await runtime.status(conversationId: "conversation")
+
+        XCTAssertNotNil(running?.processIdentifier)
+        XCTAssertTrue(running?.isProcessRunning == true)
+        XCTAssertTrue(running?.canCancel == true)
+
+        await runtime.cancel(conversationId: "conversation")
+        let cancelled = await waitUntilProcessStops(runtime: runtime, conversationId: "conversation")
+
+        XCTAssertNil(cancelled?.processIdentifier)
+        XCTAssertFalse(cancelled?.isProcessRunning == true)
+        XCTAssertFalse(cancelled?.canCancel == true)
+    }
+
     private static func collect(
         _ iterator: inout AsyncStream<AgentRuntimeStatus>.Iterator,
         until isComplete: @escaping @Sendable ([AgentRuntimeStatus]) -> Bool
@@ -35,6 +55,20 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
             }
         }
         return statuses
+    }
+
+    private func waitUntilProcessStops(
+        runtime: DefaultAgentRuntime,
+        conversationId: AgentConversationID
+    ) async -> AgentRuntimeStatus? {
+        for _ in 0..<100 {
+            let status = await runtime.status(conversationId: conversationId)
+            if status?.isProcessRunning == false {
+                return status
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return await runtime.status(conversationId: conversationId)
     }
 }
 

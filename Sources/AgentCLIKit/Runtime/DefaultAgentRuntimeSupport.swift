@@ -39,7 +39,10 @@ struct ConversationState {
             providerSessionId: providerSessionId,
             permissionMode: permissionMode,
             inputAvailability: inputAvailability,
-            waitingState: waitingState
+            waitingState: waitingState,
+            processIdentifier: process?.isRunning == true ? process?.processIdentifier : nil,
+            isProcessRunning: process?.isRunning == true,
+            canCancel: lifecycleState == .starting || lifecycleState == .running
         )
     }
 }

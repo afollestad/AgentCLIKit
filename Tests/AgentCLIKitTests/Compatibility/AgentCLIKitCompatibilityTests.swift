@@ -141,6 +141,18 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertNil(launch.sessionContinuity)
         XCTAssertFalse(launch.includesSpawnArguments)
     }
+
+    func testOlderRuntimeStatusPayloadDefaultsLifecycleSnapshotFields() throws {
+        let data = Data(
+            #"{"conversationId":"conversation","providerId":"claude","generation":1,"state":"running","lastEventIndex":2}"#.utf8
+        )
+
+        let status = try JSONDecoder().decode(AgentRuntimeStatus.self, from: data)
+
+        XCTAssertNil(status.processIdentifier)
+        XCTAssertFalse(status.isProcessRunning)
+        XCTAssertFalse(status.canCancel)
+    }
 }
 
 private struct HostSubscriptionCursor {

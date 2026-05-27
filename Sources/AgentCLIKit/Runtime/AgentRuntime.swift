@@ -61,6 +61,12 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
     public let inputAvailability: AgentInputAvailability
     /// Runtime wait state derived from lifecycle and pending interactions.
     public let waitingState: AgentRuntimeWaitingState
+    /// Provider process identifier when a process has been started.
+    public let processIdentifier: Int32?
+    /// Whether the provider process is currently running.
+    public let isProcessRunning: Bool
+    /// Whether cancellation is meaningful for the current lifecycle state.
+    public let canCancel: Bool
 
     /// Creates a runtime status snapshot.
     public init(
@@ -72,7 +78,10 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         providerSessionId: AgentSessionID?,
         permissionMode: String? = nil,
         inputAvailability: AgentInputAvailability = .available,
-        waitingState: AgentRuntimeWaitingState = .idle
+        waitingState: AgentRuntimeWaitingState = .idle,
+        processIdentifier: Int32? = nil,
+        isProcessRunning: Bool = false,
+        canCancel: Bool = false
     ) {
         self.conversationId = conversationId
         self.providerId = providerId
@@ -83,6 +92,9 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.permissionMode = permissionMode
         self.inputAvailability = inputAvailability
         self.waitingState = waitingState
+        self.processIdentifier = processIdentifier
+        self.isProcessRunning = isProcessRunning
+        self.canCancel = canCancel
     }
 
     /// Decodes a status snapshot, defaulting additive fields for older persisted values.
@@ -97,6 +109,9 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.inputAvailability = try container.decodeIfPresent(AgentInputAvailability.self, forKey: .inputAvailability) ?? .available
         self.waitingState = try container.decodeIfPresent(AgentRuntimeWaitingState.self, forKey: .waitingState) ?? .idle
+        self.processIdentifier = try container.decodeIfPresent(Int32.self, forKey: .processIdentifier)
+        self.isProcessRunning = try container.decodeIfPresent(Bool.self, forKey: .isProcessRunning) ?? false
+        self.canCancel = try container.decodeIfPresent(Bool.self, forKey: .canCancel) ?? false
     }
 }
 
