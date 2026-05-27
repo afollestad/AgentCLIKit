@@ -14,34 +14,128 @@ public struct ClaudeConfig: Codable, Equatable, Sendable {
     }
 }
 
+/// Snapshot of Claude trust state suitable for host settings and project readiness UI.
+public struct ClaudeConfigSnapshot: Codable, Equatable, Sendable {
+    /// Monotonic revision incremented when the observed config content changes.
+    public let revision: Int
+    /// Canonical trusted project paths.
+    public let trustedProjectPaths: Set<String>
+
+    /// Creates a Claude config snapshot.
+    public init(revision: Int, trustedProjectPaths: Set<String>) {
+        self.revision = revision
+        self.trustedProjectPaths = trustedProjectPaths
+    }
+
+    /// Returns whether the project path is trusted after canonical path normalization.
+    public func isTrustedProject(path: String) -> Bool {
+        trustedProjectPaths.contains(AgentPathHelpers.canonicalPath(URL(fileURLWithPath: path)))
+    }
+}
+
+/// Claude-native MCP server entry stored under `.claude.json`'s `mcpServers` object.
+public struct ClaudeMCPServerConfig: Codable, Equatable, Sendable {
+    /// Local command for stdio MCP servers.
+    public let command: String?
+    /// Command arguments for stdio MCP servers.
+    public let args: [String]?
+    /// Remote server URL for HTTP MCP servers.
+    public let url: String?
+    /// Headers for HTTP MCP servers.
+    public let headers: [String: String]?
+    /// Environment variables for stdio MCP servers.
+    public let env: [String: String]?
+    /// Whether the server is disabled in Claude config.
+    public let disabled: Bool?
+
+    /// Creates a Claude-native MCP server entry.
+    public init(
+        command: String? = nil,
+        args: [String]? = nil,
+        url: String? = nil,
+        headers: [String: String]? = nil,
+        env: [String: String]? = nil,
+        disabled: Bool? = nil
+    ) {
+        self.command = command
+        self.args = args
+        self.url = url
+        self.headers = headers
+        self.env = env
+        self.disabled = disabled
+    }
+}
+
 /// JSON-backed store for Claude configuration.
 public actor ClaudeConfigStore {
     private let fileURL: URL
+    private let snapshotCache: ClaudeConfigSnapshotCache
+    private var cachedRoot: [String: Any]
+    private var lastObservedCanonicalJSON: String
+    private var snapshotContinuations: [UUID: AsyncStream<ClaudeConfigSnapshot>.Continuation] = [:]
+    private var revision = 0
 
     /// Creates a Claude config store.
     public init(fileURL: URL) {
         self.fileURL = fileURL
+        let root = (try? Self.readRoot(fileURL: fileURL)) ?? [:]
+        self.cachedRoot = root
+        self.lastObservedCanonicalJSON = Self.canonicalJSONString(from: root)
+        self.snapshotCache = ClaudeConfigSnapshotCache(snapshot: Self.snapshot(from: root, revision: 0))
+    }
+
+    /// Returns the latest cached trust snapshot without disk IO.
+    public nonisolated func cachedSnapshot() -> ClaudeConfigSnapshot {
+        snapshotCache.snapshot
+    }
+
+    /// Returns the latest trust snapshot after refreshing from disk when needed.
+    public func currentSnapshot() throws -> ClaudeConfigSnapshot {
+        try refreshCacheIfNeeded()
+        return snapshotCache.snapshot
+    }
+
+    /// Streams trust snapshots, starting with the latest cached value.
+    public func snapshots() -> AsyncStream<ClaudeConfigSnapshot> {
+        _ = try? refreshCacheIfNeeded()
+        let snapshot = snapshotCache.snapshot
+        let id = UUID()
+        return AsyncStream { continuation in
+            continuation.yield(snapshot)
+            continuation.onTermination = { _ in
+                Task {
+                    await self.removeSnapshotContinuation(id: id)
+                }
+            }
+            snapshotContinuations[id] = continuation
+        }
+    }
+
+    /// Returns whether the project is trusted after refreshing from disk when needed.
+    public func isTrustedProject(_ projectURL: URL) throws -> Bool {
+        try currentSnapshot().isTrustedProject(path: projectURL.path)
     }
 
     /// Loads Claude configuration, returning an empty config when the file does not exist.
     public func load() throws -> ClaudeConfig {
-        let root = try readRoot()
+        let root = try refreshCacheIfNeeded()
         return try config(from: root)
     }
 
     /// Saves Claude configuration.
     public func save(_ config: ClaudeConfig) throws {
-        var root = try readRoot()
+        var root = try refreshCacheIfNeeded()
         let existingProjects = root[ClaudeConfigKey.projects] as? [String: Any] ?? [:]
         root[ClaudeConfigKey.projects] = projectsObject(from: config.trustedProjects, existingProjects: existingProjects)
         root[ClaudeConfigKey.mcpServers] = try mcpServersObject(from: config.mcpServers)
         root.removeValue(forKey: ClaudeConfigKey.legacyTrustedProjects)
         try writeRoot(root)
+        try refreshCacheIfNeeded(root: root)
     }
 
     /// Marks a project path as trusted.
     public func trustProject(_ projectURL: URL) throws {
-        var root = try readRoot()
+        var root = try refreshCacheIfNeeded()
         let path = ClaudePathEncoder.encode(projectURL)
         var projects = root[ClaudeConfigKey.projects] as? [String: Any] ?? [:]
         var project = projects[path] as? [String: Any] ?? [:]
@@ -51,16 +145,37 @@ public actor ClaudeConfigStore {
         root[ClaudeConfigKey.projects] = projects
         root.removeValue(forKey: ClaudeConfigKey.legacyTrustedProjects)
         try writeRoot(root)
+        try refreshCacheIfNeeded(root: root)
     }
 
     /// Replaces Claude MCP servers.
     public func saveMCPConfig(_ mcpConfig: AgentMCPConfig) throws {
-        var root = try readRoot()
+        var root = try refreshCacheIfNeeded()
         root[ClaudeConfigKey.mcpServers] = try mcpServersObject(from: mcpConfig.servers)
         try writeRoot(root)
+        try refreshCacheIfNeeded(root: root)
     }
 
-    private func readRoot() throws -> [String: Any] {
+    /// Reads Claude-native MCP server entries.
+    public func readMCPServers() throws -> [String: ClaudeMCPServerConfig] {
+        let root = try refreshCacheIfNeeded()
+        guard let rawServers = root[ClaudeConfigKey.mcpServers] as? [String: Any] else {
+            return [:]
+        }
+        let data = try JSONSerialization.data(withJSONObject: rawServers)
+        return try JSONDecoder().decode([String: ClaudeMCPServerConfig].self, from: data)
+    }
+
+    /// Writes Claude-native MCP server entries while preserving unrelated config keys.
+    public func writeMCPServers(_ servers: [String: ClaudeMCPServerConfig]) throws {
+        var root = try refreshCacheIfNeeded()
+        let data = try JSONEncoder().encode(servers)
+        root[ClaudeConfigKey.mcpServers] = try JSONSerialization.jsonObject(with: data)
+        try writeRoot(root)
+        try refreshCacheIfNeeded(root: root)
+    }
+
+    private static func readRoot(fileURL: URL) throws -> [String: Any] {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return [:]
         }
@@ -72,6 +187,10 @@ public actor ClaudeConfigStore {
             throw AgentCLIError.invalidInput("Claude config root must be a JSON object.")
         }
         return root
+    }
+
+    private func readRoot() throws -> [String: Any] {
+        try Self.readRoot(fileURL: fileURL)
     }
 
     private func writeRoot(_ root: [String: Any]) throws {
@@ -106,6 +225,61 @@ public actor ClaudeConfigStore {
         } else {
             return []
         }
+    }
+
+    @discardableResult
+    private func refreshCacheIfNeeded(root suppliedRoot: [String: Any]? = nil) throws -> [String: Any] {
+        let root: [String: Any]
+        if let suppliedRoot {
+            root = suppliedRoot
+        } else {
+            root = try readRoot()
+        }
+        let canonicalJSON = Self.canonicalJSONString(from: root)
+        cachedRoot = root
+        guard canonicalJSON != lastObservedCanonicalJSON else {
+            return root
+        }
+
+        lastObservedCanonicalJSON = canonicalJSON
+        revision += 1
+        let snapshot = Self.snapshot(from: root, revision: revision)
+        snapshotCache.update(snapshot)
+        snapshotContinuations.values.forEach { continuation in
+            continuation.yield(snapshot)
+        }
+        return root
+    }
+
+    private func removeSnapshotContinuation(id: UUID) {
+        snapshotContinuations[id] = nil
+    }
+
+    private static func snapshot(from root: [String: Any], revision: Int) -> ClaudeConfigSnapshot {
+        ClaudeConfigSnapshot(revision: revision, trustedProjectPaths: trustedProjectPaths(from: root))
+    }
+
+    private static func trustedProjectPaths(from root: [String: Any]) -> Set<String> {
+        guard let projects = root[ClaudeConfigKey.projects] as? [String: Any] else {
+            return []
+        }
+        return Set(projects.compactMap { path, value in
+            guard let project = value as? [String: Any],
+                  project[ClaudeConfigKey.hasTrustDialogAccepted] as? Bool == true,
+                  project[ClaudeConfigKey.hasCompletedProjectOnboarding] as? Bool == true else {
+                return nil
+            }
+            return AgentPathHelpers.canonicalPath(URL(fileURLWithPath: path))
+        })
+    }
+
+    private static func canonicalJSONString(from root: [String: Any]) -> String {
+        guard JSONSerialization.isValidJSONObject(root),
+              let data = try? JSONSerialization.data(withJSONObject: root, options: [.sortedKeys]),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return string
     }
 
     private func projectsObject(from trustedProjects: Set<String>, existingProjects: [String: Any]) -> [String: Any] {
@@ -169,6 +343,27 @@ private enum ClaudeConfigKey {
     static let legacyTrustedProjects = "trustedProjects"
     static let hasTrustDialogAccepted = "hasTrustDialogAccepted"
     static let hasCompletedProjectOnboarding = "hasCompletedProjectOnboarding"
+}
+
+private final class ClaudeConfigSnapshotCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedSnapshot: ClaudeConfigSnapshot
+
+    init(snapshot: ClaudeConfigSnapshot) {
+        self.storedSnapshot = snapshot
+    }
+
+    var snapshot: ClaudeConfigSnapshot {
+        lock.withLock {
+            storedSnapshot
+        }
+    }
+
+    func update(_ snapshot: ClaudeConfigSnapshot) {
+        lock.withLock {
+            storedSnapshot = snapshot
+        }
+    }
 }
 
 /// Bridge between generic MCP config and Claude config.
