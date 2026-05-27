@@ -6,6 +6,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     let adapters: [AgentProviderID: any AgentProviderAdapter]
     let sessionStore: any AgentSessionStore
     let replayLimit: Int
+    let subscriberBufferLimit: Int
     var states: [AgentConversationID: ConversationState] = [:]
     var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
     var statusSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentRuntimeStatus>.Continuation]] = [:]
@@ -15,14 +16,18 @@ public actor DefaultAgentRuntime: AgentRuntime {
     ///   - adapters: Provider adapters keyed by their definitions. Duplicate provider IDs prefer the later adapter.
     ///   - sessionStore: Store used to resume provider sessions.
     ///   - replayLimit: Number of acknowledged events retained as replay history. Values below one are clamped to one.
+    ///   - subscriberBufferLimit: Maximum live events buffered per subscriber while the host is not consuming. Values below one
+    ///     are clamped to one; replay remains available through `subscribe(conversationId:afterIndex:)`.
     public init(
         adapters: [any AgentProviderAdapter],
         sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
-        replayLimit: Int = 500
+        replayLimit: Int = 500,
+        subscriberBufferLimit: Int = 1_000
     ) {
         self.adapters = Dictionary(adapters.map { ($0.definition.id, $0) }, uniquingKeysWith: { _, new in new })
         self.sessionStore = sessionStore
         self.replayLimit = max(1, replayLimit)
+        self.subscriberBufferLimit = max(1, subscriberBufferLimit)
     }
 
     /// Spawns or replaces the provider process for a conversation.
@@ -32,7 +37,9 @@ public actor DefaultAgentRuntime: AgentRuntime {
 
     /// Subscribes to events after a previously persisted event index.
     public func subscribe(conversationId: AgentConversationID, afterIndex: Int?) async -> AgentEventSubscription {
-        let stream = AsyncStream<AgentEventEnvelope>.makeStream()
+        let stream = AsyncStream<AgentEventEnvelope>.makeStream(
+            bufferingPolicy: bufferingPolicy(conversationId: conversationId, afterIndex: afterIndex)
+        )
         // Register while still isolated so callers can immediately spawn or reconfigure without missing fast events.
         addSubscriber(stream.continuation, conversationId: conversationId, afterIndex: afterIndex)
         let generation = states[conversationId]?.generation ?? 1
@@ -194,6 +201,15 @@ public actor DefaultAgentRuntime: AgentRuntime {
     /// Returns current runtime status for a conversation.
     public func status(conversationId: AgentConversationID) async -> AgentRuntimeStatus? {
         states[conversationId]?.status(conversationId: conversationId)
+    }
+
+    private func bufferingPolicy(
+        conversationId: AgentConversationID,
+        afterIndex: Int?
+    ) -> AsyncStream<AgentEventEnvelope>.Continuation.BufferingPolicy {
+        let cursor = afterIndex ?? -1
+        let replayCount = states[conversationId]?.events.filter { $0.index > cursor }.count ?? 0
+        return replayCount > subscriberBufferLimit ? .unbounded : .bufferingNewest(subscriberBufferLimit)
     }
 
     private func shouldAcceptCancellation(conversationId: AgentConversationID) -> Bool {

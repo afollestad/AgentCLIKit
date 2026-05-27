@@ -175,6 +175,29 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
         }
     }
 
+    func testConcurrentCancelCallsEmitSingleCancelledLifecycle() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            FakeProviderAdapter(command: shell("sleep 5"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<10 {
+                group.addTask {
+                    await runtime.cancel(conversationId: conversationId)
+                }
+            }
+        }
+        let status = await runtime.status(conversationId: conversationId)
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+        let replayed = await Self.collect(subscription.events, limit: (status?.lastEventIndex ?? -1) + 1)
+        let cancelledEvents = replayed.filter { $0.event == .lifecycle(AgentLifecycleEvent(state: .cancelled, message: "Cancelled by host.")) }
+
+        XCTAssertEqual(status?.state, .cancelled)
+        XCTAssertEqual(cancelledEvents.count, 1)
+    }
+
     func testKillTerminatesProviderProcess() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
             FakeProviderAdapter(command: shell("sleep 5"))

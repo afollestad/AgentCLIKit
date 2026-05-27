@@ -205,11 +205,17 @@ extension DefaultAgentRuntime {
         case .starting, .running, nil:
             break
         }
+        for pump in current.outputPumps {
+            await pump.waitUntilDrained()
+        }
+        guard let latest = states[conversationId], latest.processToken == processToken else {
+            return
+        }
         let state: AgentLifecycleState = exitCode == 0 ? .exited : .failed
         emitLifecycle(state, conversationId: conversationId, exitCode: exitCode)
         states[conversationId]?.stdin = nil
         states[conversationId]?.stdinWriter = nil
-        await current.adapter.processDidTerminate(processToken: processToken)
+        await latest.adapter.processDidTerminate(processToken: processToken)
     }
 
     func emitLifecycle(

@@ -53,6 +53,7 @@ final class OutputLinePump: @unchecked Sendable {
     private let lineQueue: OutputLineQueue
 
     private var buffer = Data()
+    private var isFinishing = false
     private var hasFinished = false
 
     init(handle: FileHandle, onLine: @escaping @Sendable (String) async -> Void) {
@@ -75,6 +76,23 @@ final class OutputLinePump: @unchecked Sendable {
         lineQueue.cancel()
     }
 
+    func waitUntilDrained(timeoutNanoseconds: UInt64 = 500_000_000) async {
+        let sleepNanoseconds: UInt64 = 5_000_000
+        let attempts = max(1, Int(timeoutNanoseconds / sleepNanoseconds))
+        for _ in 0..<attempts {
+            if isFinished, lineQueue.isIdle {
+                return
+            }
+            try? await Task.sleep(nanoseconds: sleepNanoseconds)
+        }
+    }
+
+    private var isFinished: Bool {
+        lock.withLock {
+            hasFinished
+        }
+    }
+
     private func handleReadable(_ handle: FileHandle) {
         let chunk = handle.availableData
         if chunk.isEmpty {
@@ -89,7 +107,7 @@ final class OutputLinePump: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        guard !hasFinished else {
+        guard !hasFinished, !isFinishing else {
             return []
         }
 
@@ -110,12 +128,12 @@ final class OutputLinePump: @unchecked Sendable {
         let pendingLine: String?
 
         lock.lock()
-        guard !hasFinished else {
+        guard !hasFinished, !isFinishing else {
             lock.unlock()
             return
         }
 
-        hasFinished = true
+        isFinishing = true
         handle.readabilityHandler = nil
         if flushPendingLine, !buffer.isEmpty {
             let pendingData = buffer.last == 0x0D ? Data(buffer.dropLast()) : buffer
@@ -128,6 +146,11 @@ final class OutputLinePump: @unchecked Sendable {
 
         if let pendingLine, !pendingLine.isEmpty {
             schedule([pendingLine])
+        }
+
+        lock.withLock {
+            hasFinished = true
+            isFinishing = false
         }
     }
 
@@ -173,6 +196,12 @@ private final class OutputLineQueue: @unchecked Sendable {
             isCancelled = true
             pendingLines.removeAll()
             nextLineIndex = 0
+        }
+    }
+
+    var isIdle: Bool {
+        lock.withLock {
+            !isProcessing && pendingLines.isEmpty
         }
     }
 
