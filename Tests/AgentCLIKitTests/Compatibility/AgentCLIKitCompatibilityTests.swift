@@ -139,6 +139,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
 
         XCTAssertEqual(launch.executable, "/usr/bin/env")
         XCTAssertNil(launch.sessionContinuity)
+        XCTAssertFalse(launch.includesSpawnArguments)
     }
 }
 

@@ -76,6 +76,8 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
     public let workingDirectory: URL?
     /// Provider session continuity outcome for this launch when known.
     public let sessionContinuity: AgentSessionContinuity?
+    /// Whether `arguments` already include `AgentSpawnConfig.arguments`.
+    public let includesSpawnArguments: Bool
 
     /// Creates a launch configuration.
     public init(
@@ -83,13 +85,15 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
         arguments: [String] = [],
         environment: [String: String] = [:],
         workingDirectory: URL? = nil,
-        sessionContinuity: AgentSessionContinuity? = nil
+        sessionContinuity: AgentSessionContinuity? = nil,
+        includesSpawnArguments: Bool = false
     ) {
         self.executable = executable
         self.arguments = arguments
         self.environment = environment
         self.workingDirectory = workingDirectory
         self.sessionContinuity = sessionContinuity
+        self.includesSpawnArguments = includesSpawnArguments
     }
 
     /// Decodes launch configuration, defaulting newer optional fields for older persisted values.
@@ -100,5 +104,6 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
         self.environment = try container.decodeIfPresent([String: String].self, forKey: .environment) ?? [:]
         self.workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory)
         self.sessionContinuity = try container.decodeIfPresent(AgentSessionContinuity.self, forKey: .sessionContinuity)
+        self.includesSpawnArguments = try container.decodeIfPresent(Bool.self, forKey: .includesSpawnArguments) ?? false
     }
 }

@@ -282,7 +282,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: launch.executable)
-        process.arguments = launch.arguments + config.arguments
+        process.arguments = launch.includesSpawnArguments ? launch.arguments : launch.arguments + config.arguments
         process.currentDirectoryURL = launch.workingDirectory ?? config.workingDirectory
         process.environment = environment
 

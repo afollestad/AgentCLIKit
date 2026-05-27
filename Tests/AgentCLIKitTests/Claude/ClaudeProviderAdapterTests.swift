@@ -17,6 +17,8 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         let config = AgentSpawnConfig(
             providerId: .claude,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            arguments: ["--dangerously-skip-permissions"],
+            environment: ["CLAUDE_CONFIG_DIR": "/tmp/claude-config"],
             model: "sonnet",
             effort: "high",
             permissionMode: "acceptEdits",
@@ -34,18 +36,29 @@ final class ClaudeProviderAdapterTests: XCTestCase {
             "stream-json",
             "--verbose",
             "--include-partial-messages",
+            "--permission-mode",
+            "acceptEdits",
             "--model",
             "sonnet",
             "--effort",
             "high",
-            "--permission-mode",
-            "acceptEdits",
             "--resume",
             "session-id",
+            "--dangerously-skip-permissions",
             "Continue"
         ])
+        XCTAssertEqual(launch.environment, ["CLAUDE_CONFIG_DIR": "/tmp/claude-config"])
         XCTAssertEqual(launch.workingDirectory?.path, "/tmp/project")
         XCTAssertEqual(launch.sessionContinuity, .resumed)
+        XCTAssertTrue(launch.includesSpawnArguments)
+    }
+
+    func testClaudeDefinitionExposesHostLaunchMetadata() {
+        let definition = ClaudeProviderAdapter().definition
+
+        XCTAssertTrue(definition.capabilities.supportsMidTurnSteering)
+        XCTAssertEqual(definition.supportedPermissionModes?.map(\.value), ["default", "plan", "acceptEdits", "auto"])
+        XCTAssertEqual(definition.supportedEffortLevels, ["low", "medium", "high", "xhigh", "max"])
     }
 
     func testLaunchConfigurationFallsBackToSessionIDWhenResumeArtifactIsMissing() async throws {

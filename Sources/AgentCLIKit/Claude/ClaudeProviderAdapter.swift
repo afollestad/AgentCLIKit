@@ -15,8 +15,32 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             supportsHooks: true,
             supportsMCP: true,
             supportsApprovals: true,
-            supportsUsage: true
-        )
+            supportsUsage: true,
+            supportsMidTurnSteering: true
+        ),
+        supportedPermissionModes: [
+            AgentProviderOption(
+                value: "default",
+                label: "Default permissions",
+                description: "Safe default; denied writes return as tool errors in non-interactive mode."
+            ),
+            AgentProviderOption(
+                value: "plan",
+                label: "Plan",
+                description: "Read-only exploration and planning."
+            ),
+            AgentProviderOption(
+                value: "acceptEdits",
+                label: "Accept edits",
+                description: "Auto-accept file edits while keeping stronger checks for other actions."
+            ),
+            AgentProviderOption(
+                value: "auto",
+                label: "Automatic",
+                description: "Auto-approve most actions with safety checks."
+            )
+        ],
+        supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"]
     )
 
     private let executablePath: String
@@ -91,14 +115,14 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             "--verbose",
             "--include-partial-messages"
         ])
+        if let permissionMode = spawnConfig.permissionMode {
+            arguments.append(contentsOf: ["--permission-mode", permissionMode])
+        }
         if let model = spawnConfig.model {
             arguments.append(contentsOf: ["--model", model])
         }
         if let effort = spawnConfig.effort {
             arguments.append(contentsOf: ["--effort", effort])
-        }
-        if let permissionMode = spawnConfig.permissionMode {
-            arguments.append(contentsOf: ["--permission-mode", permissionMode])
         }
         var sessionContinuity: AgentSessionContinuity = resumedSession == nil ? .fresh : .resumed
         if let sessionId = resumedSession?.providerSessionId {
@@ -112,6 +136,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             let sessionArguments = canResume ? ["--resume", sessionId.rawValue] : ["--session-id", sessionId.rawValue]
             arguments.append(contentsOf: sessionArguments)
         }
+        arguments.append(contentsOf: spawnConfig.arguments)
         if let initialPrompt = spawnConfig.initialPrompt {
             arguments.append(initialPrompt)
         }
@@ -120,7 +145,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             arguments: arguments,
             environment: spawnConfig.environment,
             workingDirectory: spawnConfig.workingDirectory,
-            sessionContinuity: sessionContinuity
+            sessionContinuity: sessionContinuity,
+            includesSpawnArguments: true
         )
     }
 
@@ -161,12 +187,22 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
                 conversationId: conversationId,
                 processToken: processToken
             )
+            var arguments = launch.arguments
+            let prompt = spawnConfig.initialPrompt
+            if let prompt, arguments.last == prompt {
+                arguments.removeLast()
+            }
+            arguments.append(contentsOf: hooks.arguments)
+            if let prompt {
+                arguments.append(prompt)
+            }
             return AgentLaunchConfiguration(
                 executable: launch.executable,
-                arguments: launch.arguments + hooks.arguments,
+                arguments: arguments,
                 environment: launch.environment.merging(hooks.environment) { _, new in new },
                 workingDirectory: launch.workingDirectory,
-                sessionContinuity: launch.sessionContinuity
+                sessionContinuity: launch.sessionContinuity,
+                includesSpawnArguments: launch.includesSpawnArguments
             )
         } catch {
             await hookCoordinator.invalidate(processToken: processToken)

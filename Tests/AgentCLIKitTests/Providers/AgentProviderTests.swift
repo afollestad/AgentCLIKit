@@ -25,6 +25,33 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertEqual(definition?.executableNames, ["new"])
     }
 
+    func testProviderDefinitionRoundTripsLaunchMetadataAndDefaultsLegacyFields() throws {
+        let definition = AgentProviderDefinition(
+            id: .claude,
+            displayName: "Claude",
+            executableNames: ["claude"],
+            capabilities: AgentProviderCapabilities(supportsMidTurnSteering: true),
+            supportedPermissionModes: [
+                AgentProviderOption(value: "plan", label: "Plan", description: "Read-only planning.")
+            ],
+            supportedEffortLevels: ["low", "high"]
+        )
+
+        let data = try JSONEncoder().encode(definition)
+        let decoded = try JSONDecoder().decode(AgentProviderDefinition.self, from: data)
+        let legacy = try JSONDecoder().decode(
+            AgentProviderDefinition.self,
+            from: Data(#"{"id":"claude","displayName":"Claude","executableNames":["claude"]}"#.utf8)
+        )
+
+        XCTAssertEqual(decoded, definition)
+        XCTAssertEqual(decoded.supportedPermissionModes?.map(\.value), ["plan"])
+        XCTAssertEqual(decoded.supportedEffortLevels, ["low", "high"])
+        XCTAssertFalse(legacy.capabilities.supportsMidTurnSteering)
+        XCTAssertNil(legacy.supportedPermissionModes)
+        XCTAssertNil(legacy.supportedEffortLevels)
+    }
+
     func testDetectorFindsFirstAvailableExecutableAndVersion() async {
         let whichClaude = ShellCommand(executable: "/usr/bin/env", arguments: ["which", "claude"])
         let versionClaude = ShellCommand(executable: "/opt/homebrew/bin/claude", arguments: ["--version"])
