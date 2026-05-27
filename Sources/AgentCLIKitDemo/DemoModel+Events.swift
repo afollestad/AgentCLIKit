@@ -11,9 +11,6 @@ extension DemoModel {
         refreshSessionRecord(from: envelope)
         switch envelope.event {
         case .message(let message):
-            guard !shouldSkipDuplicateResultMessage(message, sessionID: sessionID) else {
-                return
-            }
             finishActiveTurnIfNeeded(sessionID: sessionID)
             append(
                 DemoChatRow(
@@ -181,27 +178,6 @@ extension DemoModel {
         let preservedRows = rows.prefix(turnStartIndex)
         let currentTurnRows = rows.dropFirst(turnStartIndex).filter { !Self.isUsageRow($0) }
         rowsBySession[sessionID] = Array(preservedRows) + currentTurnRows
-    }
-
-    private func shouldSkipDuplicateResultMessage(_ message: AgentMessageEvent, sessionID: AgentConversationID) -> Bool {
-        guard message.role == .assistant,
-              Self.metadataString(message.metadata["claude_event_type"]) == "result" else {
-            return false
-        }
-        // Claude stream-json can emit both an assistant message and a final result with identical text for one turn.
-        for row in (rowsBySession[sessionID] ?? []).reversed() {
-            switch row.kind {
-            case .message(role: .user, text: _):
-                return false
-            case .message(role: .assistant, text: let existingText):
-                if existingText == message.text {
-                    return true
-                }
-            default:
-                continue
-            }
-        }
-        return false
     }
 
     private func finishActiveTurnIfNeeded(sessionID: AgentConversationID) {

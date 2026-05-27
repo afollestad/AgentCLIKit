@@ -18,6 +18,8 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
     public let toolUses: Int?
     /// Provider run duration in milliseconds.
     public let durationMs: Int?
+    /// Provider-reported cost in USD, when available.
+    public let costUSD: Double?
     /// Model context window size when known.
     public let contextWindow: Int?
     /// Provider stop reason when known.
@@ -41,6 +43,7 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
         totalTokens: Int? = nil,
         toolUses: Int? = nil,
         durationMs: Int? = nil,
+        costUSD: Double? = nil,
         contextWindow: Int? = nil,
         stopReason: String? = nil,
         isTerminal: Bool = false,
@@ -56,6 +59,7 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
         self.totalTokens = totalTokens
         self.toolUses = toolUses
         self.durationMs = durationMs
+        self.costUSD = costUSD
         self.contextWindow = contextWindow
         self.stopReason = stopReason
         self.isTerminal = isTerminal
@@ -79,6 +83,7 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
         self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens) ?? metadata.intValue("total_tokens")
         self.toolUses = try container.decodeIfPresent(Int.self, forKey: .toolUses) ?? metadata.intValue("tool_uses")
         self.durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs) ?? metadata.intValue("duration_ms")
+        self.costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD) ?? metadata.doubleValue("total_cost_usd")
         self.contextWindow = try container.decodeIfPresent(Int.self, forKey: .contextWindow) ?? metadata.intValue("context_window")
         self.stopReason = stopReason
         self.isTerminal = try container.decodeIfPresent(Bool.self, forKey: .isTerminal) ?? (stopReason != nil && stopReason != "usage_update")
@@ -105,6 +110,13 @@ private extension [String: JSONValue] {
 
     func boolValue(_ key: String) -> Bool? {
         guard case let .bool(value)? = self[key] else {
+            return nil
+        }
+        return value
+    }
+
+    func doubleValue(_ key: String) -> Double? {
+        guard case let .number(value)? = self[key] else {
             return nil
         }
         return value

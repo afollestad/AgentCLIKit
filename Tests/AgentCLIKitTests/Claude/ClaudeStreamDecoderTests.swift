@@ -17,12 +17,11 @@ final class ClaudeStreamDecoderTests: XCTestCase {
             }
             return diagnostic.metadata["session_id"] == .string("abc")
         })
-        XCTAssertTrue(result.contains {
-            $0 == .message(AgentMessageEvent(
-                role: .assistant,
-                text: "Done",
-                metadata: ["claude_event_type": .string("result")]
-            ))
+        XCTAssertFalse(result.contains {
+            if case .message = $0 {
+                return true
+            }
+            return false
         })
         XCTAssertTrue(result.contains { $0 == .usage(AgentUsageEvent(
             model: "sonnet",

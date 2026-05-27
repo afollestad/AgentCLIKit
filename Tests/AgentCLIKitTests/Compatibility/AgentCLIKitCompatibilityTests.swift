@@ -118,7 +118,9 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
     }
 
     func testOlderUsageEventPayloadDefaultsNewTypedFields() throws {
-        let data = Data(#"{"model":"sonnet","inputTokens":1,"outputTokens":2,"metadata":{"stop_reason":"end_turn","duration_ms":50}}"#.utf8)
+        let data = Data(
+            #"{"model":"sonnet","inputTokens":1,"outputTokens":2,"metadata":{"stop_reason":"end_turn","duration_ms":50,"total_cost_usd":0.02}}"#.utf8
+        )
 
         let usage = try JSONDecoder().decode(AgentUsageEvent.self, from: data)
 
@@ -127,6 +129,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertEqual(usage.outputTokens, 2)
         XCTAssertEqual(usage.stopReason, "end_turn")
         XCTAssertEqual(usage.durationMs, 50)
+        XCTAssertEqual(usage.costUSD, 0.02)
         XCTAssertTrue(usage.isTerminal)
         XCTAssertFalse(usage.isError)
         XCTAssertEqual(usage.permissionDenials, [])

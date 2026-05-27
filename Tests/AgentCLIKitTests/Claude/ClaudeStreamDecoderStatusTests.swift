@@ -14,6 +14,7 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
                 cacheReadInputTokens: 2,
                 cacheCreationInputTokens: 1,
                 durationMs: 1234,
+                costUSD: 0.25,
                 contextWindow: 200000,
                 stopReason: "end_turn",
                 isTerminal: true,

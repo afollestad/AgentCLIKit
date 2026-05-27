@@ -184,11 +184,6 @@ public struct ClaudeStreamDecoder: Sendable {
         if envelope.subtype == "error" || envelope.isError == true {
             events.append(.diagnostic(AgentDiagnosticEvent(severity: .error, message: envelope.result ?? "Claude result error")))
         }
-        if let result = envelope.result.map(ClaudeCaveatStripper.strip), !result.isEmpty {
-            var metadata = envelope.resultMetadata
-            metadata["claude_event_type"] = .string("result")
-            events.append(.message(AgentMessageEvent(role: .assistant, text: result, metadata: metadata)))
-        }
         if let usage = envelope.usage {
             var metadata = envelope.resultMetadata
             if envelope.subtype == "error", metadata["is_error"] == nil {
@@ -213,6 +208,7 @@ public struct ClaudeStreamDecoder: Sendable {
                 inputTokens: nil,
                 outputTokens: nil,
                 durationMs: envelope.durationMs,
+                costUSD: envelope.totalCostUSD,
                 stopReason: envelope.stopReason,
                 isTerminal: true,
                 isError: envelope.isError == true || envelope.subtype == "error",
@@ -269,6 +265,7 @@ public struct ClaudeStreamDecoder: Sendable {
         metadata.merge(extraMetadata) { _, new in new }
         let stopReason = stringValue(metadata["stop_reason"])
         let durationMs = intValue(metadata["duration_ms"]) ?? usage.durationMs
+        let costUSD = doubleValue(metadata["total_cost_usd"])
         let contextWindow = intValue(metadata["context_window"])
         return .usage(AgentUsageEvent(
             model: model,
@@ -279,6 +276,7 @@ public struct ClaudeStreamDecoder: Sendable {
             totalTokens: usage.totalTokens,
             toolUses: usage.toolUses,
             durationMs: durationMs,
+            costUSD: costUSD,
             contextWindow: contextWindow,
             stopReason: stopReason,
             isTerminal: stopReason != nil && stopReason != "usage_update",
@@ -374,6 +372,13 @@ private func intValue(_ value: JSONValue?) -> Int? {
         return nil
     }
     return Int(number)
+}
+
+private func doubleValue(_ value: JSONValue?) -> Double? {
+    guard case let .number(number)? = value else {
+        return nil
+    }
+    return number
 }
 
 private func boolValue(_ value: JSONValue?) -> Bool? {
