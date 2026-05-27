@@ -28,12 +28,69 @@ public protocol ClaudeHookDecisionProviding: Sendable {
 
 /// Claude hook policy values shared by settings generation and host integrations.
 public enum ClaudeHookPolicy {
+    private static let directlyApprovalControlledTools = [
+        "Bash",
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit"
+    ]
     /// Matcher used for the Claude `PreToolUse` hook registration.
     public static let preToolUseMatcher = "AskUserQuestion|Bash|Write|Edit|MultiEdit|NotebookEdit|EnterPlanMode|ExitPlanMode|mcp__.*"
     /// Claude hook transport timeout registered in generated settings.
     public static let defaultHookTimeoutSeconds = 600
     /// Default maximum wait for app-owned decisions before returning a deferred response.
     public static let defaultDecisionTimeout: TimeInterval = 115
+
+    /// Returns whether generated hooks should be enabled for a launch permission mode.
+    public static func shouldEnableHooks(permissionMode: String?) -> Bool {
+        switch permissionMode {
+        case "auto", "bypassPermissions", "dontAsk":
+            false
+        default:
+            true
+        }
+    }
+
+    /// Returns whether a tool should be deferred to the host for the active permission mode.
+    public static func shouldDefer(toolName: String, permissionMode: String?) -> Bool {
+        if toolName == "AskUserQuestion" {
+            return true
+        }
+        if toolName == "ExitPlanMode" {
+            return permissionMode == "plan"
+        }
+
+        switch permissionMode {
+        case "auto", "bypassPermissions", "dontAsk":
+            return false
+        case "acceptEdits":
+            return toolName == "Bash" || isMutatingMCPTool(toolName)
+        default:
+            return isPotentiallyApprovalControlledTool(toolName)
+        }
+    }
+
+    /// Returns whether a tool can become a host-controlled approval.
+    public static func isPotentiallyApprovalControlledTool(_ toolName: String) -> Bool {
+        switch toolName {
+        case "AskUserQuestion", "ExitPlanMode":
+            return true
+        default:
+            return directlyApprovalControlledTools.contains(toolName) || isMutatingMCPTool(toolName)
+        }
+    }
+
+    /// Returns whether an MCP tool name appears mutating.
+    public static func isMutatingMCPTool(_ toolName: String) -> Bool {
+        guard toolName.hasPrefix("mcp__"),
+              let lastComponent = toolName.split(separator: "__").last?.lowercased() else {
+            return false
+        }
+        return ["write", "create", "update", "delete", "remove", "send", "post"].contains {
+            lastComponent.hasPrefix($0)
+        }
+    }
 }
 
 /// Claude hook settings payload for registering AgentCLIKit's local hook endpoint.
@@ -153,6 +210,9 @@ public actor ClaudeHookServer {
         default:
             break
         }
+        guard ClaudeHookPolicy.shouldDefer(toolName: operation, permissionMode: permissionMode(for: request)) else {
+            return response(for: .allow())
+        }
 
         let interactionId = request.interactionId
         if let policyDecision = await policyDecision(operation: operation, interactionId: interactionId, request: request) {
@@ -201,6 +261,9 @@ public actor ClaudeHookServer {
 
     private func handlePlanModeExit(_ request: ClaudeHookRequest) async -> AgentHookResponse {
         rememberPermissionMode(from: request)
+        guard ClaudeHookPolicy.shouldDefer(toolName: "ExitPlanMode", permissionMode: permissionMode(for: request)) else {
+            return response(for: .allow())
+        }
         let interactionId = request.interactionId
         if let policyDecision = await policyDecision(operation: "ExitPlanMode", interactionId: interactionId, request: request) {
             return response(for: policyDecision)

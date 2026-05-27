@@ -179,7 +179,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         conversationId: AgentConversationID,
         processToken: UUID
     ) async throws -> AgentLaunchConfiguration {
-        guard let hookCoordinator else {
+        guard let hookCoordinator,
+              ClaudeHookPolicy.shouldEnableHooks(permissionMode: spawnConfig.permissionMode) else {
             return launch
         }
         do {

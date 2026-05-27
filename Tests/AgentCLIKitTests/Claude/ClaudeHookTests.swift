@@ -282,7 +282,7 @@ final class ClaudeHookTests: XCTestCase {
         let token = await tokenStore.issue(validFor: 60)
         let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
 
-        let response = await server.handle(preToolUse(token: token.value, toolName: "ExitPlanMode"))
+        let response = await server.handle(preToolUse(token: token.value, toolName: "ExitPlanMode", permissionMode: "plan"))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
         XCTAssertEqual(response.statusCode, 200)
@@ -304,7 +304,12 @@ final class ClaudeHookTests: XCTestCase {
             approvalPolicyStore: approvalPolicyStore
         )
 
-        let response = await server.handle(preToolUse(token: token.value, toolName: "ExitPlanMode", toolInput: toolInput))
+        let response = await server.handle(preToolUse(
+            token: token.value,
+            toolName: "ExitPlanMode",
+            toolInput: toolInput,
+            permissionMode: "plan"
+        ))
         let output = hookSpecificOutput(from: response)
 
         XCTAssertEqual(response.statusCode, 200)
@@ -344,7 +349,7 @@ final class ClaudeHookTests: XCTestCase {
             bearerToken: token.value,
             hookName: "PlanModeExit",
             conversationId: "conversation",
-            payload: .object([:])
+            payload: .object(["permissionMode": .string("plan")])
         ))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
@@ -385,7 +390,7 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .allow)
     }
 
-    private func preToolUse(
+    func preToolUse(
         token: String?,
         toolName: String = "Edit",
         toolInput: JSONValue = .object([:]),

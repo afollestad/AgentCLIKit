@@ -105,6 +105,23 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(launch.sessionContinuity, .fresh)
     }
 
+    func testPrepareLaunchSkipsHooksWhenPermissionModeDisablesHooks() async throws {
+        let adapter = ClaudeProviderAdapter()
+        let launch = AgentLaunchConfiguration(executable: "/usr/bin/env", arguments: ["claude"])
+        let prepared = try await adapter.prepareLaunchConfiguration(
+            launch,
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp"),
+                permissionMode: "auto"
+            ),
+            conversationId: "conversation",
+            processToken: UUID()
+        )
+
+        XCTAssertEqual(prepared, launch)
+    }
+
     func testInputEncoderWritesStreamJSONLine() throws {
         let data = try ClaudeInputEncoder().encode(.userMessage(AgentMessageInput(text: "Hello")))
         let json = try JSONSerialization.jsonObject(with: data.dropLast()) as? [String: Any]
