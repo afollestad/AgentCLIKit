@@ -184,6 +184,7 @@ extension DefaultAgentRuntime {
             conversationId: conversationId,
             providerId: state.providerId,
             providerSessionId: providerSessionId,
+            workingDirectory: state.spawnConfig.workingDirectory,
             generation: state.generation,
             createdAt: createdAt,
             metadata: ["source": .string("runtime")]

@@ -5,18 +5,22 @@ import XCTest
 final class DefaultAgentRuntimeSessionTests: XCTestCase {
     func testRuntimePersistsProviderSessionDiscoveredFromEvents() async throws {
         let sessionStore = InMemoryAgentSessionStore()
+        let workingDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
         let runtime = DefaultAgentRuntime(
             adapters: [SessionReportingProviderAdapter(command: shell("printf 'session:provider-session\\n'"))],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
 
-        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig(workingDirectory: workingDirectory))
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
         let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
 
         XCTAssertEqual(status?.providerSessionId, "provider-session")
         XCTAssertEqual(persisted?.providerSessionId, "provider-session")
+        XCTAssertEqual(persisted?.workingDirectory?.path, AgentPathHelpers.canonicalPath(workingDirectory))
         XCTAssertEqual(persisted?.generation, status?.generation)
     }
 

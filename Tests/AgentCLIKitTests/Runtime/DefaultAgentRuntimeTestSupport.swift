@@ -4,8 +4,8 @@ import XCTest
 @testable import AgentCLIKit
 
 extension XCTestCase {
-    func spawnConfig() -> AgentSpawnConfig {
-        AgentSpawnConfig(providerId: .claude, workingDirectory: FileManager.default.temporaryDirectory)
+    func spawnConfig(workingDirectory: URL = FileManager.default.temporaryDirectory) -> AgentSpawnConfig {
+        AgentSpawnConfig(providerId: .claude, workingDirectory: workingDirectory)
     }
 
     func shell(_ script: String) -> AgentLaunchConfiguration {

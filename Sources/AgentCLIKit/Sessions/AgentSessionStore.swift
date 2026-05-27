@@ -8,6 +8,8 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
     public let providerId: AgentProviderID
     /// Provider-defined session identifier.
     public let providerSessionId: AgentSessionID
+    /// Canonical working directory associated with the provider session, when known.
+    public let workingDirectory: URL?
     /// Runtime generation associated with the provider session.
     public let generation: Int
     /// Date the record was created.
@@ -22,6 +24,7 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         conversationId: AgentConversationID,
         providerId: AgentProviderID,
         providerSessionId: AgentSessionID,
+        workingDirectory: URL? = nil,
         generation: Int,
         createdAt: Date = Date(),
         updatedAt: Date = Date(),
@@ -30,10 +33,24 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         self.conversationId = conversationId
         self.providerId = providerId
         self.providerSessionId = providerSessionId
+        self.workingDirectory = workingDirectory.map(AgentPathHelpers.canonicalFileURL)
         self.generation = generation
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.metadata = metadata
+    }
+
+    /// Decodes a session record, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
+        providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
+        providerSessionId = try container.decode(AgentSessionID.self, forKey: .providerSessionId)
+        workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory).map(AgentPathHelpers.canonicalFileURL)
+        generation = try container.decode(Int.self, forKey: .generation)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
     }
 }
 
@@ -47,6 +64,53 @@ public protocol AgentSessionStore: Sendable {
     func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws
     /// Lists all session records.
     func allRecords() async throws -> [AgentSessionRecord]
+}
+
+public extension AgentSessionStore {
+    /// Loads records matching a provider and, when supplied, a canonical working directory.
+    func records(providerId: AgentProviderID, workingDirectory: URL? = nil) async throws -> [AgentSessionRecord] {
+        let canonicalWorkingDirectory = workingDirectory.map(AgentPathHelpers.canonicalPath)
+        return try await allRecords().filter { record in
+            guard record.providerId == providerId else {
+                return false
+            }
+            guard let canonicalWorkingDirectory else {
+                return true
+            }
+            return record.workingDirectory.map(AgentPathHelpers.canonicalPath) == canonicalWorkingDirectory
+        }
+    }
+
+    /// Loads a record by provider session, optionally scoped to a canonical working directory.
+    func record(
+        providerId: AgentProviderID,
+        providerSessionId: AgentSessionID,
+        workingDirectory: URL? = nil
+    ) async throws -> AgentSessionRecord? {
+        try await records(providerId: providerId, workingDirectory: workingDirectory)
+            .first { $0.providerSessionId == providerSessionId }
+    }
+
+    /// Removes records matching a provider session, optionally scoped to a canonical working directory.
+    func remove(
+        providerId: AgentProviderID,
+        providerSessionId: AgentSessionID,
+        workingDirectory: URL? = nil
+    ) async throws {
+        let records = try await records(providerId: providerId, workingDirectory: workingDirectory)
+            .filter { $0.providerSessionId == providerSessionId }
+        for record in records {
+            try await remove(conversationId: record.conversationId, providerId: record.providerId)
+        }
+    }
+
+    /// Removes all records for a provider, optionally scoped to a canonical working directory.
+    func remove(providerId: AgentProviderID, workingDirectory: URL? = nil) async throws {
+        let records = try await records(providerId: providerId, workingDirectory: workingDirectory)
+        for record in records {
+            try await remove(conversationId: record.conversationId, providerId: record.providerId)
+        }
+    }
 }
 
 /// In-memory session store for tests and ephemeral hosts.

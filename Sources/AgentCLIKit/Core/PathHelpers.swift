@@ -19,4 +19,14 @@ public enum AgentPathHelpers {
         try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
         return url.standardizedFileURL
     }
+
+    /// Returns a symlink-resolved, standardized file URL for stable project matching.
+    public static func canonicalFileURL(_ url: URL) -> URL {
+        url.resolvingSymlinksInPath().standardizedFileURL
+    }
+
+    /// Returns a symlink-resolved, standardized file path for stable project matching.
+    public static func canonicalPath(_ url: URL) -> String {
+        canonicalFileURL(url).path
+    }
 }
