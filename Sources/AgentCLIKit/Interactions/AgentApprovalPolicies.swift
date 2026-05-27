@@ -10,6 +10,232 @@ public enum AgentApprovalGrantKind: String, Codable, Hashable, Sendable {
     case batch
 }
 
+/// Durable session approval match kinds shared by provider hook implementations.
+public enum AgentSessionApprovalMatchKind: String, Codable, Hashable, Sendable {
+    /// Exact Bash command match.
+    case bashExact
+    /// Conservative Bash executable plus subcommand match.
+    case bashCommandGroup
+    /// Exact file path match for file-mutating tools.
+    case filePathExact
+}
+
+/// Tool approval scope the host may offer for a pending approval.
+public enum AgentToolApprovalSessionScope: String, Codable, Hashable, Sendable {
+    /// Approve only the exact operation payload.
+    case exact
+    /// Approve a conservative group of similar operations.
+    case group
+}
+
+/// Durable approval grant for a provider session.
+public struct AgentSessionApprovalGrant: Codable, Equatable, Hashable, Sendable {
+    /// Provider that owns the approval.
+    public let providerId: AgentProviderID
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Provider session identifier.
+    public let sessionId: AgentSessionID
+    /// Match kind used by the provider hook.
+    public let matchKind: AgentSessionApprovalMatchKind
+    /// Normalized value for `matchKind`.
+    public let matchValue: String
+
+    /// Creates a durable session approval grant.
+    public init(
+        providerId: AgentProviderID,
+        conversationId: AgentConversationID,
+        sessionId: AgentSessionID,
+        matchKind: AgentSessionApprovalMatchKind,
+        matchValue: String
+    ) {
+        self.providerId = providerId
+        self.conversationId = conversationId
+        self.sessionId = sessionId
+        self.matchKind = matchKind
+        self.matchValue = matchValue
+    }
+}
+
+/// Result of recording a durable session approval.
+public struct AgentSessionApprovalRecordResult: Codable, Equatable, Sendable {
+    /// Whether the approval can be used by future matching requests.
+    public let isEffective: Bool
+    /// Whether a new record was inserted.
+    public let wasInserted: Bool
+
+    /// Creates a session approval record result.
+    public init(isEffective: Bool, wasInserted: Bool) {
+        self.isEffective = isEffective
+        self.wasInserted = wasInserted
+    }
+}
+
+/// Provider-neutral request used to derive or match durable session approvals.
+public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
+    /// Provider that owns the approval.
+    public let providerId: AgentProviderID
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Provider session identifier.
+    public let sessionId: AgentSessionID
+    /// Provider tool name.
+    public let toolName: String
+    /// JSON-compatible tool input.
+    public let toolInput: JSONValue
+
+    /// Creates a durable session approval request.
+    public init(
+        providerId: AgentProviderID,
+        conversationId: AgentConversationID,
+        sessionId: AgentSessionID,
+        toolName: String,
+        toolInput: JSONValue
+    ) {
+        self.providerId = providerId
+        self.conversationId = conversationId
+        self.sessionId = sessionId
+        self.toolName = toolName
+        self.toolInput = toolInput
+    }
+
+    /// Session approval scopes supported by this request.
+    public var supportedSessionApprovalScopes: [AgentToolApprovalSessionScope] {
+        switch toolName {
+        case "Bash":
+            var scopes: [AgentToolApprovalSessionScope] = []
+            if sessionApprovalGrant(for: .exact) != nil {
+                scopes.append(.exact)
+            }
+            if sessionApprovalGrant(for: .group) != nil {
+                scopes.append(.group)
+            }
+            return scopes
+        case "Write", "Edit", "MultiEdit", "NotebookEdit":
+            return sessionApprovalGrant(for: .exact) == nil ? [] : [.exact]
+        default:
+            return []
+        }
+    }
+
+    /// Builds a durable grant for a supported session approval scope.
+    public func sessionApprovalGrant(for scope: AgentToolApprovalSessionScope) -> AgentSessionApprovalGrant? {
+        switch (toolName, scope) {
+        case ("Bash", .exact):
+            guard let command = normalizedBashCommand else {
+                return nil
+            }
+            return grant(matchKind: .bashExact, matchValue: command)
+        case ("Bash", .group):
+            guard let commandGroup = bashCommandGroup else {
+                return nil
+            }
+            return grant(matchKind: .bashCommandGroup, matchValue: commandGroup)
+        case ("Write", .exact), ("Edit", .exact), ("MultiEdit", .exact), ("NotebookEdit", .exact):
+            guard let path = normalizedApprovalPath else {
+                return nil
+            }
+            return grant(matchKind: .filePathExact, matchValue: path)
+        default:
+            return nil
+        }
+    }
+
+    private func grant(matchKind: AgentSessionApprovalMatchKind, matchValue: String) -> AgentSessionApprovalGrant {
+        AgentSessionApprovalGrant(
+            providerId: providerId,
+            conversationId: conversationId,
+            sessionId: sessionId,
+            matchKind: matchKind,
+            matchValue: matchValue
+        )
+    }
+
+    private var normalizedBashCommand: String? {
+        stringInput("command")?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    private var normalizedApprovalPath: String? {
+        (stringInput("file_path") ?? stringInput("path") ?? stringInput("notebook_path"))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
+    }
+
+    private var bashCommandGroup: String? {
+        guard let command = normalizedBashCommand else {
+            return nil
+        }
+        guard !Self.containsShellControlOperator(command) else {
+            return nil
+        }
+
+        let tokens = (try? ShellArgumentParser.parse(command)).flatMap { $0.isEmpty ? nil : $0 } ?? Self.fallbackCommandTokens(command)
+        guard let executable = tokens.first?.nilIfEmpty, tokens.count >= 2 else {
+            return nil
+        }
+
+        let groupToken = tokens[1]
+        guard Self.isCommandGroupToken(groupToken) else {
+            return nil
+        }
+        return [executable, groupToken].joined(separator: " ").nilIfEmpty
+    }
+
+    private func stringInput(_ key: String) -> String? {
+        guard case let .object(object) = toolInput,
+              case let .string(value)? = object[key] else {
+            return nil
+        }
+        return value
+    }
+
+    private static func fallbackCommandTokens(_ command: String) -> [String] {
+        command
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+    }
+
+    private static func isCommandGroupToken(_ token: String) -> Bool {
+        guard !token.isEmpty, !token.hasPrefix("-") else {
+            return false
+        }
+        return token.rangeOfCharacter(from: CharacterSet(charactersIn: "./")) == nil
+    }
+
+    private static func containsShellControlOperator(_ command: String) -> Bool {
+        let controlCharacters = CharacterSet(charactersIn: "&;|<>")
+        var activeQuote: Character?
+        var isEscaping = false
+
+        for character in command {
+            if isEscaping {
+                isEscaping = false
+                continue
+            }
+            if character == "\\" {
+                isEscaping = true
+                continue
+            }
+            if character == "\"" || character == "'" {
+                if activeQuote == character {
+                    activeQuote = nil
+                } else if activeQuote == nil {
+                    activeQuote = character
+                }
+                continue
+            }
+            guard activeQuote == nil else {
+                continue
+            }
+            if let scalar = character.unicodeScalars.first,
+               controlCharacters.contains(scalar) {
+                return true
+            }
+        }
+        return false
+    }
+}
+
 /// Provider-neutral approval selection chosen by a host.
 public struct AgentApprovalSelection: Codable, Equatable, Sendable {
     /// Interaction being resolved.
@@ -75,9 +301,26 @@ public protocol AgentApprovalPolicyStore: Sendable {
     func consumeOneShotApproval(id: AgentInteractionID) async -> AgentApprovalSelection?
 }
 
+/// Store for durable session approval grants.
+public protocol AgentSessionApprovalPolicyStore: Sendable {
+    /// Records a durable session approval.
+    func recordSessionApproval(_ grant: AgentSessionApprovalGrant) async -> AgentSessionApprovalRecordResult
+    /// Removes one durable session approval.
+    func discardSessionApproval(_ grant: AgentSessionApprovalGrant) async
+    /// Returns whether a request matches a stored durable approval.
+    func allowsSessionApproval(_ request: AgentSessionApprovalRequest) async -> Bool
+    /// Removes durable approvals for a provider session.
+    func removeSessionApprovals(
+        providerId: AgentProviderID,
+        conversationId: AgentConversationID,
+        sessionId: AgentSessionID
+    ) async
+}
+
 /// In-memory approval policy store suitable for tests and demos.
-public actor InMemoryAgentApprovalPolicyStore: AgentApprovalPolicyStore {
+public actor InMemoryAgentApprovalPolicyStore: AgentApprovalPolicyStore, AgentSessionApprovalPolicyStore {
     private var sessionApprovals: Set<SessionApprovalKey> = []
+    private var sessionApprovalGrants: Set<AgentSessionApprovalGrant> = []
     private var oneShotApprovals: [AgentInteractionID: AgentApprovalSelection] = [:]
 
     /// Creates an in-memory approval policy store.
@@ -109,8 +352,43 @@ public actor InMemoryAgentApprovalPolicyStore: AgentApprovalPolicyStore {
         oneShotApprovals.removeValue(forKey: id)
     }
 
+    /// Records a durable session approval.
+    public func recordSessionApproval(_ grant: AgentSessionApprovalGrant) async -> AgentSessionApprovalRecordResult {
+        let inserted = sessionApprovalGrants.insert(grant).inserted
+        return AgentSessionApprovalRecordResult(isEffective: true, wasInserted: inserted)
+    }
+
+    /// Removes one durable session approval.
+    public func discardSessionApproval(_ grant: AgentSessionApprovalGrant) async {
+        sessionApprovalGrants.remove(grant)
+    }
+
+    /// Returns whether a request matches a stored durable approval.
+    public func allowsSessionApproval(_ request: AgentSessionApprovalRequest) async -> Bool {
+        request.supportedSessionApprovalScopes
+            .compactMap { request.sessionApprovalGrant(for: $0) }
+            .contains { sessionApprovalGrants.contains($0) }
+    }
+
+    /// Removes durable approvals for a provider session.
+    public func removeSessionApprovals(
+        providerId: AgentProviderID,
+        conversationId: AgentConversationID,
+        sessionId: AgentSessionID
+    ) async {
+        sessionApprovalGrants = sessionApprovalGrants.filter {
+            $0.providerId != providerId || $0.conversationId != conversationId || $0.sessionId != sessionId
+        }
+    }
+
     private struct SessionApprovalKey: Hashable {
         let providerId: String?
         let operation: String
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
