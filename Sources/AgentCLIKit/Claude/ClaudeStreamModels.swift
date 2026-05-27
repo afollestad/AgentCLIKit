@@ -117,8 +117,8 @@ struct ClaudeStreamEnvelope: Decodable {
         self.usage = container.decodeLenientIfPresent(ClaudeUsage.self, forKey: .usage)
         self.isError = container.decodeLenientIfPresent(Bool.self, forKey: .isError)
         self.stopReason = container.decodeLenientIfPresent(String.self, forKey: .stopReason)
-        self.durationMs = container.decodeLenientIfPresent(Int.self, forKey: .durationMs)
-        self.totalCostUSD = container.decodeLenientIfPresent(Double.self, forKey: .totalCostUSD)
+        self.durationMs = container.decodeLenientIntIfPresent(forKey: .durationMs)
+        self.totalCostUSD = container.decodeLenientDoubleIfPresent(forKey: .totalCostUSD)
         self.modelUsage = container.decodeLenientIfPresent([String: ClaudeModelUsage].self, forKey: .modelUsage)
         self.toolUseId = container.decodeLenientIfPresent(String.self, forKey: .toolUseId)
         self.description = container.decodeLenientIfPresent(String.self, forKey: .description)
@@ -392,6 +392,26 @@ private extension KeyedDecodingContainer {
         } catch {
             return nil
         }
+    }
+
+    func decodeLenientIntIfPresent(forKey key: Key) -> Int? {
+        if let value = decodeLenientIfPresent(Int.self, forKey: key) {
+            return value
+        }
+        if let value = decodeLenientIfPresent(Double.self, forKey: key) {
+            return Int(value)
+        }
+        return decodeLenientIfPresent(String.self, forKey: key).flatMap(Int.init)
+    }
+
+    func decodeLenientDoubleIfPresent(forKey key: Key) -> Double? {
+        if let value = decodeLenientIfPresent(Double.self, forKey: key) {
+            return value
+        }
+        if let value = decodeLenientIfPresent(Int.self, forKey: key) {
+            return Double(value)
+        }
+        return decodeLenientIfPresent(String.self, forKey: key).flatMap(Double.init)
     }
 }
 

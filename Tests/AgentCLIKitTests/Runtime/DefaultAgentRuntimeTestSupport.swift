@@ -94,6 +94,33 @@ struct DelayedEncodingProviderAdapter: AgentProviderAdapter {
     }
 }
 
+struct DeferredToolStopProviderAdapter: AgentProviderAdapter {
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let command: AgentLaunchConfiguration
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?
+    ) async throws -> AgentLaunchConfiguration {
+        command
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        switch line {
+        case "deferred":
+            [.usage(AgentUsageEvent(model: nil, inputTokens: nil, outputTokens: nil, stopReason: "tool_deferred"))]
+        case let message where message.hasPrefix("message:"):
+            [.message(AgentMessageEvent(role: .assistant, text: String(message.dropFirst("message:".count))))]
+        default:
+            []
+        }
+    }
+
+    func encodeInput(_ input: AgentInput) async throws -> Data {
+        Data()
+    }
+}
+
 struct SequencedProviderAdapter: AgentProviderAdapter {
     let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence

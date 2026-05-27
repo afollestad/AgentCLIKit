@@ -69,18 +69,25 @@ extension DefaultAgentRuntime {
             )
             return
         }
+        guard state.hasDeferredToolStop == false else {
+            return
+        }
         do {
             let events = try await state.adapter.decodeStdoutLine(line)
             // Decoders can suspend, so re-check the token before accepting output for a replaced process.
             guard states[conversationId]?.processToken == processToken else {
                 return
             }
+            let hasDeferredToolStop = events.contains(where: isDeferredToolStop)
             for event in events {
                 await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
                 guard states[conversationId]?.processToken == processToken else {
                     return
                 }
                 append(event, source: .stdout, conversationId: conversationId)
+            }
+            if hasDeferredToolStop {
+                stopProcessAfterDeferredToolStop(conversationId: conversationId)
             }
         } catch {
             // Stdout and stderr are pumped independently; a short grace period lets earlier stderr lines reach the tail.
@@ -102,6 +109,21 @@ extension DefaultAgentRuntime {
                 ]
             )), source: .runtime, conversationId: conversationId)
         }
+    }
+
+    private func stopProcessAfterDeferredToolStop(conversationId: AgentConversationID) {
+        // The provider is waiting on host fallback approval; stop it before it can retry the tool or emit fallback text.
+        states[conversationId]?.hasDeferredToolStop = true
+        states[conversationId]?.stdin = nil
+        states[conversationId]?.stdinWriter = nil
+        forceKill(states[conversationId]?.process)
+    }
+
+    private func isDeferredToolStop(_ event: AgentEvent) -> Bool {
+        guard case let .usage(usage) = event else {
+            return false
+        }
+        return usage.stopReason == "tool_deferred" || usage.metadata["stop_reason"] == .string("tool_deferred")
     }
 
     func recordProviderSessionIfNeeded(
@@ -226,7 +248,7 @@ extension DefaultAgentRuntime {
         guard let latest = states[conversationId], latest.processToken == processToken else {
             return
         }
-        let state: AgentLifecycleState = exitCode == 0 ? .exited : .failed
+        let state: AgentLifecycleState = latest.hasDeferredToolStop || exitCode == 0 ? .exited : .failed
         emitLifecycle(state, conversationId: conversationId, exitCode: exitCode)
         states[conversationId]?.stdin = nil
         states[conversationId]?.stdinWriter = nil

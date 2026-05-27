@@ -31,6 +31,7 @@ struct ConversationState {
     var inputAvailability: AgentInputAvailability
     var resolvedInteractions: Set<AgentInteractionID>
     var persistedIndex: Int
+    var hasDeferredToolStop: Bool
     var outputPumps: [OutputLinePump]
 
     mutating func compactReplayBuffer(replayLimit: Int) {

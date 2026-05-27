@@ -30,6 +30,32 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         })
     }
 
+    func testResultUsageMatchesModelUsageWhenOptionalZeroFieldsAreOmitted() throws {
+        let events = try ClaudeStreamDecoder().decodeLine(Self.modelUsageWithOmittedZeroFieldsLine)
+
+        XCTAssertTrue(events.contains {
+            $0 == .usage(AgentUsageEvent(
+                model: "claude-sonnet-4-6",
+                inputTokens: 10,
+                outputTokens: 2,
+                cacheReadInputTokens: nil,
+                cacheCreationInputTokens: nil,
+                durationMs: 42,
+                costUSD: 0.01,
+                contextWindow: 200_000,
+                stopReason: "end_turn",
+                isTerminal: true,
+                metadata: [
+                    "stop_reason": .string("end_turn"),
+                    "is_error": .bool(false),
+                    "duration_ms": .number(42),
+                    "total_cost_usd": .number(0.01),
+                    "context_window": .number(200_000)
+                ]
+            ))
+        })
+    }
+
     func testResultToolDeferredEmitsApprovalInteraction() throws {
         let events = try ClaudeStreamDecoder().decodeLine(Self.deferredToolResultLine)
 
@@ -187,6 +213,34 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
           "outputTokens": 5,
           "cacheReadInputTokens": 2,
           "cacheCreationInputTokens": 1,
+          "contextWindow": 200000
+        }
+      }
+    }
+    """#
+
+    private static let modelUsageWithOmittedZeroFieldsLine = #"""
+    {
+      "type": "result",
+      "stop_reason": "end_turn",
+      "is_error": false,
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 2
+      },
+      "duration_ms": "42",
+      "total_cost_usd": "0.01",
+      "modelUsage": {
+        "claude-opus-4-7": {
+          "inputTokens": 100,
+          "outputTokens": 20,
+          "cacheReadInputTokens": 10,
+          "cacheCreationInputTokens": 10,
+          "contextWindow": 1000000
+        },
+        "claude-sonnet-4-6": {
+          "inputTokens": 10,
+          "outputTokens": 2,
           "contextWindow": 200000
         }
       }

@@ -12,6 +12,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     let sleep: AgentRuntimeSleep
     let outputDrainTimeoutNanoseconds: UInt64
     var states: [AgentConversationID: ConversationState] = [:]
+    var startTokens: [AgentConversationID: UUID] = [:]
     var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
     var statusSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentRuntimeStatus>.Continuation]] = [:]
 
@@ -187,6 +188,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
 
     /// Destroys runtime state for a conversation.
     public func destroy(conversationId: AgentConversationID) async {
+        cancelStart(conversationId: conversationId)
         let removedState = states.removeValue(forKey: conversationId)
         let removedPendingSubscribers = pendingSubscribers.removeValue(forKey: conversationId)
         removedState?.subscribers.values.forEach { $0.finish() }
@@ -202,6 +204,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
 
     /// Shuts down runtime-owned shared resources.
     public func shutdown() async {
+        cancelAllStarts()
         for state in states.values {
             state.outputPumps.forEach { $0.cancel() }
             state.subscribers.values.forEach { $0.finish() }
@@ -258,7 +261,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         return state.lifecycleState != .exited && state.lifecycleState != .failed
     }
 
-    private func forceKill(_ process: Process?) {
+    func forceKill(_ process: Process?) {
         guard let process, process.isRunning else {
             return
         }
@@ -266,190 +269,5 @@ public actor DefaultAgentRuntime: AgentRuntime {
         process.terminate()
         // SIGINT/SIGTERM are advisory; SIGKILL makes `kill` reliable for providers that trap softer signals.
         Darwin.kill(process.processIdentifier, SIGKILL)
-    }
-
-    private func start(conversationId: AgentConversationID, config: AgentSpawnConfig, fresh: Bool) async throws {
-        guard let adapter = adapters[config.providerId] else {
-            throw AgentCLIError.providerNotRegistered(config.providerId)
-        }
-
-        let previous = states[conversationId]
-        let generation = fresh ? (previous?.generation ?? 0) + 1 : max(previous?.generation ?? 0, 1)
-        let resumedSession = fresh ? nil : try await sessionStore.record(conversationId: conversationId, providerId: config.providerId)
-        let processToken = UUID()
-        let launch = try await prepareLaunch(
-            try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: resumedSession),
-            adapter: adapter,
-            config: config,
-            conversationId: conversationId,
-            processToken: processToken
-        )
-
-        let preparedProcess = makeProcess(launch: launch, config: config)
-        let stateInput = StateInput(
-            conversationId: conversationId,
-            providerId: config.providerId,
-            generation: generation,
-            processToken: processToken,
-            adapter: adapter,
-            preparedProcess: preparedProcess,
-            spawnConfig: config,
-            resumedSession: resumedSession,
-            fresh: fresh
-        )
-
-        try await installPreparedProcess(
-            preparedProcess.process,
-            launch: launch,
-            previous: previous,
-            stateInput: stateInput,
-            adapter: adapter
-        )
-
-        emitLifecycle(.running, conversationId: conversationId)
-        emitSessionContinuity(
-            launch.sessionContinuity,
-            providerSessionId: resumedSession?.providerSessionId,
-            conversationId: conversationId
-        )
-        pump(preparedProcess.stdout.fileHandleForReading, source: .stdout, conversationId: conversationId, processToken: processToken)
-        pump(preparedProcess.stderr.fileHandleForReading, source: .stderr, conversationId: conversationId, processToken: processToken)
-        installTerminationHandler(
-            preparedProcess.process,
-            conversationId: conversationId,
-            processToken: processToken
-        )
-    }
-
-    private func prepareLaunch(
-        _ launch: AgentLaunchConfiguration,
-        adapter: any AgentProviderAdapter,
-        config: AgentSpawnConfig,
-        conversationId: AgentConversationID,
-        processToken: UUID
-    ) async throws -> AgentLaunchConfiguration {
-        do {
-            return try await adapter.prepareLaunchConfiguration(
-                launch,
-                spawnConfig: config,
-                conversationId: conversationId,
-                processToken: processToken
-            )
-        } catch {
-            await adapter.processDidTerminate(processToken: processToken)
-            // Launch augmentation runs before conversation state exists, so fail rather than silently drop provider-managed resources.
-            throw error
-        }
-    }
-
-    private func installPreparedProcess(
-        _ process: Process,
-        launch: AgentLaunchConfiguration,
-        previous: ConversationState?,
-        stateInput: StateInput,
-        adapter: any AgentProviderAdapter
-    ) async throws {
-        if previous?.process?.isRunning == true {
-            // Keep the current session alive until the replacement process has definitely launched.
-            try await runPreparedProcess(process, launch: launch, stateInput: stateInput, adapter: adapter, recordsFailure: false)
-            let latestPrevious = states[stateInput.conversationId] ?? previous
-            let oldProcess = previous?.process
-            await invalidatePreviousProcessToken(previous)
-            // Swap tokens before terminating the previous process so its exit handler is ignored.
-            states[stateInput.conversationId] = makeState(input: stateInput, previous: latestPrevious)
-            emitLifecycle(.starting, conversationId: stateInput.conversationId)
-            forceKill(oldProcess)
-        } else {
-            let oldProcess = previous?.process
-            await invalidatePreviousProcessToken(previous)
-            // Swap tokens before cleaning up any previous process so delayed callbacks are ignored.
-            states[stateInput.conversationId] = makeState(input: stateInput, previous: previous)
-            emitLifecycle(.starting, conversationId: stateInput.conversationId)
-            forceKill(oldProcess)
-            try await runPreparedProcess(process, launch: launch, stateInput: stateInput, adapter: adapter, recordsFailure: true)
-        }
-    }
-
-    private func runPreparedProcess(
-        _ process: Process,
-        launch: AgentLaunchConfiguration,
-        stateInput: StateInput,
-        adapter: any AgentProviderAdapter,
-        recordsFailure: Bool
-    ) async throws {
-        do {
-            try runProcess(process, launch: launch, conversationId: stateInput.conversationId, recordsFailure: recordsFailure)
-        } catch {
-            await adapter.processDidTerminate(processToken: stateInput.processToken)
-            throw error
-        }
-    }
-
-    private func invalidatePreviousProcessToken(_ previous: ConversationState?) async {
-        guard let previous else {
-            return
-        }
-        await previous.adapter.processDidTerminate(processToken: previous.processToken)
-    }
-
-    private func makeState(input: StateInput, previous: ConversationState?) -> ConversationState {
-        // Fresh generations restart event indexes, so the persisted cursor is only reusable for continued sessions.
-        let persistedIndex = input.fresh ? -1 : previous?.persistedIndex ?? -1
-        return ConversationState(
-            providerId: input.providerId,
-            generation: input.generation,
-            processToken: input.processToken,
-            adapter: input.adapter,
-            spawnConfig: input.spawnConfig,
-            process: input.preparedProcess.process,
-            stdin: input.preparedProcess.stdin.fileHandleForWriting,
-            stdinWriter: StdinWriteQueue(),
-            events: previous?.events.filter { $0.generation == input.generation } ?? [],
-            subscribers: previous?.subscribers ?? pendingSubscribers.removeValue(forKey: input.conversationId) ?? [:],
-            stderrTail: [],
-            lifecycleState: .starting,
-            providerSessionId: input.resumedSession?.providerSessionId,
-            providerSessionCreatedAt: input.resumedSession?.createdAt,
-            permissionMode: nil,
-            waitingState: .idle,
-            inputAvailability: .available,
-            resolvedInteractions: input.fresh ? [] : previous?.resolvedInteractions ?? [],
-            persistedIndex: persistedIndex,
-            outputPumps: []
-        )
-    }
-
-    private func runProcess(
-        _ process: Process,
-        launch: AgentLaunchConfiguration,
-        conversationId: AgentConversationID,
-        recordsFailure: Bool
-    ) throws {
-        do {
-            try process.run()
-        } catch {
-            if recordsFailure {
-                emitLifecycle(.failed, conversationId: conversationId, message: error.localizedDescription)
-                states[conversationId]?.process = nil
-                states[conversationId]?.stdin = nil
-                states[conversationId]?.stdinWriter = nil
-            }
-            throw AgentCLIError.commandLaunchFailed(executable: launch.executable, reason: error.localizedDescription)
-        }
-    }
-
-    private func installTerminationHandler(
-        _ process: Process,
-        conversationId: AgentConversationID,
-        processToken: UUID
-    ) {
-        process.terminationHandler = { [weak process] terminatedProcess in
-            let exitCode = process?.terminationStatus ?? terminatedProcess.terminationStatus
-            Task { await self.processExited(conversationId: conversationId, processToken: processToken, exitCode: exitCode) }
-        }
-        // A very short-lived process can terminate before its handler is installed.
-        if !process.isRunning {
-            Task { await self.processExited(conversationId: conversationId, processToken: processToken, exitCode: process.terminationStatus) }
-        }
     }
 }
