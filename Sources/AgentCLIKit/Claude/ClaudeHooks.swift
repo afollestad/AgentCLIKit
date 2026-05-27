@@ -21,6 +21,9 @@ public struct ClaudeHookRequest: Codable, Equatable, Sendable {
 }
 
 /// Live hook decision provider used by Claude hook handling.
+///
+/// Implementations may run on any actor. Host UI should use `MainActorClaudeHookDecisionProvider` when collecting decisions
+/// from SwiftUI or AppKit state.
 public protocol ClaudeHookDecisionProviding: Sendable {
     /// Returns a decision for a Claude hook request.
     func decision(for request: ClaudeHookRequest, interactionId: AgentInteractionID) async -> ClaudeHookDecision

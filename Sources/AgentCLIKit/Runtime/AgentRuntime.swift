@@ -140,6 +140,9 @@ public struct AgentEventSubscription: Sendable {
     /// Runtime generation for this subscription.
     public let generation: Int
     /// Events emitted after the requested cursor, including replayed buffered events.
+    ///
+    /// The stream is not main-actor isolated. UI hosts should receive values from a task and explicitly hop to their UI
+    /// actor before mutating app state.
     public let events: AsyncStream<AgentEventEnvelope>
 
     /// Creates an event subscription.
@@ -150,6 +153,9 @@ public struct AgentEventSubscription: Sendable {
 }
 
 /// Runtime contract for process-backed agent sessions.
+///
+/// Runtime implementations are `Sendable` and actor-safe. Host applications own persistence, UI projection, and main-actor
+/// handoff; AgentCLIKit emits provider-neutral events and status snapshots that can be replayed by generation and index.
 public protocol AgentRuntime: Sendable {
     /// Spawns or replaces the provider process for a conversation.
     func spawn(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws
