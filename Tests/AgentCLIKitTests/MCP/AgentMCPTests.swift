@@ -3,6 +3,37 @@ import XCTest
 @testable import AgentCLIKit
 
 final class AgentMCPTests: XCTestCase {
+    func testMCPIntegrationDefinitionStoresProviderConfigMetadata() {
+        let definition = AgentMCPIntegrationDefinition(
+            configPath: "~/.claude.json",
+            serversKeyPath: ["mcpServers"],
+            format: .json,
+            adapterId: "claude",
+            supportsHTTP: true
+        )
+
+        XCTAssertEqual(definition.configPath, "~/.claude.json")
+        XCTAssertEqual(definition.serversKeyPath, ["mcpServers"])
+        XCTAssertEqual(definition.format, .json)
+        XCTAssertTrue(definition.supportsHTTP)
+    }
+
+    func testMCPIntegrationDefinitionEncodesHTTPKeyForConfigMetadata() throws {
+        let definition = AgentMCPIntegrationDefinition(
+            configPath: "~/.claude.json",
+            serversKeyPath: ["mcpServers"],
+            format: .json,
+            adapterId: "claude",
+            supportsHTTP: true
+        )
+
+        let data = try JSONEncoder().encode(definition)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertEqual(object["supportsHttp"] as? Bool, true)
+        XCTAssertNil(object["supportsHTTP"])
+    }
+
     func testJSONConfigStoreRoundTripsMCPServers() async throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

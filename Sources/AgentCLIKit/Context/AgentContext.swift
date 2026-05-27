@@ -60,6 +60,106 @@ public actor AgentContextWindowCache {
     }
 }
 
+/// Cached provider model context-window size.
+public struct AgentModelContextWindowEntry: Codable, Equatable, Sendable {
+    /// Model context window size.
+    public let contextWindowSize: Int
+    /// Last update date.
+    public let updatedAt: Date
+
+    /// Creates a model context-window cache entry.
+    public init(contextWindowSize: Int, updatedAt: Date = Date()) {
+        self.contextWindowSize = contextWindowSize
+        self.updatedAt = updatedAt
+    }
+}
+
+/// JSON-backed cache for context-window sizes keyed by provider and model.
+public actor JSONAgentModelContextWindowCache {
+    private let fileURL: URL
+    private let fileManager: FileManager
+    private var entries: [String: AgentModelContextWindowEntry]?
+
+    /// Creates a JSON-backed model context-window cache.
+    public init(fileURL: URL, fileManager: FileManager = .default) {
+        self.fileURL = fileURL
+        self.fileManager = fileManager
+    }
+
+    /// Loads a cached context-window size for a provider model.
+    public func contextWindowSize(providerId: AgentProviderID, model: String) -> Int? {
+        guard let key = Self.cacheKey(providerId: providerId, model: model) else {
+            return nil
+        }
+        return loadEntries()[key]?.contextWindowSize
+    }
+
+    /// Updates cache entries for selected and provider-reported model IDs.
+    public func update(
+        providerId: AgentProviderID,
+        selectedModel: String,
+        reportedModelId: String? = nil,
+        contextWindowSize: Int
+    ) throws {
+        guard contextWindowSize > 0 else {
+            return
+        }
+        var keys = Set<String>()
+        if let selectedKey = Self.cacheKey(providerId: providerId, model: selectedModel) {
+            keys.insert(selectedKey)
+        }
+        if let reportedModelId,
+           let reportedKey = Self.cacheKey(providerId: providerId, model: reportedModelId) {
+            keys.insert(reportedKey)
+        }
+        guard !keys.isEmpty else {
+            return
+        }
+
+        var currentEntries = loadEntries()
+        let entry = AgentModelContextWindowEntry(contextWindowSize: contextWindowSize)
+        var didChange = false
+        for key in keys where currentEntries[key]?.contextWindowSize != contextWindowSize {
+            currentEntries[key] = entry
+            didChange = true
+        }
+        guard didChange else {
+            return
+        }
+
+        try fileManager.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(currentEntries).write(to: fileURL, options: .atomic)
+        entries = currentEntries
+    }
+
+    /// Builds a stable cache key for provider and model values.
+    public static func cacheKey(providerId: AgentProviderID, model: String) -> String? {
+        let model = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !model.isEmpty else {
+            return nil
+        }
+        return "\(providerId.rawValue):\(model)"
+    }
+
+    private func loadEntries() -> [String: AgentModelContextWindowEntry] {
+        if let entries {
+            return entries
+        }
+        guard let data = try? Data(contentsOf: fileURL) else {
+            entries = [:]
+            return [:]
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = (try? decoder.decode([String: AgentModelContextWindowEntry].self, from: data)) ?? [:]
+        entries = decoded
+        return decoded
+    }
+}
+
 /// Helpers for provider-neutral context handoff prompts.
 public enum AgentContextHandoffPrompt {
     /// Builds a prompt asking an agent to summarize state for a fresh session.

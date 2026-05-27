@@ -4,16 +4,132 @@ import Foundation
 public struct AgentSkill: Codable, Equatable, Identifiable, Sendable {
     /// Skill name, matching its directory name.
     public let id: String
+    /// Display name from skill frontmatter, defaulting to `id`.
+    public let name: String
     /// Absolute skill directory URL when installed locally.
     public let directoryURL: URL?
     /// Short skill description.
     public let description: String
+    /// Optional argument hint advertised by the skill.
+    public let argumentHint: String?
+    /// Optional skill version.
+    public let version: String?
 
     /// Creates skill metadata.
-    public init(id: String, directoryURL: URL? = nil, description: String = "") {
+    public init(
+        id: String,
+        name: String? = nil,
+        directoryURL: URL? = nil,
+        description: String = "",
+        argumentHint: String? = nil,
+        version: String? = nil
+    ) {
         self.id = id
+        self.name = name ?? id
         self.directoryURL = directoryURL
         self.description = description
+        self.argumentHint = argumentHint
+        self.version = version
+    }
+
+    /// Decodes skill metadata, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name) ?? id
+        self.directoryURL = try container.decodeIfPresent(URL.self, forKey: .directoryURL)
+        self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? ""
+        self.argumentHint = try container.decodeIfPresent(String.self, forKey: .argumentHint)
+        self.version = try container.decodeIfPresent(String.self, forKey: .version)
+    }
+}
+
+/// Parsed metadata from a skill markdown file.
+public struct AgentSkillFrontmatter: Codable, Equatable, Sendable {
+    /// Skill display name.
+    public let name: String?
+    /// Skill description.
+    public let description: String?
+    /// Optional argument hint.
+    public let argumentHint: String?
+    /// Optional skill version.
+    public let version: String?
+
+    /// Creates parsed skill metadata.
+    public init(name: String? = nil, description: String? = nil, argumentHint: String? = nil, version: String? = nil) {
+        self.name = name
+        self.description = description
+        self.argumentHint = argumentHint
+        self.version = version
+    }
+}
+
+/// Loaded skill markdown and optional source URLs.
+public struct AgentSkillMarkdownDocument: Equatable, Sendable {
+    /// Raw markdown content.
+    public let markdown: String
+    /// Base URL for resolving relative local or remote references.
+    public let baseURL: URL?
+    /// Browser URL for the source document when known.
+    public let browserURL: URL?
+
+    /// Creates a skill markdown document.
+    public init(markdown: String, baseURL: URL? = nil, browserURL: URL? = nil) {
+        self.markdown = markdown
+        self.baseURL = baseURL
+        self.browserURL = browserURL
+    }
+}
+
+/// Parser for portable skill markdown frontmatter.
+public enum AgentSkillMarkdownParser {
+    /// Parses YAML-style frontmatter from a skill markdown document.
+    public static func frontmatter(from content: String) -> AgentSkillFrontmatter {
+        guard let sections = frontmatterSections(in: content) else {
+            return AgentSkillFrontmatter()
+        }
+        return AgentSkillFrontmatter(
+            name: yamlValue(from: sections.yaml, key: "name"),
+            description: yamlValue(from: sections.yaml, key: "description"),
+            argumentHint: yamlValue(from: sections.yaml, key: "argument-hint") ?? yamlValue(from: sections.yaml, key: "argumentHint"),
+            version: yamlValue(from: sections.yaml, key: "version")
+        )
+    }
+
+    /// Returns markdown with leading frontmatter removed.
+    public static func body(from content: String) -> String {
+        guard let sections = frontmatterSections(in: content) else {
+            return content
+        }
+        return String(sections.body.drop(while: \.isNewline))
+    }
+
+    private static func frontmatterSections(in content: String) -> (yaml: String, body: Substring)? {
+        guard content.hasPrefix("---") else {
+            return nil
+        }
+        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+        guard lines.first == "---",
+              let closingIndex = lines.dropFirst().firstIndex(of: "---") else {
+            return nil
+        }
+        let yaml = lines[1..<closingIndex].joined(separator: "\n")
+        let bodyStart = lines.index(after: closingIndex)
+        let body = lines[bodyStart...].joined(separator: "\n")
+        return (yaml, Substring(body))
+    }
+
+    private static func yamlValue(from yaml: String, key: String) -> String? {
+        for line in yaml.split(separator: "\n", omittingEmptySubsequences: false) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("\(key):") else {
+                continue
+            }
+            let value = trimmed.dropFirst(key.count + 1).trimmingCharacters(in: .whitespacesAndNewlines)
+            let unquotedValue = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            return unquotedValue.isEmpty ? nil : unquotedValue
+        }
+        return nil
     }
 }
 
@@ -60,7 +176,15 @@ public struct AgentSkillScanner {
             }
             let name = url.lastPathComponent
             try AgentSkillValidator.validateName(name)
-            return AgentSkill(id: name, directoryURL: url, description: try readDescription(skillFileURL: url.appendingPathComponent("SKILL.md")))
+            let frontmatter = try readFrontmatter(skillFileURL: url.appendingPathComponent("SKILL.md"))
+            return AgentSkill(
+                id: name,
+                name: frontmatter.name,
+                directoryURL: url,
+                description: frontmatter.description ?? "",
+                argumentHint: frontmatter.argumentHint,
+                version: frontmatter.version
+            )
         }.sorted { $0.id < $1.id }
     }
 
@@ -69,12 +193,9 @@ public struct AgentSkillScanner {
         return values.isDirectory == true
     }
 
-    private func readDescription(skillFileURL: URL) throws -> String {
+    private func readFrontmatter(skillFileURL: URL) throws -> AgentSkillFrontmatter {
         let contents = try String(contentsOf: skillFileURL, encoding: .utf8)
-        return contents
-            .split(separator: "\n")
-            .first { $0.hasPrefix("description:") }
-            .map { String($0.dropFirst("description:".count)).trimmingCharacters(in: .whitespaces) } ?? ""
+        return AgentSkillMarkdownParser.frontmatter(from: contents)
     }
 }
 
@@ -178,13 +299,20 @@ public struct AgentSkillService {
         let skillFile = target.appendingPathComponent("SKILL.md")
         let contents = """
         ---
-        name: \(catalogSkill.id)
+        name: \(catalogSkill.name)
         description: \(catalogSkill.description)
         ---
 
         # \(catalogSkill.id)
         """
         try contents.write(to: skillFile, atomically: true, encoding: .utf8)
-        return AgentSkill(id: catalogSkill.id, directoryURL: target, description: catalogSkill.description)
+        return AgentSkill(
+            id: catalogSkill.id,
+            name: catalogSkill.name,
+            directoryURL: target,
+            description: catalogSkill.description,
+            argumentHint: catalogSkill.argumentHint,
+            version: catalogSkill.version
+        )
     }
 }

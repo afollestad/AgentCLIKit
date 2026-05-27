@@ -35,4 +35,25 @@ final class AgentContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("- Keep API generic"))
         XCTAssertTrue(prompt.contains("remaining work"))
     }
+
+    func testModelContextWindowCachePersistsSelectedAndReportedModelKeys() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("context-windows.json")
+        let cache = JSONAgentModelContextWindowCache(fileURL: fileURL)
+
+        try await cache.update(
+            providerId: .claude,
+            selectedModel: "Sonnet",
+            reportedModelId: "claude-sonnet-4",
+            contextWindowSize: 200_000
+        )
+
+        let reloaded = JSONAgentModelContextWindowCache(fileURL: fileURL)
+        let selectedSize = await reloaded.contextWindowSize(providerId: .claude, model: "sonnet")
+        let reportedSize = await reloaded.contextWindowSize(providerId: .claude, model: "CLAUDE-SONNET-4")
+        XCTAssertEqual(selectedSize, 200_000)
+        XCTAssertEqual(reportedSize, 200_000)
+        XCTAssertEqual(JSONAgentModelContextWindowCache.cacheKey(providerId: .claude, model: " "), nil)
+    }
 }

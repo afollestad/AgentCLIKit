@@ -9,16 +9,53 @@ final class AgentSkillTests: XCTestCase {
         try FileManager.default.createDirectory(at: skillDirectory, withIntermediateDirectories: true)
         try """
         ---
-        name: self-review
+        name: Self Review
         description: Review current changes
+        argument-hint: [focus]
+        version: 1.2.3
         ---
         """.write(to: skillDirectory.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
 
         let skills = try AgentSkillScanner().scan(directoryURL: directory)
 
         XCTAssertEqual(skills.map(\.id), ["self-review"])
+        XCTAssertEqual(skills.map(\.name), ["Self Review"])
         XCTAssertEqual(skills.map(\.description), ["Review current changes"])
+        XCTAssertEqual(skills.map(\.argumentHint), ["[focus]"])
+        XCTAssertEqual(skills.map(\.version), ["1.2.3"])
         XCTAssertEqual(skills.first?.directoryURL?.lastPathComponent, skillDirectory.lastPathComponent)
+    }
+
+    func testSkillMarkdownParserRemovesFrontmatterAndHandlesQuotedValues() {
+        let markdown = """
+        ---
+        name: "Release"
+        description: 'Ship a release'
+        argumentHint: version
+        ---
+
+        # Body
+        """
+
+        let frontmatter = AgentSkillMarkdownParser.frontmatter(from: markdown)
+        let body = AgentSkillMarkdownParser.body(from: markdown)
+
+        XCTAssertEqual(frontmatter.name, "Release")
+        XCTAssertEqual(frontmatter.description, "Ship a release")
+        XCTAssertEqual(frontmatter.argumentHint, "version")
+        XCTAssertEqual(body, "# Body")
+    }
+
+    func testSkillDecodesLegacyMetadataDefaults() throws {
+        let data = Data(#"{"id":"self-review","description":"Review changes"}"#.utf8)
+
+        let skill = try JSONDecoder().decode(AgentSkill.self, from: data)
+
+        XCTAssertEqual(skill.id, "self-review")
+        XCTAssertEqual(skill.name, "self-review")
+        XCTAssertEqual(skill.description, "Review changes")
+        XCTAssertNil(skill.argumentHint)
+        XCTAssertNil(skill.version)
     }
 
     func testScannerRejectsInvalidSkillNames() throws {
@@ -35,7 +72,7 @@ final class AgentSkillTests: XCTestCase {
     func testCatalogSearchAndSyncSkill() async throws {
         let installDirectory = try makeTemporaryDirectory()
         let catalog = InMemoryAgentSkillCatalogBackend(skills: [
-            AgentSkill(id: "create-release", description: "Create a release")
+            AgentSkill(id: "create-release", name: "Create Release", description: "Create a release")
         ])
         let service = AgentSkillService(catalog: catalog)
 
@@ -44,6 +81,7 @@ final class AgentSkillTests: XCTestCase {
 
         let installed = try await service.syncSkill(named: "create-release", into: installDirectory)
         XCTAssertEqual(installed.id, "create-release")
+        XCTAssertEqual(installed.name, "Create Release")
 
         let installedSkills = try service.installedSkills(directoryURL: installDirectory)
         XCTAssertEqual(installedSkills.map(\.id), ["create-release"])

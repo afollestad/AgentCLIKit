@@ -1,5 +1,50 @@
 import Foundation
 
+/// Provider-neutral description of where a provider stores MCP server configuration.
+public struct AgentMCPIntegrationDefinition: Codable, Equatable, Sendable {
+    /// Config file path, which may include `~`.
+    public let configPath: String
+    /// Key path to the server map inside the config file.
+    public let serversKeyPath: [String]
+    /// Config file format.
+    public let format: AgentMCPConfigFormat
+    /// Adapter identifier used by host apps to select a config bridge.
+    public let adapterId: String
+    /// Whether the provider supports HTTP MCP servers.
+    public let supportsHTTP: Bool
+
+    /// Creates MCP integration metadata.
+    public init(
+        configPath: String,
+        serversKeyPath: [String],
+        format: AgentMCPConfigFormat,
+        adapterId: String,
+        supportsHTTP: Bool
+    ) {
+        self.configPath = configPath
+        self.serversKeyPath = serversKeyPath
+        self.format = format
+        self.adapterId = adapterId
+        self.supportsHTTP = supportsHTTP
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case configPath
+        case serversKeyPath
+        case format
+        case adapterId
+        case supportsHTTP = "supportsHttp"
+    }
+}
+
+/// Supported provider MCP config file formats.
+public enum AgentMCPConfigFormat: String, Codable, Equatable, Sendable {
+    /// JSON config.
+    case json
+    /// TOML config.
+    case toml
+}
+
 /// Provider-neutral MCP server definition.
 public struct AgentMCPServer: Codable, Equatable, Identifiable, Sendable {
     /// Stable server identifier.
