@@ -1,5 +1,16 @@
 import Foundation
 
+typealias AgentRuntimeProcessFactory = (AgentLaunchConfiguration, AgentSpawnConfig) -> PreparedProcess
+typealias AgentRuntimeSleep = @Sendable (UInt64) async -> Void
+
+func defaultAgentRuntimeProcessFactory(launch: AgentLaunchConfiguration, config: AgentSpawnConfig) -> PreparedProcess {
+    DefaultAgentRuntime.defaultProcessFactory(launch: launch, config: config)
+}
+
+func defaultAgentRuntimeSleep(nanoseconds: UInt64) async {
+    await DefaultAgentRuntime.defaultSleep(nanoseconds: nanoseconds)
+}
+
 struct ConversationState {
     let providerId: AgentProviderID
     let generation: Int
@@ -76,14 +87,14 @@ final class OutputLinePump: @unchecked Sendable {
         lineQueue.cancel()
     }
 
-    func waitUntilDrained(timeoutNanoseconds: UInt64 = 500_000_000) async {
+    func waitUntilDrained(timeoutNanoseconds: UInt64, sleep: AgentRuntimeSleep) async {
         let sleepNanoseconds: UInt64 = 5_000_000
         let attempts = max(1, Int(timeoutNanoseconds / sleepNanoseconds))
         for _ in 0..<attempts {
             if isFinished, lineQueue.isIdle {
                 return
             }
-            try? await Task.sleep(nanoseconds: sleepNanoseconds)
+            await sleep(sleepNanoseconds)
         }
     }
 

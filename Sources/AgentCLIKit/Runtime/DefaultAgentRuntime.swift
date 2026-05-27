@@ -7,6 +7,10 @@ public actor DefaultAgentRuntime: AgentRuntime {
     let sessionStore: any AgentSessionStore
     let replayLimit: Int
     let subscriberBufferLimit: Int
+    let processFactory: AgentRuntimeProcessFactory
+    let now: @Sendable () -> Date
+    let sleep: AgentRuntimeSleep
+    let outputDrainTimeoutNanoseconds: UInt64
     var states: [AgentConversationID: ConversationState] = [:]
     var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
     var statusSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentRuntimeStatus>.Continuation]] = [:]
@@ -24,10 +28,36 @@ public actor DefaultAgentRuntime: AgentRuntime {
         replayLimit: Int = 500,
         subscriberBufferLimit: Int = 1_000
     ) {
+        self.init(
+            adapters: adapters,
+            sessionStore: sessionStore,
+            replayLimit: replayLimit,
+            subscriberBufferLimit: subscriberBufferLimit,
+            processFactory: defaultAgentRuntimeProcessFactory,
+            now: Date.init,
+            sleep: defaultAgentRuntimeSleep,
+            outputDrainTimeoutNanoseconds: 500_000_000
+        )
+    }
+
+    init(
+        adapters: [any AgentProviderAdapter],
+        sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
+        replayLimit: Int = 500,
+        subscriberBufferLimit: Int = 1_000,
+        processFactory: @escaping AgentRuntimeProcessFactory = defaultAgentRuntimeProcessFactory,
+        now: @escaping @Sendable () -> Date = Date.init,
+        sleep: @escaping AgentRuntimeSleep = defaultAgentRuntimeSleep,
+        outputDrainTimeoutNanoseconds: UInt64 = 500_000_000
+    ) {
         self.adapters = Dictionary(adapters.map { ($0.definition.id, $0) }, uniquingKeysWith: { _, new in new })
         self.sessionStore = sessionStore
         self.replayLimit = max(1, replayLimit)
         self.subscriberBufferLimit = max(1, subscriberBufferLimit)
+        self.processFactory = processFactory
+        self.now = now
+        self.sleep = sleep
+        self.outputDrainTimeoutNanoseconds = outputDrainTimeoutNanoseconds
     }
 
     /// Spawns or replaces the provider process for a conversation.
@@ -289,26 +319,6 @@ public actor DefaultAgentRuntime: AgentRuntime {
             conversationId: conversationId,
             processToken: processToken
         )
-    }
-
-    private func makeProcess(launch: AgentLaunchConfiguration, config: AgentSpawnConfig) -> PreparedProcess {
-        var environment = ProcessInfo.processInfo.environment
-        environment.merge(config.environment) { _, new in new }
-        environment.merge(launch.environment) { _, new in new }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: launch.executable)
-        process.arguments = launch.includesSpawnArguments ? launch.arguments : launch.arguments + config.arguments
-        process.currentDirectoryURL = launch.workingDirectory ?? config.workingDirectory
-        process.environment = environment
-
-        let stdout = Pipe()
-        let stderr = Pipe()
-        let stdin = Pipe()
-        process.standardOutput = stdout
-        process.standardError = stderr
-        process.standardInput = stdin
-        return PreparedProcess(process: process, stdout: stdout, stderr: stderr, stdin: stdin)
     }
 
     private func prepareLaunch(

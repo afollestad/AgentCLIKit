@@ -80,7 +80,7 @@ extension DefaultAgentRuntime {
             }
         } catch {
             // Stdout and stderr are pumped independently; a short grace period lets earlier stderr lines reach the tail.
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            await sleep(50_000_000)
             guard states[conversationId]?.processToken == processToken else {
                 return
             }
@@ -113,7 +113,7 @@ extension DefaultAgentRuntime {
 
         // Session IDs are discovered from provider output; update runtime status before awaiting durable storage.
         state.providerSessionId = providerSessionId
-        let createdAt = state.providerSessionCreatedAt ?? Date()
+        let createdAt = state.providerSessionCreatedAt ?? now()
         state.providerSessionCreatedAt = createdAt
         states[conversationId] = state
         publishStatus(conversationId: conversationId)
@@ -163,7 +163,7 @@ extension DefaultAgentRuntime {
             }
 
             // A save from a replaced process can resume last; persist the active session again so continuity stays current.
-            let createdAt = current.providerSessionCreatedAt ?? Date()
+            let createdAt = current.providerSessionCreatedAt ?? now()
             pendingRecord = providerSessionRecord(
                 conversationId: pendingRecord.conversationId,
                 state: current,
@@ -187,6 +187,7 @@ extension DefaultAgentRuntime {
             workingDirectory: state.spawnConfig.workingDirectory,
             generation: state.generation,
             createdAt: createdAt,
+            updatedAt: now(),
             metadata: ["source": .string("runtime")]
         )
     }
@@ -206,7 +207,7 @@ extension DefaultAgentRuntime {
             break
         }
         for pump in current.outputPumps {
-            await pump.waitUntilDrained()
+            await pump.waitUntilDrained(timeoutNanoseconds: outputDrainTimeoutNanoseconds, sleep: sleep)
         }
         guard let latest = states[conversationId], latest.processToken == processToken else {
             return
