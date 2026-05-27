@@ -167,6 +167,12 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(encoded, "/tmp/project")
     }
 
+    func testPathEncoderStandardizesTildePath() {
+        let encoded = ClaudePathEncoder.encode("~/project", homeDirectory: URL(fileURLWithPath: "/Users/example"))
+
+        XCTAssertEqual(encoded, "/Users/example/project")
+    }
+
     func testPathEncoderBuildsClaudeSessionFileURL() {
         let url = ClaudePathEncoder.sessionFileURL(
             sessionId: "session-id",
@@ -175,5 +181,38 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         )
 
         XCTAssertEqual(url.path, "/Users/example/.claude/projects/-tmp-project/session-id.jsonl")
+    }
+
+    func testPathEncoderBuildsClaudeSessionFileURLFromWorkingDirectoryPath() {
+        let url = ClaudePathEncoder.sessionFileURL(
+            sessionId: "session-id",
+            workingDirectoryPath: "~/project",
+            homeDirectory: URL(fileURLWithPath: "/Users/example")
+        )
+
+        XCTAssertEqual(url.path, "/Users/example/.claude/projects/-Users-example-project/session-id.jsonl")
+    }
+
+    func testPathEncoderDetectsExistingClaudeSessionFile() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let workingDirectory = home.appendingPathComponent("project", isDirectory: true)
+        let sessionFile = ClaudePathEncoder.sessionFileURL(
+            sessionId: "session-id",
+            workingDirectory: workingDirectory,
+            homeDirectory: home
+        )
+        try FileManager.default.createDirectory(at: sessionFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: sessionFile)
+
+        XCTAssertTrue(ClaudePathEncoder.sessionFileExists(
+            sessionId: "session-id",
+            workingDirectory: workingDirectory,
+            homeDirectory: home
+        ))
+        XCTAssertTrue(ClaudePathEncoder.sessionFileExists(
+            sessionId: "session-id",
+            workingDirectoryPath: workingDirectory.path,
+            homeDirectory: home
+        ))
     }
 }

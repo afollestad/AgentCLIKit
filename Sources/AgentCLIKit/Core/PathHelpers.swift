@@ -25,8 +25,32 @@ public enum AgentPathHelpers {
         url.resolvingSymlinksInPath().standardizedFileURL
     }
 
+    /// Returns a symlink-resolved, standardized file URL for a path that may include `~`.
+    public static func canonicalFileURL(_ path: String, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        canonicalFileURL(expandingTilde(in: path, homeDirectory: homeDirectory))
+    }
+
     /// Returns a symlink-resolved, standardized file path for stable project matching.
     public static func canonicalPath(_ url: URL) -> String {
         canonicalFileURL(url).path
+    }
+
+    /// Returns a symlink-resolved, standardized file path for a path that may include `~`.
+    public static func canonicalPath(_ path: String, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> String {
+        canonicalFileURL(path, homeDirectory: homeDirectory).path
+    }
+
+    /// Returns whether two file URLs point at the same canonical path.
+    public static func isSameCanonicalPath(_ lhs: URL, _ rhs: URL) -> Bool {
+        canonicalPath(lhs) == canonicalPath(rhs)
+    }
+
+    /// Returns whether two paths point at the same canonical path.
+    public static func isSameCanonicalPath(
+        _ lhs: String,
+        _ rhs: String,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> Bool {
+        canonicalPath(lhs, homeDirectory: homeDirectory) == canonicalPath(rhs, homeDirectory: homeDirectory)
     }
 }

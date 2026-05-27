@@ -140,6 +140,17 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(AgentPathHelpers.expandingTilde(in: "/tmp/Project", homeDirectory: home).path, "/tmp/Project")
     }
 
+    func testPathHelpersCanonicalizeTildeAndMatchSymlinks() throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let project = home.appendingPathComponent("Project", isDirectory: true)
+        let link = home.appendingPathComponent("Link", isDirectory: true)
+        try FileManager.default.createDirectory(at: project, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: project)
+
+        XCTAssertEqual(AgentPathHelpers.canonicalPath("~/Project", homeDirectory: home), project.path)
+        XCTAssertTrue(AgentPathHelpers.isSameCanonicalPath(project.path, "~/Link", homeDirectory: home))
+    }
+
     private func removingMetadata(from value: Any) -> Any {
         if let array = value as? [Any] {
             return array.map(removingMetadata)
