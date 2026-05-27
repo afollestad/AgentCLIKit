@@ -30,6 +30,7 @@ final class AgentProviderTests: XCTestCase {
             id: .claude,
             displayName: "Claude",
             executableNames: ["claude"],
+            versionArguments: ["version"],
             capabilities: AgentProviderCapabilities(supportsMidTurnSteering: true),
             supportedPermissionModes: [
                 AgentProviderOption(value: "plan", label: "Plan", description: "Read-only planning.")
@@ -45,8 +46,10 @@ final class AgentProviderTests: XCTestCase {
         )
 
         XCTAssertEqual(decoded, definition)
+        XCTAssertEqual(decoded.versionArguments, ["version"])
         XCTAssertEqual(decoded.supportedPermissionModes?.map(\.value), ["plan"])
         XCTAssertEqual(decoded.supportedEffortLevels, ["low", "high"])
+        XCTAssertEqual(legacy.versionArguments, ["--version"])
         XCTAssertFalse(legacy.capabilities.supportsMidTurnSteering)
         XCTAssertNil(legacy.supportedPermissionModes)
         XCTAssertNil(legacy.supportedEffortLevels)
@@ -101,8 +104,78 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertFalse(commands.contains(whichLookup))
     }
 
-    private func makeTemporaryExecutable() throws -> URL {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    func testDetectorResolvesTildeExecutablePath() async throws {
+        let homeDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let executableURL = try makeTemporaryExecutable(directory: homeDirectory.appendingPathComponent("bin", isDirectory: true))
+        let versionCommand = ShellCommand(executable: executableURL.path, arguments: ["--version"])
+        let shell = FakeShellRunner(results: [
+            versionCommand: .success(ShellCommandResult(exitCode: 0, stdout: "Agent 1.0\n", stderr: ""))
+        ])
+        let detector = AgentProviderDetector(shellRunner: shell, homeDirectory: homeDirectory)
+
+        let availability = await detector.availability(
+            for: AgentProviderDefinition(id: .claude, displayName: "Agent", executableNames: ["~/bin/agent"])
+        )
+
+        XCTAssertEqual(availability.executablePath, executableURL.path)
+    }
+
+    func testDetectorFallsBackToLoginShellLookup() async throws {
+        let executableURL = try makeTemporaryExecutable()
+        let loginShell = ShellCommand(
+            executable: "/bin/sh",
+            arguments: ["-lc", "resolved=$(command -v 'claude') && printf '%s%s\\n' '__AGENTCLIKIT_EXECUTABLE_PATH__' \"$resolved\""]
+        )
+        let versionClaude = ShellCommand(executable: executableURL.path, arguments: ["version"])
+        let shell = FakeShellRunner(results: [
+            loginShell: .success(ShellCommandResult(exitCode: 0, stdout: "__AGENTCLIKIT_EXECUTABLE_PATH__\(executableURL.path)\n", stderr: "")),
+            versionClaude: .success(ShellCommandResult(exitCode: 0, stdout: "Claude Code 1.2.3\n", stderr: ""))
+        ])
+        let detector = AgentProviderDetector(
+            shellRunner: shell,
+            fallbackExecutableDirectories: [],
+            loginShellExecutablePaths: ["/bin/sh"]
+        )
+
+        let availability = await detector.availability(
+            for: AgentProviderDefinition(
+                id: .claude,
+                displayName: "Claude",
+                executableNames: ["claude"],
+                versionArguments: ["version"]
+            )
+        )
+
+        XCTAssertEqual(availability.executablePath, executableURL.path)
+        XCTAssertEqual(availability.versionDescription, "Claude Code 1.2.3")
+    }
+
+    func testDetectorUsesFallbackExecutableDirectories() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let executableURL = try makeTemporaryExecutable(directory: directory)
+        let versionCommand = ShellCommand(executable: executableURL.path, arguments: ["--version"])
+        let shell = FakeShellRunner(results: [
+            versionCommand: .success(ShellCommandResult(exitCode: 0, stdout: "Agent 1.0\n", stderr: ""))
+        ])
+        let detector = AgentProviderDetector(
+            shellRunner: shell,
+            fallbackExecutableDirectories: [directory.path],
+            loginShellExecutablePaths: []
+        )
+
+        let availability = await detector.availability(
+            for: AgentProviderDefinition(id: .claude, displayName: "Agent", executableNames: ["agent"])
+        )
+
+        XCTAssertEqual(availability.executablePath, executableURL.path)
+        XCTAssertEqual(availability.versionDescription, "Agent 1.0")
+    }
+
+    private func makeTemporaryExecutable(
+        directory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    ) throws -> URL {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let executableURL = directory.appendingPathComponent("agent")
         try "#!/bin/sh\n".write(to: executableURL, atomically: true, encoding: .utf8)
