@@ -92,12 +92,18 @@ final class ClaudeHookTests: XCTestCase {
         let token = await tokenStore.issue(validFor: 60)
         let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
 
-        let response = await server.handle(preToolUse(token: token.value))
+        let response = await server.handle(preToolUse(
+            token: token.value,
+            toolName: "Bash",
+            toolInput: .object(["command": .string("git status")])
+        ))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
-        XCTAssertEqual(pending.first?.approvalRequest?.operation, "Edit")
+        XCTAssertEqual(pending.first?.approvalRequest?.operation, "Bash")
+        XCTAssertEqual(pending.first?.approvalRequest?.providerSessionId, "session-123")
+        XCTAssertEqual(pending.first?.approvalRequest?.conciseSummary, "git status")
     }
 
     func testPreToolUseStoresCurrentPermissionModeOnApproval() async {
@@ -221,6 +227,7 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.kind, .prompt)
+        XCTAssertEqual(pending.first?.promptRequest?.providerSessionId, "session-123")
         XCTAssertEqual(pending.first?.promptRequest?.prompt, "Pick one")
         XCTAssertEqual(pending.first?.promptRequest?.options, [
             AgentPromptOption(
@@ -289,6 +296,7 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.kind, .planModeExit)
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "ExitPlanMode")
+        XCTAssertEqual(pending.first?.approvalRequest?.providerSessionId, "session-123")
     }
 
     func testSessionApprovedExitPlanModeEchoesOriginalToolInput() async {

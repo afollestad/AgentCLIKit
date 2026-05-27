@@ -8,6 +8,8 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
     public let providerId: AgentProviderID
     /// Host conversation identifier.
     public let conversationId: AgentConversationID
+    /// Provider session identifier when known.
+    public let providerSessionId: AgentSessionID?
     /// Operation or tool name requiring approval.
     public let operation: String
     /// User-facing reason or summary.
@@ -24,6 +26,7 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         id: AgentInteractionID,
         providerId: AgentProviderID,
         conversationId: AgentConversationID,
+        providerSessionId: AgentSessionID? = nil,
         operation: String,
         reason: String,
         input: JSONValue,
@@ -33,6 +36,7 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         self.id = id
         self.providerId = providerId
         self.conversationId = conversationId
+        self.providerSessionId = providerSessionId
         self.operation = operation
         self.reason = reason
         self.input = input
@@ -46,11 +50,75 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         self.id = try container.decode(AgentInteractionID.self, forKey: .id)
         self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
         self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
+        self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
         self.operation = try container.decode(String.self, forKey: .operation)
         self.reason = try container.decode(String.self, forKey: .reason)
         self.input = try container.decode(JSONValue.self, forKey: .input)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
+    }
+
+    /// Concise host-facing summary for approval lists, notifications, and copy affordances.
+    public var conciseSummary: String {
+        let candidate: String?
+        switch operation {
+        case "Bash":
+            candidate = stringInput("command")
+        case "Write", "Edit", "MultiEdit", "NotebookEdit":
+            candidate = stringInput("file_path") ?? stringInput("path") ?? stringInput("notebook_path")
+        case "EnterPlanMode":
+            candidate = "Switch the session into plan mode"
+        case "ExitPlanMode":
+            candidate = "Present the plan and leave plan mode"
+        default:
+            candidate = stringInput("file_path") ?? stringInput("path") ?? stringInput("command")
+        }
+        return Self.truncated(
+            candidate?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? "Review requested tool input"
+        )
+    }
+
+    /// Markdown plan included in an `ExitPlanMode` approval input.
+    public var planMarkdown: String? {
+        guard operation == "ExitPlanMode" else {
+            return nil
+        }
+        return stringInput("plan")?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    /// Session approval scopes available for this approval.
+    public var supportedSessionApprovalScopes: [AgentToolApprovalSessionScope] {
+        sessionApprovalRequest?.supportedSessionApprovalScopes ?? []
+    }
+
+    /// Provider-neutral session approval request for this approval when enough metadata is available.
+    public var sessionApprovalRequest: AgentSessionApprovalRequest? {
+        guard let providerSessionId else {
+            return nil
+        }
+        return AgentSessionApprovalRequest(
+            providerId: providerId,
+            conversationId: conversationId,
+            sessionId: providerSessionId,
+            toolName: operation,
+            toolInput: input
+        )
+    }
+
+    private func stringInput(_ key: String) -> String? {
+        guard case let .object(object) = input,
+              case let .string(value)? = object[key] else {
+            return nil
+        }
+        return value
+    }
+
+    private static func truncated(_ value: String, limit: Int = 140) -> String {
+        guard value.count > limit else {
+            return value
+        }
+        return String(value.prefix(limit - 1)) + "..."
     }
 }
 
@@ -60,6 +128,8 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
     public let id: AgentInteractionID
     /// Host conversation identifier.
     public let conversationId: AgentConversationID
+    /// Provider session identifier when known.
+    public let providerSessionId: AgentSessionID?
     /// User-facing prompt text.
     public let prompt: String
     /// Optional default answer.
@@ -73,6 +143,7 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
     public init(
         id: AgentInteractionID,
         conversationId: AgentConversationID,
+        providerSessionId: AgentSessionID? = nil,
         prompt: String,
         defaultResponse: String? = nil,
         options: [AgentPromptOption] = [],
@@ -80,6 +151,7 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
     ) {
         self.id = id
         self.conversationId = conversationId
+        self.providerSessionId = providerSessionId
         self.prompt = prompt
         self.defaultResponse = defaultResponse
         self.options = options
@@ -91,6 +163,7 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decode(AgentInteractionID.self, forKey: .id)
         self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
+        self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
         self.prompt = try container.decode(String.self, forKey: .prompt)
         self.defaultResponse = try container.decodeIfPresent(String.self, forKey: .defaultResponse)
         self.options = try container.decodeIfPresent([AgentPromptOption].self, forKey: .options) ?? []
@@ -258,5 +331,11 @@ public actor InMemoryAgentInteractionStore: AgentInteractionStore {
         records.values
             .filter { $0.conversationId == conversationId && $0.resolution == nil }
             .sorted { $0.updatedAt < $1.updatedAt }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

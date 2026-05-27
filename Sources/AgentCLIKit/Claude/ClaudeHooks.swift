@@ -222,9 +222,10 @@ public actor ClaudeHookServer {
             id: interactionId,
             providerId: ClaudeProviderAdapter.providerId,
             conversationId: request.conversationId,
+            providerSessionId: request.sessionId,
             operation: operation,
             reason: "Claude requested tool approval.",
-            input: request.payload,
+            input: request.toolInput ?? request.payload,
             permissionMode: permissionMode(for: request)
         )
         await interactionStore.save(AgentInteractionRecord(
@@ -249,6 +250,7 @@ public actor ClaudeHookServer {
             promptRequest: AgentPromptRequest(
                 id: interactionId,
                 conversationId: request.conversationId,
+                providerSessionId: request.sessionId,
                 prompt: prompt,
                 options: request.promptOptions,
                 allowsCustomResponse: request.allowsCustomPromptResponse
@@ -272,9 +274,10 @@ public actor ClaudeHookServer {
             id: interactionId,
             providerId: ClaudeProviderAdapter.providerId,
             conversationId: request.conversationId,
+            providerSessionId: request.sessionId,
             operation: "ExitPlanMode",
             reason: "Claude requested to exit planning mode.",
-            input: request.payload,
+            input: request.toolInput ?? request.payload,
             permissionMode: permissionMode(for: request)
         )
         await interactionStore.save(AgentInteractionRecord(

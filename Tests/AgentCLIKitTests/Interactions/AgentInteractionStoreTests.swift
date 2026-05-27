@@ -45,4 +45,57 @@ final class AgentInteractionStoreTests: XCTestCase {
 
         XCTAssertEqual(record, second)
     }
+
+    func testApprovalRequestExposesPresentationAndSessionMetadata() throws {
+        let request = AgentApprovalRequest(
+            id: "approval",
+            providerId: .claude,
+            conversationId: "conversation",
+            providerSessionId: "session",
+            operation: "Bash",
+            reason: "Needs approval",
+            input: .object(["command": .string("git add README.md")])
+        )
+
+        XCTAssertEqual(request.conciseSummary, "git add README.md")
+        XCTAssertEqual(request.supportedSessionApprovalScopes, [.exact, .group])
+        XCTAssertEqual(request.sessionApprovalRequest?.sessionId, "session")
+        XCTAssertEqual(
+            request.sessionApprovalRequest?.sessionApprovalGrant(for: .group)?.matchValue,
+            "git add"
+        )
+    }
+
+    func testApprovalAndPromptRequestsDecodeLegacyPayloadsWithoutProviderSession() throws {
+        let approval = AgentApprovalRequest(
+            id: "approval",
+            providerId: .claude,
+            conversationId: "conversation",
+            providerSessionId: "session",
+            operation: "ExitPlanMode",
+            reason: "Plan",
+            input: .object(["plan": .string("# Plan")])
+        )
+        let prompt = AgentPromptRequest(
+            id: "prompt",
+            conversationId: "conversation",
+            providerSessionId: "session",
+            prompt: "Continue?"
+        )
+
+        let legacyApproval = try decodeLegacy(approval, removing: "providerSessionId", as: AgentApprovalRequest.self)
+        let legacyPrompt = try decodeLegacy(prompt, removing: "providerSessionId", as: AgentPromptRequest.self)
+
+        XCTAssertNil(legacyApproval.providerSessionId)
+        XCTAssertEqual(legacyApproval.planMarkdown, "# Plan")
+        XCTAssertNil(legacyPrompt.providerSessionId)
+    }
+
+    private func decodeLegacy<T: Codable>(_ value: T, removing key: String, as type: T.Type) throws -> T {
+        let data = try JSONEncoder().encode(value)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: key)
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        return try JSONDecoder().decode(type, from: legacyData)
+    }
 }

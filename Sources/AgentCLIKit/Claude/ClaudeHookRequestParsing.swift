@@ -15,6 +15,14 @@ extension ClaudeHookRequest {
             ?? "tool"
     }
 
+    var sessionId: AgentSessionID? {
+        if let sessionId = payload.objectValue?["session_id"]?.stringValue ?? payload.objectValue?["sessionId"]?.stringValue,
+           !sessionId.isEmpty {
+            return AgentSessionID(rawValue: sessionId)
+        }
+        return nil
+    }
+
     var promptText: String? {
         if let question = payload.objectValue?["question"]?.stringValue {
             return question
