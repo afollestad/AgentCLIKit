@@ -100,6 +100,9 @@ final class DefaultAgentRuntimeTests: XCTestCase {
         }
         XCTAssertTrue(diagnostics.contains { $0.message.contains("Malformed fake stdout.") })
         XCTAssertTrue(diagnostics.contains { $0.message.contains("tail detail") })
+        XCTAssertTrue(diagnostics.contains { $0.code == .providerDecodeFailed })
+        XCTAssertTrue(diagnostics.contains { $0.metadata["stderr_tail"] == .string("tail detail") })
+        XCTAssertTrue(diagnostics.contains { $0.metadata["raw_stdout_line"] == .string("malformed") })
     }
 
     func testSendSerializesInputToProviderStdin() async throws {

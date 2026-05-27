@@ -62,7 +62,11 @@ extension DefaultAgentRuntime {
         }
         if source == .stderr {
             appendStderr(line, conversationId: conversationId)
-            append(.diagnostic(AgentDiagnosticEvent(severity: .info, message: line)), source: .stderr, conversationId: conversationId)
+            append(
+                .diagnostic(AgentDiagnosticEvent(code: .providerStderr, severity: .info, message: line)),
+                source: .stderr,
+                conversationId: conversationId
+            )
             return
         }
         do {
@@ -88,9 +92,14 @@ extension DefaultAgentRuntime {
             let message = tail.isEmpty ? error.localizedDescription : "\(error.localizedDescription)\nRecent stderr:\n\(tail)"
             // Preserve the raw stdout frame in metadata so provider decoder gaps can be fixed from host logs.
             append(.diagnostic(AgentDiagnosticEvent(
+                code: .providerDecodeFailed,
                 severity: .error,
                 message: message,
-                metadata: ["raw_stdout_line": .string(line)]
+                metadata: [
+                    "decoder_error": .string(error.localizedDescription),
+                    "raw_stdout_line": .string(line),
+                    "stderr_tail": .string(tail)
+                ]
             )), source: .runtime, conversationId: conversationId)
         }
     }
@@ -132,8 +141,13 @@ extension DefaultAgentRuntime {
                 return
             }
             emitDiagnostic(
+                code: .sessionStoreSaveFailed,
                 severity: .warning,
                 message: "Could not persist provider session: \(failure.error.localizedDescription)",
+                metadata: [
+                    "provider_session_id": .string(failure.record.providerSessionId.rawValue),
+                    "store_error": .string(failure.error.localizedDescription)
+                ],
                 source: .runtime,
                 conversationId: conversationId
             )
@@ -235,12 +249,18 @@ extension DefaultAgentRuntime {
     }
 
     func emitDiagnostic(
+        code: AgentDiagnosticCode? = nil,
         severity: AgentDiagnosticSeverity,
         message: String,
+        metadata: [String: JSONValue] = [:],
         source: AgentEventSource,
         conversationId: AgentConversationID
     ) {
-        append(.diagnostic(AgentDiagnosticEvent(severity: severity, message: message)), source: source, conversationId: conversationId)
+        append(
+            .diagnostic(AgentDiagnosticEvent(code: code, severity: severity, message: message, metadata: metadata)),
+            source: source,
+            conversationId: conversationId
+        )
     }
 
     func emitSessionContinuity(

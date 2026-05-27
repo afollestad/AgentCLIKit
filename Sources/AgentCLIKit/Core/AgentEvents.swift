@@ -324,6 +324,8 @@ public enum AgentLifecycleState: String, Codable, Hashable, Sendable {
 
 /// Diagnostic information emitted by a provider or runtime.
 public struct AgentDiagnosticEvent: Codable, Equatable, Sendable {
+    /// Stable machine-readable code for host UI mapping.
+    public let code: AgentDiagnosticCode?
     /// Diagnostic severity.
     public let severity: AgentDiagnosticSeverity
     /// Diagnostic message.
@@ -332,11 +334,36 @@ public struct AgentDiagnosticEvent: Codable, Equatable, Sendable {
     public let metadata: [String: JSONValue]
 
     /// Creates a diagnostic event.
-    public init(severity: AgentDiagnosticSeverity, message: String, metadata: [String: JSONValue] = [:]) {
+    public init(
+        code: AgentDiagnosticCode? = nil,
+        severity: AgentDiagnosticSeverity,
+        message: String,
+        metadata: [String: JSONValue] = [:]
+    ) {
+        self.code = code
         self.severity = severity
         self.message = message
         self.metadata = metadata
     }
+
+    /// Decodes a diagnostic event, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decodeIfPresent(AgentDiagnosticCode.self, forKey: .code)
+        severity = try container.decode(AgentDiagnosticSeverity.self, forKey: .severity)
+        message = try container.decode(String.self, forKey: .message)
+        metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
+    }
+}
+
+/// Stable machine-readable diagnostic codes for host UI mapping and logging.
+public enum AgentDiagnosticCode: String, Codable, Hashable, Sendable {
+    /// Provider stderr output forwarded as a diagnostic.
+    case providerStderr
+    /// Provider stdout could not be decoded.
+    case providerDecodeFailed
+    /// Provider session persistence failed.
+    case sessionStoreSaveFailed
 }
 
 /// Severity for diagnostic events.

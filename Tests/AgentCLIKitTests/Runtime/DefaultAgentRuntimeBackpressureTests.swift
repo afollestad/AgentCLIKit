@@ -77,6 +77,7 @@ final class DefaultAgentRuntimeBackpressureTests: XCTestCase {
         XCTAssertEqual(messages.first, "line-1")
         XCTAssertEqual(messages.last, "line-250")
         XCTAssertEqual(diagnostics.count, 50)
+        XCTAssertEqual(Set(diagnostics.map(\.code)), [.providerStderr])
         XCTAssertTrue(diagnostics.contains { $0.message == "err-1" })
         XCTAssertTrue(diagnostics.contains { $0.message == "err-50" })
     }

@@ -1,5 +1,23 @@
 import Foundation
 
+/// Stable machine-readable error codes for host UI mapping and logging.
+public enum AgentErrorCode: String, Codable, Hashable, Sendable {
+    /// A requested provider was not registered.
+    case providerNotRegistered
+    /// The provider is registered but no executable could be found.
+    case providerUnavailable
+    /// A shell command returned a non-zero exit code.
+    case commandFailed
+    /// A shell command could not be launched.
+    case commandLaunchFailed
+    /// A shell argument string ended before a quote was closed.
+    case unterminatedQuote
+    /// Session persistence failed while reading or writing a store.
+    case sessionStoreFailed
+    /// The host sent input that is not valid for the current session state.
+    case invalidInput
+}
+
 /// Errors thrown by generic AgentCLIKit services.
 public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
     /// A requested provider was not registered.
@@ -16,6 +34,47 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
     case sessionStoreFailed(String)
     /// The host sent input that is not valid for the current session state.
     case invalidInput(String)
+
+    /// Stable machine-readable code for host UI mapping and telemetry.
+    public var code: AgentErrorCode {
+        switch self {
+        case .providerNotRegistered:
+            .providerNotRegistered
+        case .providerUnavailable:
+            .providerUnavailable
+        case .commandFailed:
+            .commandFailed
+        case .commandLaunchFailed:
+            .commandLaunchFailed
+        case .unterminatedQuote:
+            .unterminatedQuote
+        case .sessionStoreFailed:
+            .sessionStoreFailed
+        case .invalidInput:
+            .invalidInput
+        }
+    }
+
+    /// Structured error fields that hosts can inspect instead of parsing `errorDescription`.
+    public var metadata: [String: JSONValue] {
+        switch self {
+        case let .providerNotRegistered(providerId), let .providerUnavailable(providerId):
+            ["provider_id": .string(providerId.rawValue)]
+        case let .commandFailed(executable, arguments, exitCode, stderr):
+            [
+                "executable": .string(executable),
+                "arguments": .array(arguments.map(JSONValue.string)),
+                "exit_code": .number(Double(exitCode)),
+                "stderr": .string(stderr)
+            ]
+        case let .commandLaunchFailed(executable, reason):
+            ["executable": .string(executable), "reason": .string(reason)]
+        case let .unterminatedQuote(argumentString):
+            ["argument_string": .string(argumentString)]
+        case let .sessionStoreFailed(message), let .invalidInput(message):
+            ["message": .string(message)]
+        }
+    }
 
     /// Human-readable description suitable for diagnostics and logs.
     public var errorDescription: String? {

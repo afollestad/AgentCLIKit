@@ -76,6 +76,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             return diagnostic
         }
         XCTAssertFalse(diagnostics.contains { $0.message.contains("Could not persist provider session") })
+        XCTAssertFalse(diagnostics.contains { $0.code == .sessionStoreSaveFailed })
         XCTAssertTrue(events.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "new")) })
     }
 
