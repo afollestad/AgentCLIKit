@@ -22,13 +22,14 @@ final class DemoModel: ObservableObject {
         let hookDecisionProvider = DemoHookDecisionProvider()
         self.sessionStore = store
         self.hookDecisionProvider = hookDecisionProvider
+        let adapterSet = AgentProviderAdapterSet.default(
+            claude: ClaudeProviderAdapter.Configuration(
+                hookDecisionProvider: hookDecisionProvider,
+                hookDecisionTimeout: 595
+            )
+        )
         self.runtime = DefaultAgentRuntime(
-            adapters: [
-                ClaudeProviderAdapter(
-                    hookDecisionProvider: hookDecisionProvider,
-                    hookDecisionTimeout: 595
-                )
-            ],
+            adapterSet: adapterSet,
             sessionStore: store
         )
         self.workingDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)

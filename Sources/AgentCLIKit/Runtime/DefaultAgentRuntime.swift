@@ -16,6 +16,31 @@ public actor DefaultAgentRuntime: AgentRuntime {
     var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
     var statusSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentRuntimeStatus>.Continuation]] = [:]
 
+    /// Creates a default runtime with a provider adapter set.
+    /// - Parameters:
+    ///   - adapterSet: Provider adapters and matching definitions available to this runtime.
+    ///   - sessionStore: Store used to resume provider sessions.
+    ///   - replayLimit: Number of acknowledged events retained as replay history. Values below one are clamped to one.
+    ///   - subscriberBufferLimit: Maximum live events buffered per subscriber while the host is not consuming. Values below one
+    ///     are clamped to one; replay remains available through `subscribe(conversationId:afterIndex:)`.
+    public init(
+        adapterSet: AgentProviderAdapterSet = .default,
+        sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
+        replayLimit: Int = 500,
+        subscriberBufferLimit: Int = 1_000
+    ) {
+        self.init(
+            adapters: adapterSet.adapters,
+            sessionStore: sessionStore,
+            replayLimit: replayLimit,
+            subscriberBufferLimit: subscriberBufferLimit,
+            processFactory: defaultAgentRuntimeProcessFactory,
+            now: Date.init,
+            sleep: defaultAgentRuntimeSleep,
+            outputDrainTimeoutNanoseconds: 500_000_000
+        )
+    }
+
     /// Creates a default runtime.
     /// - Parameters:
     ///   - adapters: Provider adapters keyed by their definitions. Duplicate provider IDs prefer the later adapter.

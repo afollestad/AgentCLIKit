@@ -11,6 +11,8 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentRuntimeStatus.self)
         assertSendable(AgentInteractionRecord.self)
         assertSendable(AgentPendingAction.self)
+        assertSendable(AgentProviderAdapterSet.self)
+        assertSendable(ClaudeProviderAdapter.Configuration.self)
         assertSendable(MainActorClaudeHookDecisionProvider.self)
     }
 

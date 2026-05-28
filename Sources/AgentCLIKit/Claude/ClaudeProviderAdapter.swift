@@ -5,6 +5,62 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     /// Claude provider identifier.
     public static let providerId: AgentProviderID = .claude
 
+    /// Configuration used to create a Claude provider adapter.
+    public struct Configuration: Sendable {
+        /// Claude executable path, or `/usr/bin/env` to resolve `claude` through PATH.
+        public let executablePath: String
+        /// Stream JSON decoder.
+        public let decoder: ClaudeStreamDecoder
+        /// Stream JSON input encoder.
+        public let inputEncoder: ClaudeInputEncoder
+        /// Home directory containing `.claude/projects`.
+        public let homeDirectory: URL
+        /// Predicate used to decide whether a saved Claude session can be resumed.
+        public let sessionFileExists: @Sendable (URL) -> Bool
+        /// Whether this adapter should manage a Claude hook listener and generated hook settings.
+        public let enableHooks: Bool
+        /// Store used for hook-originated pending interactions.
+        public let interactionStore: any AgentInteractionStore
+        /// Store used for session and transient hook approvals.
+        public let approvalPolicyStore: any ClaudeApprovalPolicyStoring
+        /// Directory used for generated per-launch Claude hook settings files.
+        public let hookSupportDirectory: URL
+        /// Optional provider that can answer Claude hook decisions while the hook request is still live.
+        public let hookDecisionProvider: (any ClaudeHookDecisionProviding)?
+        /// Maximum live hook decision wait before Claude receives a deferred response.
+        public let hookDecisionTimeout: TimeInterval?
+
+        /// Creates a Claude adapter configuration.
+        public init(
+            executablePath: String = "/usr/bin/env",
+            decoder: ClaudeStreamDecoder = ClaudeStreamDecoder(),
+            inputEncoder: ClaudeInputEncoder = ClaudeInputEncoder(),
+            homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+            sessionFileExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) },
+            enableHooks: Bool = true,
+            interactionStore: any AgentInteractionStore = InMemoryAgentInteractionStore(),
+            approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
+            hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "AgentCLIKitClaudeHooks",
+                isDirectory: true
+            ),
+            hookDecisionProvider: (any ClaudeHookDecisionProviding)? = nil,
+            hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout
+        ) {
+            self.executablePath = executablePath
+            self.decoder = decoder
+            self.inputEncoder = inputEncoder
+            self.homeDirectory = homeDirectory
+            self.sessionFileExists = sessionFileExists
+            self.enableHooks = enableHooks
+            self.interactionStore = interactionStore
+            self.approvalPolicyStore = approvalPolicyStore
+            self.hookSupportDirectory = hookSupportDirectory
+            self.hookDecisionProvider = hookDecisionProvider
+            self.hookDecisionTimeout = hookDecisionTimeout
+        }
+    }
+
     /// Static Claude provider metadata.
     public let definition = AgentProviderDefinition(
         id: ClaudeProviderAdapter.providerId,
@@ -79,24 +135,41 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         hookDecisionProvider: (any ClaudeHookDecisionProviding)? = nil,
         hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout
     ) {
-        self.executablePath = executablePath
-        self.decoder = decoder
-        self.inputEncoder = inputEncoder
-        self.homeDirectory = homeDirectory
-        self.sessionFileExists = sessionFileExists
-        if enableHooks {
+        self.init(configuration: Configuration(
+            executablePath: executablePath,
+            decoder: decoder,
+            inputEncoder: inputEncoder,
+            homeDirectory: homeDirectory,
+            sessionFileExists: sessionFileExists,
+            enableHooks: enableHooks,
+            interactionStore: interactionStore,
+            approvalPolicyStore: approvalPolicyStore,
+            hookSupportDirectory: hookSupportDirectory,
+            hookDecisionProvider: hookDecisionProvider,
+            hookDecisionTimeout: hookDecisionTimeout
+        ))
+    }
+
+    /// Creates a Claude provider adapter with a reusable configuration value.
+    public init(configuration: Configuration) {
+        self.executablePath = configuration.executablePath
+        self.decoder = configuration.decoder
+        self.inputEncoder = configuration.inputEncoder
+        self.homeDirectory = configuration.homeDirectory
+        self.sessionFileExists = configuration.sessionFileExists
+        if configuration.enableHooks {
             let tokenStore = AgentHookTokenStore()
             let hookServer = ClaudeHookServer(
                 tokenStore: tokenStore,
-                interactionStore: interactionStore,
-                approvalPolicyStore: approvalPolicyStore,
-                decisionProvider: hookDecisionProvider,
-                decisionTimeout: hookDecisionTimeout
+                interactionStore: configuration.interactionStore,
+                approvalPolicyStore: configuration.approvalPolicyStore,
+                decisionProvider: configuration.hookDecisionProvider,
+                decisionTimeout: configuration.hookDecisionTimeout
             )
             self.hookCoordinator = ClaudeHookCoordinator(
                 tokenStore: tokenStore,
                 server: hookServer,
-                supportDirectory: hookSupportDirectory
+                supportDirectory: configuration.hookSupportDirectory
             )
         } else {
             self.hookCoordinator = nil

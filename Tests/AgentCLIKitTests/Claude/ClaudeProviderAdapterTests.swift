@@ -68,6 +68,20 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(adapter.definition.id, .claude)
     }
 
+    func testConfigurationInitializerPreservesHookSettings() async throws {
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
+        let launch = AgentLaunchConfiguration(executable: "/usr/bin/env", arguments: ["claude"])
+
+        let prepared = try await adapter.prepareLaunchConfiguration(
+            launch,
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp")),
+            conversationId: "conversation",
+            processToken: UUID()
+        )
+
+        XCTAssertEqual(prepared, launch)
+    }
+
     func testLaunchConfigurationFallsBackToSessionIDWhenResumeArtifactIsMissing() async throws {
         let adapter = ClaudeProviderAdapter(
             executablePath: "/opt/homebrew/bin/claude",

@@ -3,6 +3,37 @@ import XCTest
 @testable import AgentCLIKit
 
 final class AgentProviderTests: XCTestCase {
+    func testDefaultAdapterSetExposesClaudeDefinition() {
+        let adapterSet = AgentProviderAdapterSet.default
+
+        XCTAssertEqual(adapterSet.definitions.map(\.id), [.claude])
+        XCTAssertEqual(adapterSet.definitions.first?.displayName, "Claude")
+    }
+
+    func testAdapterSetOverridesBuiltInAdapters() {
+        let adapterSet = AgentProviderAdapterSet(overriding: [
+            FakeProviderAdapter(command: AgentLaunchConfiguration(executable: "/usr/bin/true"))
+        ])
+
+        XCTAssertEqual(adapterSet.adapters.count, 1)
+        XCTAssertEqual(adapterSet.definitions.first?.id, .claude)
+        XCTAssertEqual(adapterSet.definitions.first?.displayName, "Fake")
+    }
+
+    func testDefaultAdapterSetAcceptsClaudeConfiguration() async throws {
+        let adapterSet = AgentProviderAdapterSet.default(
+            claude: ClaudeProviderAdapter.Configuration(executablePath: "/custom/claude", enableHooks: false)
+        )
+        let adapter = try XCTUnwrap(adapterSet.adapters.first)
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: nil
+        )
+
+        XCTAssertEqual(launch.executable, "/custom/claude")
+    }
+
     func testRegistryReturnsRegisteredDefinitions() async {
         let registry = AgentProviderRegistry(definitions: [
             AgentProviderDefinition(id: .claude, displayName: "Claude", executableNames: ["claude"])

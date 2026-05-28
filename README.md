@@ -41,11 +41,26 @@ Use one runtime actor per app-level runtime service:
 
 ```swift
 let runtime = DefaultAgentRuntime(
-    adapters: [
-        ClaudeProviderAdapter()
-    ],
     sessionStore: JSONFileAgentSessionStore(fileURL: sessionsURL)
 )
+```
+
+Hosts that need custom Claude hook stores or test adapters can provide an adapter set:
+
+```swift
+let adapterSet = AgentProviderAdapterSet.default(
+    claude: ClaudeProviderAdapter.Configuration(
+        hookDecisionProvider: hookDecisionProvider
+    )
+)
+let runtime = DefaultAgentRuntime(adapterSet: adapterSet, sessionStore: sessionStore)
+```
+
+Explicit adapters can still override built-ins for tests or custom hosts:
+
+```swift
+let adapterSet = AgentProviderAdapterSet(overriding: [customClaudeAdapter])
+let runtime = DefaultAgentRuntime(adapterSet: adapterSet, sessionStore: sessionStore)
 ```
 
 ## Spawn A Conversation
