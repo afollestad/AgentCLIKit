@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.5.app/Contents/Developer
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Cache Swift packages
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.swiftpm/cache
+            ~/Library/Caches/org.swift.swiftpm
+            .build/xcode/SourcePackages
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swiftpm-
+
+      - name: Setup
+        run: ./scripts/setup.sh
+
+      - name: Lint
+        run: ./scripts/lint.sh
+
+      - name: Build
+        run: ./scripts/build.sh
+
+      - name: Test
+        run: ./scripts/test.sh
+
+      - name: Validate package consumer
+        run: ./scripts/validate-package-consumer.sh
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcode-test-logs
+          path: |
+            .build/xcode/Logs/Build
+            .build/xcode/Logs/Test
+          if-no-files-found: ignore
+          retention-days: 7
