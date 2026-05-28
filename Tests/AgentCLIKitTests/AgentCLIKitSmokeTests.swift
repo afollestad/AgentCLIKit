@@ -4,6 +4,6 @@ import XCTest
 
 final class AgentCLIKitSmokeTests: XCTestCase {
     func testPackageMetadataName() {
-        XCTAssertEqual(AgentCLIKit.name, "AgentCLIKit")
+        XCTAssertEqual(AgentCLIKitMetadata.name, "AgentCLIKit")
     }
 }
