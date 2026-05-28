@@ -3,6 +3,21 @@ import XCTest
 @testable import AgentCLIKit
 
 final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
+    func testRuntimePreservesWaitingStateAfterDeferredApprovalProcessExits() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            DeferredToolStopProviderAdapter(command: shell("printf 'approval\\ndeferred\\n'"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let status = await waitForExit(runtime: runtime, conversationId: conversationId)
+
+        XCTAssertEqual(status?.state, .exited)
+        XCTAssertEqual(status?.waitingState, .approval)
+        XCTAssertEqual(status?.inputAvailability, .blocked(reason: "Waiting for approval."))
+        XCTAssertFalse(status?.isProcessRunning ?? true)
+    }
+
     func testRuntimeStopsProcessAfterDeferredApproval() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
             DeferredToolStopProviderAdapter(command: shell("printf 'approval\\ndeferred\\n'; sleep 5"))

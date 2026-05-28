@@ -71,7 +71,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         sessionFileExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) },
         enableHooks: Bool = true,
         interactionStore: any AgentInteractionStore = InMemoryAgentInteractionStore(),
-        approvalPolicyStore: ClaudeApprovalPolicyStore = ClaudeApprovalPolicyStore(),
+        approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
         hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "AgentCLIKitClaudeHooks",
             isDirectory: true
@@ -220,6 +220,11 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     /// Invalidates the hook token associated with a finished or superseded Claude process.
     public func processDidTerminate(processToken: UUID) async {
         await hookCoordinator?.invalidate(processToken: processToken)
+    }
+
+    /// Updates provider-owned hook state from streamed permission-mode status.
+    public func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async {
+        await hookCoordinator?.updatePermissionMode(mode, for: conversationId)
     }
 
     /// Stops the shared Claude hook listener and invalidates active launch tokens.

@@ -48,6 +48,8 @@ extension ClaudeStreamDecoder {
                 model: nil,
                 inputTokens: 0,
                 outputTokens: 0,
+                stopReason: "tool_deferred",
+                isTerminal: true,
                 metadata: ["stop_reason": .string("tool_deferred")]
             ))
         ]
@@ -71,6 +73,7 @@ extension ClaudeStreamDecoder {
             metadata["tool_name"] = .string(toolName)
         }
         return [.diagnostic(AgentDiagnosticEvent(
+            code: .hookApprovalFailed,
             severity: .error,
             message: "Claude hook failed (\(hookName)): \(detail)",
             metadata: metadata

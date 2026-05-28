@@ -362,6 +362,8 @@ public enum AgentDiagnosticCode: String, Codable, Hashable, Sendable {
     case providerStderr
     /// Provider stdout could not be decoded.
     case providerDecodeFailed
+    /// Provider hook approval failed before it could be resolved.
+    case hookApprovalFailed
     /// Provider session persistence failed.
     case sessionStoreSaveFailed
 }

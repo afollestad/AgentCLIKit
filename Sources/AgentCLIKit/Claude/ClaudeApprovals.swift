@@ -42,10 +42,74 @@ public struct ClaudeHookDecision: Codable, Equatable, Sendable {
     }
 }
 
+/// Session-scoped key for transient Claude hook decisions.
+public struct ClaudeTransientDecisionKey: Codable, Hashable, Sendable {
+    /// Provider session that emitted the hook, when known.
+    public let sessionId: AgentSessionID?
+    /// Hook interaction identifier, usually Claude's tool use ID.
+    public let interactionId: AgentInteractionID
+
+    /// Creates a scoped transient decision key.
+    public init(sessionId: AgentSessionID?, interactionId: AgentInteractionID) {
+        self.sessionId = sessionId
+        self.interactionId = interactionId
+    }
+}
+
+/// Store used by Claude hooks for reusable and one-shot approval policy decisions.
+public protocol ClaudeApprovalPolicyStoring: AgentSessionApprovalPolicyStore {
+    /// Approves an operation for the rest of the session.
+    func approveForSession(operation: String) async
+    /// Approves an operation input for the rest of the session.
+    func approveForSession(operation: String, input: JSONValue) async
+    /// Returns whether an operation is approved for the session.
+    func isSessionApproved(operation: String) async -> Bool
+    /// Returns whether an operation input is approved for the session.
+    func isSessionApproved(operation: String, input: JSONValue) async -> Bool
+    /// Adds transient one-shot approvals.
+    func approveBatch(_ ids: [AgentInteractionID]) async
+    /// Consumes and removes a transient approval.
+    func consumeTransientApproval(id: AgentInteractionID) async -> Bool
+}
+
+/// Optional store contract for transient hook decisions that can carry denial or updated input.
+public protocol ClaudeTransientDecisionStoring: Sendable {
+    /// Records a transient one-shot hook decision.
+    func recordTransientDecision(_ decision: ClaudeHookDecision, id: AgentInteractionID) async
+    /// Consumes and removes a transient one-shot hook decision.
+    func consumeTransientDecision(id: AgentInteractionID) async -> ClaudeHookDecision?
+    /// Discards a transient one-shot hook decision.
+    func discardTransientDecision(id: AgentInteractionID) async
+    /// Records a transient one-shot hook decision for a provider session.
+    func recordTransientDecision(_ decision: ClaudeHookDecision, for key: ClaudeTransientDecisionKey) async
+    /// Consumes and removes a transient one-shot hook decision for a provider session.
+    func consumeTransientDecision(for key: ClaudeTransientDecisionKey) async -> ClaudeHookDecision?
+    /// Discards a transient one-shot hook decision for a provider session.
+    func discardTransientDecision(for key: ClaudeTransientDecisionKey) async
+}
+
+public extension ClaudeTransientDecisionStoring {
+    /// Records a transient one-shot hook decision for a provider session.
+    func recordTransientDecision(_ decision: ClaudeHookDecision, for key: ClaudeTransientDecisionKey) async {
+        await recordTransientDecision(decision, id: key.interactionId)
+    }
+
+    /// Consumes and removes a transient one-shot hook decision for a provider session.
+    func consumeTransientDecision(for key: ClaudeTransientDecisionKey) async -> ClaudeHookDecision? {
+        await consumeTransientDecision(id: key.interactionId)
+    }
+
+    /// Discards a transient one-shot hook decision for a provider session.
+    func discardTransientDecision(for key: ClaudeTransientDecisionKey) async {
+        await discardTransientDecision(id: key.interactionId)
+    }
+}
+
 /// Store for session and transient Claude approvals.
-public actor ClaudeApprovalPolicyStore {
+public actor ClaudeApprovalPolicyStore: ClaudeApprovalPolicyStoring, ClaudeTransientDecisionStoring {
     private var sessionApprovedOperations: Set<ClaudeApprovalOperationKey> = []
-    private var transientApprovals: Set<AgentInteractionID> = []
+    private var sessionApprovalGrants: Set<AgentSessionApprovalGrant> = []
+    private var transientDecisions: [ClaudeTransientDecisionKey: ClaudeHookDecision] = [:]
 
     /// Creates an approval policy store.
     public init() {}
@@ -71,14 +135,86 @@ public actor ClaudeApprovalPolicyStore {
             || isSessionApproved(operation: operation)
     }
 
+    /// Records a provider-neutral durable session approval grant.
+    public func recordSessionApproval(_ grant: AgentSessionApprovalGrant) -> AgentSessionApprovalRecordResult {
+        let inserted = sessionApprovalGrants.insert(grant).inserted
+        return AgentSessionApprovalRecordResult(isEffective: true, wasInserted: inserted)
+    }
+
+    /// Removes a previously recorded durable session approval grant.
+    public func discardSessionApproval(_ grant: AgentSessionApprovalGrant) {
+        sessionApprovalGrants.remove(grant)
+    }
+
+    /// Returns whether a provider-neutral approval request matches a durable session grant.
+    public func allowsSessionApproval(_ request: AgentSessionApprovalRequest) -> Bool {
+        request.supportedSessionApprovalScopes
+            .compactMap { request.sessionApprovalGrant(for: $0) }
+            .contains { sessionApprovalGrants.contains($0) }
+    }
+
+    /// Removes durable session approval grants for a provider session.
+    public func removeSessionApprovals(
+        providerId: AgentProviderID,
+        conversationId: AgentConversationID,
+        sessionId: AgentSessionID
+    ) {
+        sessionApprovalGrants = sessionApprovalGrants.filter {
+            $0.providerId != providerId || $0.conversationId != conversationId || $0.sessionId != sessionId
+        }
+    }
+
     /// Adds transient one-shot approvals.
-    public func approveBatch(_ ids: [AgentInteractionID]) {
-        transientApprovals.formUnion(ids)
+    public func approveBatch(_ ids: [AgentInteractionID]) async {
+        for id in ids {
+            transientDecisions[ClaudeTransientDecisionKey(sessionId: nil, interactionId: id)] = .allow()
+        }
     }
 
     /// Consumes and removes a transient approval.
-    public func consumeTransientApproval(id: AgentInteractionID) -> Bool {
-        transientApprovals.remove(id) != nil
+    public func consumeTransientApproval(id: AgentInteractionID) async -> Bool {
+        removeTransientDecision(for: ClaudeTransientDecisionKey(sessionId: nil, interactionId: id))?.approval == .allow
+    }
+
+    /// Records a transient one-shot hook decision.
+    public func recordTransientDecision(_ decision: ClaudeHookDecision, id: AgentInteractionID) async {
+        transientDecisions[ClaudeTransientDecisionKey(sessionId: nil, interactionId: id)] = decision
+    }
+
+    /// Consumes and removes a transient one-shot hook decision.
+    public func consumeTransientDecision(id: AgentInteractionID) async -> ClaudeHookDecision? {
+        removeTransientDecision(for: ClaudeTransientDecisionKey(sessionId: nil, interactionId: id))
+    }
+
+    /// Discards a transient one-shot hook decision.
+    public func discardTransientDecision(id: AgentInteractionID) async {
+        transientDecisions.removeValue(forKey: ClaudeTransientDecisionKey(sessionId: nil, interactionId: id))
+    }
+
+    /// Records a transient one-shot hook decision for a provider session.
+    public func recordTransientDecision(_ decision: ClaudeHookDecision, for key: ClaudeTransientDecisionKey) async {
+        transientDecisions[key] = decision
+    }
+
+    /// Consumes and removes a transient one-shot hook decision for a provider session.
+    public func consumeTransientDecision(for key: ClaudeTransientDecisionKey) async -> ClaudeHookDecision? {
+        removeTransientDecision(for: key)
+    }
+
+    /// Discards a transient one-shot hook decision for a provider session.
+    public func discardTransientDecision(for key: ClaudeTransientDecisionKey) async {
+        transientDecisions.removeValue(forKey: key)
+    }
+
+    private func removeTransientDecision(for key: ClaudeTransientDecisionKey) -> ClaudeHookDecision? {
+        transientDecisions.removeValue(forKey: key) ?? consumeLegacyTransientDecision(for: key)
+    }
+
+    private func consumeLegacyTransientDecision(for key: ClaudeTransientDecisionKey) -> ClaudeHookDecision? {
+        guard key.sessionId != nil else {
+            return nil
+        }
+        return transientDecisions.removeValue(forKey: ClaudeTransientDecisionKey(sessionId: nil, interactionId: key.interactionId))
     }
 }
 

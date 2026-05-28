@@ -120,60 +120,11 @@ public enum ClaudeHookPolicy {
     }
 }
 
-/// Claude hook settings payload for registering AgentCLIKit's local hook endpoint.
-public struct ClaudeHookSettings: Equatable, Sendable {
-    /// Local HTTP endpoint that Claude should call for `PreToolUse`.
-    public let endpointURL: URL
-    /// Environment variable name that holds the bearer token.
-    public let tokenEnvironmentVariable: String
-    /// Claude hook timeout in seconds.
-    public let timeoutSeconds: Int
-
-    /// Creates Claude hook settings.
-    public init(
-        endpointURL: URL,
-        tokenEnvironmentVariable: String = "AGENTCLIKIT_CLAUDE_HOOK_TOKEN",
-        timeoutSeconds: Int = ClaudeHookPolicy.defaultHookTimeoutSeconds
-    ) {
-        self.endpointURL = endpointURL
-        self.tokenEnvironmentVariable = tokenEnvironmentVariable
-        self.timeoutSeconds = timeoutSeconds
-    }
-
-    /// Encodes Claude-compatible settings JSON.
-    public func encodedData() throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        return try encoder.encode(payload)
-    }
-
-    private var payload: ClaudeHookSettingsPayload {
-        ClaudeHookSettingsPayload(hooks: [
-            "PreToolUse": [
-                ClaudeHookMatcher(
-                    matcher: ClaudeHookPolicy.preToolUseMatcher,
-                    hooks: [
-                        ClaudeHookTransport(
-                            type: "http",
-                            url: endpointURL.absoluteString,
-                            timeout: timeoutSeconds,
-                            headers: [
-                                "Authorization": "Bearer $\(tokenEnvironmentVariable)"
-                            ],
-                            allowedEnvVars: [tokenEnvironmentVariable]
-                        )
-                    ]
-                )
-            ]
-        ])
-    }
-}
-
 /// Claude hook handler with bearer-token validation and approval fallback behavior.
 public actor ClaudeHookServer {
     private let tokenStore: AgentHookTokenStore
     private let interactionStore: any AgentInteractionStore
-    private let approvalPolicyStore: ClaudeApprovalPolicyStore
+    private let approvalPolicyStore: any ClaudeApprovalPolicyStoring
     private let decisionProvider: (any ClaudeHookDecisionProviding)?
     private let decisionTimeout: TimeInterval?
     private var pendingDecisionRaces: [String: [UUID: ClaudeHookDecisionRace]] = [:]
@@ -190,7 +141,7 @@ public actor ClaudeHookServer {
     public init(
         tokenStore: AgentHookTokenStore,
         interactionStore: any AgentInteractionStore,
-        approvalPolicyStore: ClaudeApprovalPolicyStore = ClaudeApprovalPolicyStore(),
+        approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
         decisionProvider: (any ClaudeHookDecisionProviding)? = nil,
         decisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout
     ) {
@@ -222,6 +173,15 @@ public actor ClaudeHookServer {
     public func invalidateToken(_ token: String) async {
         await tokenStore.invalidate(token)
         releasePendingDecisionRaces(for: token)
+    }
+
+    /// Updates the cached permission mode for a conversation from provider status output.
+    public func updatePermissionMode(_ permissionMode: String?, for conversationId: AgentConversationID) {
+        if let permissionMode {
+            permissionModes[conversationId] = permissionMode
+        } else {
+            permissionModes.removeValue(forKey: conversationId)
+        }
     }
 
     private func handlePreToolUse(_ request: ClaudeHookRequest) async -> AgentHookResponse {
@@ -283,6 +243,10 @@ public actor ClaudeHookServer {
                 allowsCustomResponse: request.allowsCustomPromptResponse
             )
         ))
+        if let policyDecision = await transientDecision(operation: "AskUserQuestion", interactionId: interactionId, request: request) {
+            await resolveInteractionIfNeeded(policyDecision, interactionId: interactionId, approvedOutcome: .answered, deniedOutcome: .cancelled)
+            return response(for: policyDecision, interactionId: interactionId)
+        }
         let decision = await liveDecision(for: request, interactionId: interactionId)
         await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .answered, deniedOutcome: .cancelled)
         return response(for: decision, interactionId: interactionId)
@@ -378,11 +342,24 @@ public actor ClaudeHookServer {
         interactionId: AgentInteractionID,
         request: ClaudeHookRequest
     ) async -> ClaudeHookDecision? {
-        // Transient approvals are keyed by Claude's tool_use_id when present, so a retried hook can resolve the same record.
-        if await approvalPolicyStore.consumeTransientApproval(id: interactionId) {
-            let decision = ClaudeHookDecision.allow(updatedInput: request.updatedInputForAllowedOperation(operation))
+        // Transient approvals are keyed by Claude's provider session plus tool_use_id so a retried hook can resolve the same record.
+        if let decision = await transientDecision(operation: operation, interactionId: interactionId, request: request) {
             await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .approved, deniedOutcome: .denied)
             return decision
+        }
+        if let sessionId = request.sessionId {
+            let approvalRequest = AgentSessionApprovalRequest(
+                providerId: ClaudeProviderAdapter.providerId,
+                conversationId: request.conversationId,
+                sessionId: sessionId,
+                toolName: operation,
+                toolInput: request.toolInput ?? .object([:])
+            )
+            if await approvalPolicyStore.allowsSessionApproval(approvalRequest) {
+                let decision = ClaudeHookDecision.allow(updatedInput: request.updatedInputForAllowedOperation(operation))
+                await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .approved, deniedOutcome: .denied)
+                return decision
+            }
         }
         if await approvalPolicyStore.isSessionApproved(operation: operation, input: request.toolInput ?? .object([:])) {
             let decision = ClaudeHookDecision.allow(updatedInput: request.updatedInputForAllowedOperation(operation))
@@ -390,6 +367,33 @@ public actor ClaudeHookServer {
             return decision
         }
         return nil
+    }
+
+    private func transientDecision(
+        operation: String,
+        interactionId: AgentInteractionID,
+        request: ClaudeHookRequest
+    ) async -> ClaudeHookDecision? {
+        let decision: ClaudeHookDecision?
+        if let transientDecisionStore = approvalPolicyStore as? any ClaudeTransientDecisionStoring {
+            decision = await transientDecisionStore.consumeTransientDecision(for: ClaudeTransientDecisionKey(
+                sessionId: request.sessionId,
+                interactionId: interactionId
+            ))
+        } else if await approvalPolicyStore.consumeTransientApproval(id: interactionId) {
+            decision = .allow()
+        } else {
+            decision = nil
+        }
+        guard let decision else {
+            return nil
+        }
+        guard decision.approval == .allow,
+              decision.updatedInput == nil,
+              let updatedInput = request.updatedInputForAllowedOperation(operation) else {
+            return decision
+        }
+        return .allow(reason: decision.reason, updatedInput: updatedInput)
     }
 
     private func rememberPermissionMode(from request: ClaudeHookRequest) {

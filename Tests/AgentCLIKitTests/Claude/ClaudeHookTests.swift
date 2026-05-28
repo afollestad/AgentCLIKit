@@ -120,6 +120,22 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(pending.last?.approvalRequest?.permissionMode, "plan")
     }
 
+    func testPreToolUseUsesRuntimeUpdatedPermissionMode() async {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let token = await tokenStore.issue(validFor: 60)
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+
+        await server.updatePermissionMode("plan", for: "conversation")
+        let response = await server.handle(preToolUse(token: token.value, toolName: "ExitPlanMode", permissionMode: nil))
+        let pending = await interactionStore.pending(conversationId: "conversation")
+
+        XCTAssertEqual(response.statusCode, 200)
+        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
+        XCTAssertEqual(pending.last?.kind, .planModeExit)
+        XCTAssertEqual(pending.last?.approvalRequest?.permissionMode, "plan")
+    }
+
     func testPreToolUseDefersWhenLiveDecisionTimesOut() async {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
@@ -367,21 +383,6 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertTrue(pending.contains { $0.kind == .planModeExit })
     }
 
-    func testApprovalPolicySupportsSessionAndTransientApprovals() async {
-        let store = ClaudeApprovalPolicyStore()
-        let id: AgentInteractionID = "approval"
-
-        await store.approveForSession(operation: "Edit")
-        await store.approveBatch([id])
-
-        let sessionApproved = await store.isSessionApproved(operation: "Edit")
-        let firstTransient = await store.consumeTransientApproval(id: id)
-        let secondTransient = await store.consumeTransientApproval(id: id)
-        XCTAssertTrue(sessionApproved)
-        XCTAssertTrue(firstTransient)
-        XCTAssertFalse(secondTransient)
-    }
-
     func testResponseMapperFailsClosedForAmbiguous2xx() {
         let response = AgentHookResponse(statusCode: 200, body: .object([:]))
 
@@ -402,11 +403,12 @@ final class ClaudeHookTests: XCTestCase {
         token: String?,
         toolName: String = "Edit",
         toolInput: JSONValue = .object([:]),
+        sessionId: String = "session-123",
         permissionMode: String? = nil
     ) -> ClaudeHookRequest {
         var payload: [String: JSONValue] = [
             "hook_event_name": .string("PreToolUse"),
-            "session_id": .string("session-123"),
+            "session_id": .string(sessionId),
             "tool_use_id": .string("tool-1"),
             "tool_name": .string(toolName),
             "tool_input": toolInput

@@ -107,6 +107,8 @@ struct DeferredToolStopProviderAdapter: AgentProviderAdapter {
 
     func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
         switch line {
+        case "approval":
+            [.interaction(AgentInteractionEvent(id: "tool-1", kind: .approval, prompt: "Bash"))]
         case "deferred":
             [.usage(AgentUsageEvent(model: nil, inputTokens: nil, outputTokens: nil, stopReason: "tool_deferred"))]
         case let message where message.hasPrefix("message:"):

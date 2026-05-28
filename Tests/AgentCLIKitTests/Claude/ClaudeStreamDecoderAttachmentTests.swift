@@ -35,6 +35,8 @@ final class ClaudeStreamDecoderAttachmentTests: XCTestCase {
                 model: nil,
                 inputTokens: 0,
                 outputTokens: 0,
+                stopReason: "tool_deferred",
+                isTerminal: true,
                 metadata: ["stop_reason": .string("tool_deferred")]
             ))
         ])
@@ -90,6 +92,7 @@ final class ClaudeStreamDecoderAttachmentTests: XCTestCase {
 
         XCTAssertEqual(failureEvents, [
             .diagnostic(AgentDiagnosticEvent(
+                code: .hookApprovalFailed,
                 severity: .error,
                 message: "Claude hook failed (PreToolUse:Edit): denied",
                 metadata: [

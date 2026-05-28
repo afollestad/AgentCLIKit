@@ -97,6 +97,11 @@ public actor ClaudeHookCoordinator {
         removeSettingsFile(at: settingsURL)
     }
 
+    /// Updates cached permission mode used for hook decisions when Claude reports in-session mode changes.
+    public func updatePermissionMode(_ permissionMode: String?, for conversationId: AgentConversationID) async {
+        await server.updatePermissionMode(permissionMode, for: conversationId)
+    }
+
     /// Stops the listener and invalidates active launch tokens.
     public func shutdown() async {
         let tokens = Array(launchTokens.values)

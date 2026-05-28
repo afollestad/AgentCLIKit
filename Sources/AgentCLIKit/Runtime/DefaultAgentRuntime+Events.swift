@@ -264,8 +264,12 @@ extension DefaultAgentRuntime {
         append(.lifecycle(AgentLifecycleEvent(state: state, exitCode: exitCode, message: message)), source: .process, conversationId: conversationId)
         states[conversationId]?.lifecycleState = state
         if state.isTerminal {
-            states[conversationId]?.inputAvailability = .blocked(reason: "The provider process is \(state.rawValue).")
-            states[conversationId]?.waitingState = .idle
+            let isWaitingOnDeferredInteraction = states[conversationId]?.hasDeferredToolStop == true &&
+                states[conversationId]?.waitingState != .idle
+            if !isWaitingOnDeferredInteraction {
+                states[conversationId]?.inputAvailability = .blocked(reason: "The provider process is \(state.rawValue).")
+                states[conversationId]?.waitingState = .idle
+            }
         }
         publishStatus(conversationId: conversationId)
     }
@@ -338,10 +342,25 @@ extension DefaultAgentRuntime {
         )
         state.events.append(envelope)
         applyStatusSideEffects(for: event, state: &state)
+        notifyProviderOfStatusSideEffects(for: event, adapter: state.adapter, conversationId: conversationId)
         state.compactReplayBuffer(replayLimit: replayLimit)
         state.subscribers.values.forEach { $0.yield(envelope) }
         states[conversationId] = state
         publishStatus(conversationId: conversationId)
+    }
+
+    private func notifyProviderOfStatusSideEffects(
+        for event: AgentEvent,
+        adapter: any AgentProviderAdapter,
+        conversationId: AgentConversationID
+    ) {
+        guard case let .permissionMode(permissionMode) = event else {
+            return
+        }
+        let mode = permissionMode.mode
+        Task {
+            await adapter.permissionModeDidChange(mode, conversationId: conversationId)
+        }
     }
 
     private func applyStatusSideEffects(for event: AgentEvent, state: inout ConversationState) {

@@ -33,6 +33,9 @@ public protocol AgentProviderAdapter: Sendable {
     /// Encodes host input into provider stdin data.
     func encodeInput(_ input: AgentInput) async throws -> Data
 
+    /// Notifies the provider that runtime-observed permission mode changed for a conversation.
+    func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async
+
     /// Notifies the provider that a process generation has ended or been superseded.
     func processDidTerminate(processToken: UUID) async
 
@@ -56,6 +59,9 @@ public extension AgentProviderAdapter {
     func sessionID(from event: AgentEvent) -> AgentSessionID? {
         nil
     }
+
+    /// Does nothing for providers without permission-mode-sensitive runtime resources.
+    func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async {}
 
     /// Does nothing for providers that do not retain process-scoped resources.
     func processDidTerminate(processToken: UUID) async {}
