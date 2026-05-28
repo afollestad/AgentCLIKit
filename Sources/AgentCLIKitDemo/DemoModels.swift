@@ -56,4 +56,5 @@ struct DemoTurnState: Equatable {
     var isActive = false
     var streamingText: String?
     var statusMessage: String?
+    var canCancel = false
 }

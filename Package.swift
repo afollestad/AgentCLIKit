@@ -20,6 +20,12 @@ let package = Package(
     targets: [
         .target(
             name: "AgentCLIKit",
+            exclude: [
+                "Claude/AGENTS.md",
+                "Claude/CLAUDE.md",
+                "Claude/Hooks/AGENTS.md",
+                "Claude/Hooks/CLAUDE.md"
+            ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]
@@ -34,6 +40,12 @@ let package = Package(
         .executableTarget(
             name: "AgentCLIKitDemo",
             dependencies: ["AgentCLIKit", "AgentCLIKitDemoSupport"],
+            exclude: [
+                "AGENTS.md",
+                "CLAUDE.md",
+                "Interactions/AGENTS.md",
+                "Interactions/CLAUDE.md"
+            ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")
             ]

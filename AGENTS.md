@@ -34,6 +34,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Test: `./scripts/test.sh`, or pass focused test identifiers as arguments.
 - Lint: `./scripts/lint.sh`.
 - Demo app: `./scripts/run-demo.sh` builds and launches the `AgentCLIKitDemo` executable.
+- Package consumer check: `./scripts/validate-package-consumer.sh` builds a temporary consumer with a fresh scratch/cache path and validates the demo product.
 - Ordered workflows must stay serial, never via `multi_tool_use.parallel`: build-then-test, lint-then-commit, self-review-then-commit.
 
 ### `xcsift` Output
@@ -53,6 +54,11 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Add doc comments for public protocols, structs, enums, methods, and provider extension points.
 - Add concise implementation comments for non-obvious concurrency, process teardown, stream pumping, hook timeout, replay-buffer eviction, approval replay, and session continuity logic.
 - Avoid comments that restate what the next line of code already says.
+
+## Test Fixtures
+
+- Put SwiftPM test fixtures under `Tests/AgentCLIKitTests/Resources/` and keep `Package.swift` test target resources in sync.
+- Prefer fixture files for provider payloads that are reused, large, or copied from real streams.
 
 ## Repo-Local Workflows
 

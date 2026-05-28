@@ -62,7 +62,22 @@ try await runtime.spawn(
 )
 ```
 
-`AgentSpawnConfig` also supports provider arguments, environment overrides, model, effort, and an initial prompt.
+`AgentSpawnConfig` also supports provider arguments, environment overrides, model, effort, permission mode, and an initial prompt:
+
+```swift
+let config = AgentSpawnConfig(
+    providerId: .claude,
+    workingDirectory: projectPath,
+    arguments: ["--add-dir", supportPath.path],
+    environment: ["CLAUDE_CONFIG_DIR": configPath.path],
+    model: "claude-sonnet-4-5",
+    effort: "high",
+    permissionMode: "plan"
+)
+```
+
+Provider adapters own native launch ordering. For Claude, AgentCLIKit emits stream JSON flags, then permission mode, model,
+effort, session continuity, extra arguments, and optional initial prompt.
 
 ## Subscribe And Persist Events
 
@@ -111,6 +126,9 @@ for await status in await runtime.statusUpdates(conversationId: conversationId) 
 }
 ```
 
+Status snapshots also include the provider process identifier, whether the process is running, and whether cancellation is
+currently meaningful. Use `cancel`, `reconfigure`, `freshSession`, `destroy`, and `shutdown` for app-shell lifecycle actions.
+
 ## Resolve Interactions
 
 When a provider interaction owns the turn, `send(.userMessage(...))` throws a typed `invalidInput` error. Resolve the interaction instead:
@@ -139,7 +157,10 @@ let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: claudeCon
 try await setup.trustProject(at: projectPath)
 ```
 
-For host persistence, implement the provider-neutral store protocols instead of storing runtime internals. `AgentSessionStore`, `AgentInteractionStore`, and `AgentApprovalPolicyStore` are durable async boundaries that can be backed by SwiftData, SQLite, files, or another store. Live hook continuations, launch tokens, listener ports, and in-flight decision races remain internal to the runtime.
+For host persistence, implement the provider-neutral store protocols instead of storing runtime internals. `AgentSessionStore`, `AgentInteractionStore`, and `AgentApprovalPolicyStore` are durable async boundaries that can be backed by SwiftData, SQLite, files, or another store. Session stores support reverse lookup and cleanup by provider session, provider, and canonical working directory. Live hook continuations, launch tokens, listener ports, and in-flight decision races remain internal to the runtime.
+
+Thrown `AgentCLIError` values expose stable `code` and structured `metadata` so hosts can map failures without parsing
+provider strings. Diagnostic events similarly include optional `AgentDiagnosticCode` values.
 
 ## Claude Hooks
 
@@ -221,6 +242,10 @@ for await readiness in await providerRegistry.readinessUpdates() {
 }
 ```
 
+`AgentProviderDefinition` exposes executable candidates, version arguments, supported permission modes, effort levels, and
+capability metadata for host settings. `AgentProviderDetector` resolves executables through absolute paths, `PATH`, common
+shell init files, and standard install locations.
+
 Transcript and metrics helpers provide renderable host projections:
 
 ```swift
@@ -228,15 +253,22 @@ let projections = AgentTranscriptProjector().project(envelopes)
 let metrics = AgentConversationMetricsBuilder().build(from: envelopes)
 ```
 
+AgentCLIKit also provides provider-neutral MCP config stores, Claude MCP bridging, skill scanning/sync helpers, model
+context-window caches, and context handoff prompt helpers. These primitives are host-neutral; apps still own settings UI and
+project policy.
+
 ## Validation
 
 ```sh
 ./scripts/build.sh
 ./scripts/test.sh
 ./scripts/lint.sh
+./scripts/validate-package-consumer.sh
 ```
 
 The build and test scripts pipe `xcodebuild` through `xcsift -f toon -w` when `xcsift` is installed.
+`validate-package-consumer.sh` builds a temporary package that imports the library product from a fresh scratch/cache path
+and also validates the demo product through SwiftPM.
 
 Repo-local agent workflows live under `.agents`: capability skills in `.agents/skills` and flat review, audit, or check workflow files in `.agents/checks`.
 
@@ -248,7 +280,7 @@ Run the live Claude-backed macOS demo with:
 ./scripts/run-demo.sh
 ```
 
-The demo builds and launches `AgentCLIKitDemo`. It lists persisted session records, lets you add sessions, renders live runtime output from Claude, and answers `AskUserQuestion` prompts through the live hook decision provider.
+The demo builds and launches `AgentCLIKitDemo`. It lists persisted session records, lets you add sessions, renders live runtime output from Claude, observes runtime status snapshots, exposes cancellation while the provider process is active, and answers `AskUserQuestion` prompts through the live hook decision provider.
 
 ## License
 

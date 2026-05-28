@@ -15,6 +15,7 @@ final class DemoModel: ObservableObject {
     var spawnedSessionIDs: Set<AgentConversationID> = []
     private var subscribedSessionIDs: Set<AgentConversationID> = []
     private var subscriptionTasks: [AgentConversationID: Task<Void, Never>] = [:]
+    private var statusTasks: [AgentConversationID: Task<Void, Never>] = [:]
 
     init() {
         let store = JSONFileAgentSessionStore(fileURL: Self.sessionStoreURL())
@@ -106,9 +107,22 @@ final class DemoModel: ObservableObject {
         for task in subscriptionTasks.values {
             task.cancel()
         }
+        for task in statusTasks.values {
+            task.cancel()
+        }
         subscriptionTasks.removeAll()
+        statusTasks.removeAll()
         Task {
             await runtime.shutdown()
+        }
+    }
+
+    func cancelCurrentSession() {
+        guard let selectedSessionID else {
+            return
+        }
+        Task {
+            await runtime.cancel(conversationId: selectedSessionID)
         }
     }
 
@@ -190,6 +204,32 @@ final class DemoModel: ObservableObject {
                 )
             }
         }
+        subscribeToStatus(sessionID)
+    }
+
+    private func subscribeToStatus(_ sessionID: AgentConversationID) {
+        guard statusTasks[sessionID] == nil else {
+            return
+        }
+        let runtime = runtime
+        statusTasks[sessionID] = Task { [weak self] in
+            let statuses = await runtime.statusUpdates(conversationId: sessionID)
+            for await status in statuses {
+                await MainActor.run {
+                    self?.handle(status, sessionID: sessionID)
+                }
+            }
+        }
+    }
+
+    private func handle(_ status: AgentRuntimeStatus, sessionID: AgentConversationID) {
+        guard hasSession(sessionID) else {
+            return
+        }
+        updateTurnState(for: sessionID) { state in
+            state.statusMessage = Self.statusSummary(status, current: state)
+            state.canCancel = status.canCancel
+        }
     }
 
     func appendStatus(_ message: String, to sessionID: AgentConversationID?) {
@@ -238,6 +278,7 @@ extension DemoModel {
         let session = sessions[index]
         let providerId = session.record?.providerId ?? ClaudeProviderAdapter.providerId
         subscriptionTasks.removeValue(forKey: sessionID)?.cancel()
+        statusTasks.removeValue(forKey: sessionID)?.cancel()
         subscribedSessionIDs.remove(sessionID)
         spawnedSessionIDs.remove(sessionID)
         rowsBySession[sessionID] = nil

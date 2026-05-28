@@ -57,6 +57,23 @@ extension DemoModel {
         return "\(label): \(task.phase.rawValue)"
     }
 
+    static func statusSummary(_ status: AgentRuntimeStatus, current: DemoTurnState) -> String? {
+        if case let .blocked(reason) = status.inputAvailability {
+            return reason
+        }
+        if let streamingText = current.streamingText, !streamingText.isEmpty, status.isProcessRunning {
+            return "Streaming"
+        }
+        var parts = [status.state.rawValue.capitalized]
+        if let permissionMode = status.permissionMode {
+            parts.append("permission: \(permissionMode)")
+        }
+        if let processIdentifier = status.processIdentifier, status.isProcessRunning {
+            parts.append("pid: \(processIdentifier)")
+        }
+        return parts.joined(separator: " - ")
+    }
+
     // swiftlint:disable:next cyclomatic_complexity
     static func eventSummary(_ event: AgentEvent) -> String {
         switch event {

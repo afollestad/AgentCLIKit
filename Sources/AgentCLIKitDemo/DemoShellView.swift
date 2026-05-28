@@ -90,6 +90,7 @@ struct DemoShellView: View {
                 turnState: model.currentTurnState,
                 draft: $draft,
                 onSend: { model.sendCurrentMessage($0) },
+                onCancel: { model.cancelCurrentSession() },
                 onSubmitPrompt: { model.submitPromptAnswers(promptID: $0, answers: $1) }
             )
             .id(session.id)
@@ -105,6 +106,7 @@ private struct ChatDetailView: View {
     let turnState: DemoTurnState
     @Binding var draft: String
     var onSend: (String) -> Void
+    var onCancel: () -> Void
     var onSubmitPrompt: (AgentInteractionID, [DemoPromptAnswer]) -> Void
 
     var body: some View {
@@ -164,6 +166,16 @@ private struct ChatDetailView: View {
                 }
             }
             Spacer(minLength: 16)
+            if turnState.canCancel {
+                Button {
+                    onCancel()
+                } label: {
+                    Label("Cancel", systemImage: "xmark.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .buttonStyle(.borderless)
+                .help("Cancel provider process")
+            }
         }
         .padding(.leading, 20)
         .padding(.trailing, 14)

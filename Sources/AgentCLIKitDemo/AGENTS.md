@@ -3,5 +3,6 @@
 - Keep the demo as an AppKit/SwiftUI executable target that depends on AgentCLIKit.
 - Mirror BlockInputKit's app shell conventions for menus, titlebar behavior, and launch script behavior.
 - Keep chat transcript state in memory; persisted session records should come from AgentCLIKit stores.
+- Use `AgentRuntime.statusUpdates` for header/process state instead of inferring all lifecycle state from transcript rows.
 - Keep live Claude-specific behavior behind AgentCLIKit APIs instead of adding host-only hook transport code here.
 - `Interactions/` owns demo prompt rows and live hook decisions for `AskUserQuestion`.
