@@ -90,6 +90,57 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(launch.sessionContinuity, .restartedFresh)
     }
 
+    func testLaunchConfigurationForksExistingSessionWhenRequested() async throws {
+        let adapter = ClaudeProviderAdapter(
+            executablePath: "/opt/homebrew/bin/claude",
+            sessionFileExists: { _ in true }
+        )
+        let session = AgentSessionRecord(
+            conversationId: "conversation",
+            providerId: .claude,
+            providerSessionId: "session-id",
+            generation: 1
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                forkSession: true
+            ),
+            resumedSession: session
+        )
+
+        XCTAssertEqual(Array(launch.arguments.suffix(3)), ["--resume", "session-id", "--fork-session"])
+        XCTAssertEqual(launch.sessionContinuity, .resumed)
+    }
+
+    func testLaunchConfigurationDoesNotForkMissingResumeArtifact() async throws {
+        let adapter = ClaudeProviderAdapter(
+            executablePath: "/opt/homebrew/bin/claude",
+            sessionFileExists: { _ in false }
+        )
+        let session = AgentSessionRecord(
+            conversationId: "conversation",
+            providerId: .claude,
+            providerSessionId: "session-id",
+            generation: 1
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                forkSession: true
+            ),
+            resumedSession: session
+        )
+
+        XCTAssertEqual(Array(launch.arguments.suffix(2)), ["--session-id", "session-id"])
+        XCTAssertFalse(launch.arguments.contains("--fork-session"))
+        XCTAssertEqual(launch.sessionContinuity, .restartedFresh)
+    }
+
     func testDefaultLaunchUsesEnvClaudeFallback() async throws {
         let adapter = ClaudeProviderAdapter()
 

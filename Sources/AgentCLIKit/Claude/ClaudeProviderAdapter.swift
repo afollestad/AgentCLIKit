@@ -136,7 +136,10 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             )
             let canResume = sessionFileExists(sessionFileURL)
             sessionContinuity = canResume ? .resumed : .restartedFresh
-            let sessionArguments = canResume ? ["--resume", sessionId.rawValue] : ["--session-id", sessionId.rawValue]
+            var sessionArguments = canResume ? ["--resume", sessionId.rawValue] : ["--session-id", sessionId.rawValue]
+            if canResume, spawnConfig.forkSession {
+                sessionArguments.append("--fork-session")
+            }
             arguments.append(contentsOf: sessionArguments)
         }
         arguments.append(contentsOf: spawnConfig.arguments)

@@ -16,6 +16,8 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     public let effort: String?
     /// Optional provider permission mode.
     public let permissionMode: String?
+    /// Whether a resumed provider session should fork instead of continuing in-place.
+    public let forkSession: Bool
     /// Optional initial prompt sent by the provider launch command.
     public let initialPrompt: String?
 
@@ -28,6 +30,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         model: String? = nil,
         effort: String? = nil,
         permissionMode: String? = nil,
+        forkSession: Bool = false,
         initialPrompt: String? = nil
     ) {
         self.providerId = providerId
@@ -37,7 +40,22 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.model = model
         self.effort = effort
         self.permissionMode = permissionMode
+        self.forkSession = forkSession
         self.initialPrompt = initialPrompt
+    }
+
+    /// Decodes spawn configuration, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
+        self.workingDirectory = try container.decode(URL.self, forKey: .workingDirectory)
+        self.arguments = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
+        self.environment = try container.decodeIfPresent([String: String].self, forKey: .environment) ?? [:]
+        self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.effort = try container.decodeIfPresent(String.self, forKey: .effort)
+        self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        self.forkSession = try container.decodeIfPresent(Bool.self, forKey: .forkSession) ?? false
+        self.initialPrompt = try container.decodeIfPresent(String.self, forKey: .initialPrompt)
     }
 }
 

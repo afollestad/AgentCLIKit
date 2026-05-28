@@ -145,6 +145,16 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertFalse(launch.includesSpawnArguments)
     }
 
+    func testOlderSpawnConfigPayloadDefaultsForkSession() throws {
+        let data = Data(
+            #"{"providerId":"claude","workingDirectory":"file:///tmp/project","arguments":[],"environment":{}}"#.utf8
+        )
+
+        let config = try JSONDecoder().decode(AgentSpawnConfig.self, from: data)
+
+        XCTAssertFalse(config.forkSession)
+    }
+
     func testOlderRuntimeStatusPayloadDefaultsLifecycleSnapshotFields() throws {
         let data = Data(
             #"{"conversationId":"conversation","providerId":"claude","generation":1,"state":"running","lastEventIndex":2}"#.utf8
