@@ -59,6 +59,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     ///   - sessionFileExists: Predicate used to decide whether a saved Claude session can be resumed.
     ///   - enableHooks: Whether this adapter should manage a Claude hook listener and generated hook settings.
     ///   - interactionStore: Store used for hook-originated pending interactions.
+    ///   - approvalPolicyStore: Store used for session and transient hook approvals.
     ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
     ///   - hookDecisionProvider: Optional provider that can answer Claude hook decisions while the hook request is still live.
     ///   - hookDecisionTimeout: Maximum live hook decision wait before Claude receives a deferred response.
@@ -70,6 +71,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         sessionFileExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) },
         enableHooks: Bool = true,
         interactionStore: any AgentInteractionStore = InMemoryAgentInteractionStore(),
+        approvalPolicyStore: ClaudeApprovalPolicyStore = ClaudeApprovalPolicyStore(),
         hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "AgentCLIKitClaudeHooks",
             isDirectory: true
@@ -87,6 +89,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             let hookServer = ClaudeHookServer(
                 tokenStore: tokenStore,
                 interactionStore: interactionStore,
+                approvalPolicyStore: approvalPolicyStore,
                 decisionProvider: hookDecisionProvider,
                 decisionTimeout: hookDecisionTimeout
             )

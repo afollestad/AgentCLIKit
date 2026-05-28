@@ -61,6 +61,13 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(definition.supportedEffortLevels, ["low", "medium", "high", "xhigh", "max"])
     }
 
+    func testInitializerAcceptsHostOwnedApprovalPolicyStore() {
+        let approvalPolicyStore = ClaudeApprovalPolicyStore()
+        let adapter = ClaudeProviderAdapter(approvalPolicyStore: approvalPolicyStore)
+
+        XCTAssertEqual(adapter.definition.id, .claude)
+    }
+
     func testLaunchConfigurationFallsBackToSessionIDWhenResumeArtifactIsMissing() async throws {
         let adapter = ClaudeProviderAdapter(
             executablePath: "/opt/homebrew/bin/claude",
