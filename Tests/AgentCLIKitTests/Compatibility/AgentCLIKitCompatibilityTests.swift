@@ -90,7 +90,8 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
             generation: 3,
             state: .running,
             lastEventIndex: 12,
-            providerSessionId: "provider-session"
+            providerSessionId: "provider-session",
+            isTurnActive: true
         )
 
         let snapshot = HostStatusSnapshot(status: status)
@@ -99,6 +100,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertEqual(snapshot.state, "running")
         XCTAssertEqual(snapshot.lastEventIndex, 12)
         XCTAssertEqual(snapshot.providerSessionId, "provider-session")
+        XCTAssertTrue(snapshot.isTurnActive)
     }
 
     func testProviderIdDecodesKnownPersistedValue() throws {
@@ -165,6 +167,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertNil(status.processIdentifier)
         XCTAssertFalse(status.isProcessRunning)
         XCTAssertFalse(status.canCancel)
+        XCTAssertFalse(status.isTurnActive)
     }
 }
 
@@ -208,11 +211,13 @@ private struct HostStatusSnapshot {
     let state: String
     let lastEventIndex: Int
     let providerSessionId: String?
+    let isTurnActive: Bool
 
     init(status: AgentRuntimeStatus) {
         self.providerId = status.providerId.rawValue
         self.state = status.state.rawValue
         self.lastEventIndex = status.lastEventIndex
         self.providerSessionId = status.providerSessionId?.rawValue
+        self.isTurnActive = status.isTurnActive
     }
 }

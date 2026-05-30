@@ -141,8 +141,11 @@ for await status in await runtime.statusUpdates(conversationId: conversationId) 
 }
 ```
 
-Status snapshots also include the provider process identifier, whether the process is running, and whether cancellation is
-currently meaningful. Use `cancel`, `reconfigure`, `freshSession`, `destroy`, and `shutdown` for app-shell lifecycle actions.
+Status snapshots also include `isTurnActive`, the provider process identifier, whether the process is running, and whether
+cancellation is currently meaningful. Hosts that support mid-turn steering should use `isTurnActive` to distinguish a
+normal message that should queue from an explicit steering action, because `inputAvailability` can remain available while
+the provider is still completing a tool-backed turn. Use `cancel`, `reconfigure`, `freshSession`, `destroy`, and `shutdown`
+for app-shell lifecycle actions.
 
 ## Resolve Interactions
 

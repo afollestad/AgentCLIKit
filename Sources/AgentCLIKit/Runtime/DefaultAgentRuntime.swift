@@ -139,9 +139,15 @@ public actor DefaultAgentRuntime: AgentRuntime {
         }
         let adapter = state.adapter
         let processToken = state.processToken
+        let marksTurnActive = input.isUserMessage
         try await stdinWriter.enqueue {
             let data = try await adapter.encodeInput(input)
-            try await self.writeInputData(data, conversationId: conversationId, processToken: processToken)
+            try await self.writeInputData(
+                data,
+                conversationId: conversationId,
+                processToken: processToken,
+                marksTurnActive: marksTurnActive
+            )
         }
     }
 
@@ -178,13 +184,27 @@ public actor DefaultAgentRuntime: AgentRuntime {
         throw AgentCLIError.invalidInput("Input is blocked for conversation '\(conversationId.rawValue)': \(reason)")
     }
 
-    private func writeInputData(_ data: Data, conversationId: AgentConversationID, processToken: UUID) throws {
+    private func writeInputData(
+        _ data: Data,
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        marksTurnActive: Bool
+    ) throws {
         guard let state = states[conversationId], state.processToken == processToken, let stdin = state.stdin else {
             throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
+        }
+        let markedTurnActive = marksTurnActive && !state.isTurnActive
+        if markedTurnActive {
+            states[conversationId]?.isTurnActive = true
+            publishStatus(conversationId: conversationId)
         }
         do {
             try stdin.write(contentsOf: data)
         } catch {
+            if markedTurnActive {
+                states[conversationId]?.isTurnActive = false
+                publishStatus(conversationId: conversationId)
+            }
             throw AgentCLIError.invalidInput("Could not write provider input: \(error.localizedDescription)")
         }
     }
@@ -294,5 +314,14 @@ public actor DefaultAgentRuntime: AgentRuntime {
         process.terminate()
         // SIGINT/SIGTERM are advisory; SIGKILL makes `kill` reliable for providers that trap softer signals.
         Darwin.kill(process.processIdentifier, SIGKILL)
+    }
+}
+
+private extension AgentInput {
+    var isUserMessage: Bool {
+        if case .userMessage = self {
+            return true
+        }
+        return false
     }
 }

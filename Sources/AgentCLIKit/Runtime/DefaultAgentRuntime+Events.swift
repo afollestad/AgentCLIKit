@@ -368,23 +368,34 @@ extension DefaultAgentRuntime {
         case let .permissionMode(permissionMode):
             state.permissionMode = permissionMode.mode
         case let .interaction(interaction):
-            switch interaction.kind {
-            case .approval:
-                state.waitingState = .approval
-                state.inputAvailability = .blocked(reason: "Waiting for approval.")
-            case .prompt:
-                state.waitingState = .prompt
-                state.inputAvailability = .blocked(reason: "Waiting for a prompt answer.")
-            case .planModeExit:
-                state.waitingState = .planModeExit
-                state.inputAvailability = .blocked(reason: "Waiting for plan-mode approval.")
+            applyInteractionStatusSideEffects(for: interaction, state: &state)
+        case let .usage(usage):
+            if usage.endsActiveTurn {
+                state.isTurnActive = false
             }
         case let .lifecycle(lifecycle):
             if lifecycle.state == .running {
                 state.inputAvailability = .available
             }
+            if lifecycle.state.isTerminal {
+                state.isTurnActive = false
+            }
         default:
             break
+        }
+    }
+
+    private func applyInteractionStatusSideEffects(for interaction: AgentInteractionEvent, state: inout ConversationState) {
+        switch interaction.kind {
+        case .approval:
+            state.waitingState = .approval
+            state.inputAvailability = .blocked(reason: "Waiting for approval.")
+        case .prompt:
+            state.waitingState = .prompt
+            state.inputAvailability = .blocked(reason: "Waiting for a prompt answer.")
+        case .planModeExit:
+            state.waitingState = .planModeExit
+            state.inputAvailability = .blocked(reason: "Waiting for plan-mode approval.")
         }
     }
 
@@ -393,5 +404,17 @@ extension DefaultAgentRuntime {
             return
         }
         statusSubscribers[conversationId]?.values.forEach { $0.yield(status) }
+    }
+}
+
+private extension AgentUsageEvent {
+    var endsActiveTurn: Bool {
+        guard !isError, permissionDenials.isEmpty else {
+            return true
+        }
+        guard isTerminal || (stopReason != nil && stopReason != "usage_update") else {
+            return false
+        }
+        return stopReason != "tool_use" && stopReason != "tool_deferred"
     }
 }

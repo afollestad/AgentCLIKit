@@ -40,6 +40,61 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         XCTAssertFalse(cancelled?.canCancel == true)
     }
 
+    func testStatusReportsInitialPromptAsActiveTurn() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("sleep 1"))
+        ])
+
+        try await runtime.spawn(
+            conversationId: "conversation",
+            config: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: FileManager.default.temporaryDirectory,
+                initialPrompt: "Implement the parser"
+            )
+        )
+
+        let running = await runtime.status(conversationId: "conversation")
+
+        XCTAssertTrue(running?.isTurnActive == true)
+
+        await runtime.shutdown()
+    }
+
+    func testStatusKeepsTurnActiveUntilNonToolTerminalUsage() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("""
+            while IFS= read -r line; do
+              if [ "$line" = "finish" ]; then
+                printf 'usage:end_turn\\n'
+              else
+                printf 'usage:tool_use\\n'
+              fi
+            done
+            """))
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        let idle = await runtime.status(conversationId: "conversation")
+        XCTAssertFalse(idle?.isTurnActive == true)
+
+        try await runtime.send(.userMessage(AgentMessageInput(text: "start")), conversationId: "conversation")
+        let toolUse = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.lastEventIndex >= 2 && status.isTurnActive
+        }
+
+        XCTAssertTrue(toolUse?.isTurnActive == true)
+
+        try await runtime.send(.userMessage(AgentMessageInput(text: "finish")), conversationId: "conversation")
+        let terminal = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.lastEventIndex >= 3 && !status.isTurnActive
+        }
+
+        XCTAssertFalse(terminal?.isTurnActive == true)
+
+        await runtime.shutdown()
+    }
+
     private static func collect(
         _ iterator: inout AsyncStream<AgentRuntimeStatus>.Iterator,
         until isComplete: @escaping @Sendable ([AgentRuntimeStatus]) -> Bool
@@ -70,6 +125,20 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         }
         return await runtime.status(conversationId: conversationId)
     }
+
+    private func waitUntilStatus(
+        runtime: DefaultAgentRuntime,
+        conversationId: AgentConversationID,
+        matches: (AgentRuntimeStatus) -> Bool
+    ) async -> AgentRuntimeStatus? {
+        for _ in 0..<100 {
+            if let status = await runtime.status(conversationId: conversationId), matches(status) {
+                return status
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return await runtime.status(conversationId: conversationId)
+    }
 }
 
 private struct StatusReportingProviderAdapter: AgentProviderAdapter {
@@ -91,10 +160,22 @@ private struct StatusReportingProviderAdapter: AgentProviderAdapter {
         if line == "interaction:prompt" {
             return [.interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?"))]
         }
+        if line.hasPrefix("usage:") {
+            let stopReason = String(line.dropFirst("usage:".count))
+            return [.usage(AgentUsageEvent(
+                model: nil,
+                inputTokens: nil,
+                outputTokens: nil,
+                stopReason: stopReason
+            ))]
+        }
         return []
     }
 
     func encodeInput(_ input: AgentInput) async throws -> Data {
-        Data()
+        if case let .userMessage(message) = input {
+            return Data((message.text + "\n").utf8)
+        }
+        return Data()
     }
 }

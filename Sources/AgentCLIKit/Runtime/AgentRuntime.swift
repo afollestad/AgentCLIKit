@@ -75,6 +75,8 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
     public let providerSessionId: AgentSessionID?
     /// Latest provider permission mode when known.
     public let permissionMode: String?
+    /// Whether a host-started provider turn is still active, even if mid-turn input is available.
+    public let isTurnActive: Bool
     /// Whether host input can currently be sent to the provider.
     public let inputAvailability: AgentInputAvailability
     /// Runtime wait state derived from lifecycle and pending interactions.
@@ -95,6 +97,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         lastEventIndex: Int,
         providerSessionId: AgentSessionID?,
         permissionMode: String? = nil,
+        isTurnActive: Bool = false,
         inputAvailability: AgentInputAvailability = .available,
         waitingState: AgentRuntimeWaitingState = .idle,
         processIdentifier: Int32? = nil,
@@ -108,6 +111,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.lastEventIndex = lastEventIndex
         self.providerSessionId = providerSessionId
         self.permissionMode = permissionMode
+        self.isTurnActive = isTurnActive
         self.inputAvailability = inputAvailability
         self.waitingState = waitingState
         self.processIdentifier = processIdentifier
@@ -125,6 +129,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.lastEventIndex = try container.decode(Int.self, forKey: .lastEventIndex)
         self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        self.isTurnActive = try container.decodeIfPresent(Bool.self, forKey: .isTurnActive) ?? false
         self.inputAvailability = try container.decodeIfPresent(AgentInputAvailability.self, forKey: .inputAvailability) ?? .available
         self.waitingState = try container.decodeIfPresent(AgentRuntimeWaitingState.self, forKey: .waitingState) ?? .idle
         self.processIdentifier = try container.decodeIfPresent(Int32.self, forKey: .processIdentifier)

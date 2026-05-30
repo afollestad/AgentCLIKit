@@ -27,6 +27,7 @@ struct ConversationState {
     var providerSessionId: AgentSessionID?
     var providerSessionCreatedAt: Date?
     var permissionMode: String?
+    var isTurnActive: Bool
     var waitingState: AgentRuntimeWaitingState
     var inputAvailability: AgentInputAvailability
     var resolvedInteractions: Set<AgentInteractionID>
@@ -50,6 +51,7 @@ struct ConversationState {
             lastEventIndex: events.last?.index ?? -1,
             providerSessionId: providerSessionId,
             permissionMode: permissionMode,
+            isTurnActive: isTurnActive,
             inputAvailability: inputAvailability,
             waitingState: waitingState,
             processIdentifier: process?.isRunning == true ? process?.processIdentifier : nil,
