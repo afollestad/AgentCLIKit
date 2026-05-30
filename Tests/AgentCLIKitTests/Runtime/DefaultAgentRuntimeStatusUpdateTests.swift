@@ -40,6 +40,35 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         XCTAssertFalse(cancelled?.canCancel == true)
     }
 
+    func testStatusUpdatesPublishStoppedProcessAfterCancellation() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("sleep 5"))
+        ])
+        let stream = await runtime.statusUpdates(conversationId: "conversation")
+        let accumulator = StatusAccumulator()
+        let collector = Task {
+            for await status in stream {
+                await accumulator.append(status)
+                if status.state == .cancelled && !status.isProcessRunning {
+                    break
+                }
+            }
+        }
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        await runtime.cancel(conversationId: "conversation")
+
+        let statuses = await waitForStatusUpdates(accumulator) { statuses in
+            statuses.contains { $0.state == .cancelled && !$0.isProcessRunning && $0.processIdentifier == nil }
+        }
+        collector.cancel()
+
+        XCTAssertTrue(statuses.contains { $0.state == .cancelled && $0.isProcessRunning })
+        XCTAssertTrue(statuses.contains { $0.state == .cancelled && !$0.isProcessRunning && $0.processIdentifier == nil })
+
+        await runtime.shutdown()
+    }
+
     func testStatusReportsInitialPromptAsActiveTurn() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
             StatusReportingProviderAdapter(command: shell("sleep 1"))
@@ -138,6 +167,28 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 10_000_000)
         }
         return await runtime.status(conversationId: conversationId)
+    }
+
+    private func waitForStatusUpdates(
+        _ accumulator: StatusAccumulator,
+        matches: ([AgentRuntimeStatus]) -> Bool
+    ) async -> [AgentRuntimeStatus] {
+        for _ in 0..<100 {
+            let statuses = await accumulator.statuses
+            if matches(statuses) {
+                return statuses
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return await accumulator.statuses
+    }
+}
+
+private actor StatusAccumulator {
+    private(set) var statuses: [AgentRuntimeStatus] = []
+
+    func append(_ status: AgentRuntimeStatus) {
+        statuses.append(status)
     }
 }
 
