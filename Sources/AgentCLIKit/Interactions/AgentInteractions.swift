@@ -302,6 +302,10 @@ public actor InMemoryAgentInteractionStore: AgentInteractionStore {
 
     /// Saves or replaces an interaction record.
     public func save(_ record: AgentInteractionRecord) async {
+        // Resolution is terminal; late hook publishes must not reopen host approval UI.
+        if records[record.id]?.resolution != nil {
+            return
+        }
         records[record.id] = record
     }
 

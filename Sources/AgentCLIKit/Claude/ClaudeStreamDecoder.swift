@@ -87,7 +87,12 @@ public struct ClaudeStreamDecoder: Sendable {
             ))
         }
         if let usage = message.usage {
-            events.append(usageEvent(usage, model: envelope.model, extraMetadata: [:]))
+            events.append(usageEvent(
+                usage,
+                model: envelope.model,
+                extraMetadata: [:],
+                defaultStopReason: AgentUsageEvent.interimUsageStopReason
+            ))
         }
         return events
     }
@@ -259,11 +264,15 @@ public struct ClaudeStreamDecoder: Sendable {
         _ usage: ClaudeUsage,
         model: String?,
         extraMetadata: [String: JSONValue],
-        permissionDenials: [AgentPermissionDenialSummary] = []
+        permissionDenials: [AgentPermissionDenialSummary] = [],
+        defaultStopReason: String? = nil
     ) -> AgentEvent {
         var metadata = usage.metadata
         metadata.merge(extraMetadata) { _, new in new }
-        let stopReason = stringValue(metadata["stop_reason"])
+        let stopReason = stringValue(metadata["stop_reason"]) ?? defaultStopReason
+        if let defaultStopReason, metadata["stop_reason"] == nil {
+            metadata["stop_reason"] = .string(defaultStopReason)
+        }
         let durationMs = intValue(metadata["duration_ms"]) ?? usage.durationMs
         let costUSD = doubleValue(metadata["total_cost_usd"])
         let contextWindow = intValue(metadata["context_window"])
@@ -279,7 +288,7 @@ public struct ClaudeStreamDecoder: Sendable {
             costUSD: costUSD,
             contextWindow: contextWindow,
             stopReason: stopReason,
-            isTerminal: stopReason != nil && stopReason != "usage_update",
+            isTerminal: stopReason != nil && stopReason != AgentUsageEvent.interimUsageStopReason,
             isError: boolValue(metadata["is_error"]) ?? false,
             permissionDenials: permissionDenials,
             metadata: metadata

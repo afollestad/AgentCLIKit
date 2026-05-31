@@ -2,6 +2,9 @@ import Foundation
 
 /// Usage information for a provider response or model invocation.
 public struct AgentUsageEvent: Codable, Equatable, Sendable {
+    /// Stop reason used for provider usage updates that do not complete the active turn.
+    public static let interimUsageStopReason = "usage_update"
+
     /// Provider model name when known.
     public let model: String?
     /// Input tokens consumed.
@@ -86,7 +89,8 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
         self.costUSD = try container.decodeIfPresent(Double.self, forKey: .costUSD) ?? metadata.doubleValue("total_cost_usd")
         self.contextWindow = try container.decodeIfPresent(Int.self, forKey: .contextWindow) ?? metadata.intValue("context_window")
         self.stopReason = stopReason
-        self.isTerminal = try container.decodeIfPresent(Bool.self, forKey: .isTerminal) ?? (stopReason != nil && stopReason != "usage_update")
+        self.isTerminal = try container.decodeIfPresent(Bool.self, forKey: .isTerminal) ??
+            (stopReason != nil && stopReason != Self.interimUsageStopReason)
         self.isError = try container.decodeIfPresent(Bool.self, forKey: .isError) ?? metadata.boolValue("is_error") ?? false
         self.permissionDenials = try container.decodeIfPresent([AgentPermissionDenialSummary].self, forKey: .permissionDenials) ?? []
         self.metadata = metadata

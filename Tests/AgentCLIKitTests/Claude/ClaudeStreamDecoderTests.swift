@@ -52,7 +52,7 @@ final class ClaudeStreamDecoderTests: XCTestCase {
         ])
     }
 
-    func testDecodesAssistantMessageUsageEvent() throws {
+    func testDecodesAssistantMessageUsageEventAsInterimUsageUpdate() throws {
         let decoder = ClaudeStreamDecoder()
         let line = #"""
         {
@@ -81,9 +81,11 @@ final class ClaudeStreamDecoderTests: XCTestCase {
                 outputTokens: 3,
                 cacheReadInputTokens: 4,
                 cacheCreationInputTokens: 5,
+                stopReason: AgentUsageEvent.interimUsageStopReason,
                 metadata: [
                     "cache_read_input_tokens": .number(4),
-                    "cache_creation_input_tokens": .number(5)
+                    "cache_creation_input_tokens": .number(5),
+                    "stop_reason": .string(AgentUsageEvent.interimUsageStopReason)
                 ]
             ))
         })

@@ -74,41 +74,73 @@ extension DefaultAgentRuntime {
         }
         do {
             let events = try await state.adapter.decodeStdoutLine(line)
-            // Decoders can suspend, so re-check the token before accepting output for a replaced process.
-            guard states[conversationId]?.processToken == processToken else {
-                return
-            }
-            let hasDeferredToolStop = events.contains(where: isDeferredToolStop)
-            for event in events {
-                await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
-                guard states[conversationId]?.processToken == processToken else {
-                    return
-                }
-                append(event, source: .stdout, conversationId: conversationId)
-            }
-            if hasDeferredToolStop {
-                stopProcessAfterDeferredToolStop(conversationId: conversationId)
-            }
+            await appendDecodedProviderEvents(events, conversationId: conversationId, processToken: processToken)
         } catch {
-            // Stdout and stderr are pumped independently; a short grace period lets earlier stderr lines reach the tail.
-            await sleep(50_000_000)
+            await appendProviderDecodeFailure(error, line: line, conversationId: conversationId, processToken: processToken)
+        }
+    }
+
+    private func appendDecodedProviderEvents(
+        _ events: [AgentEvent],
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async {
+        // Decoders can suspend, so re-check the token before accepting output for a replaced process.
+        guard states[conversationId]?.processToken == processToken else {
+            return
+        }
+        var hasDeferredToolStop = false
+        for event in events {
+            await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
             guard states[conversationId]?.processToken == processToken else {
                 return
             }
-            let tail = states[conversationId]?.stderrTail.joined(separator: "\n") ?? ""
-            let message = tail.isEmpty ? error.localizedDescription : "\(error.localizedDescription)\nRecent stderr:\n\(tail)"
-            // Preserve the raw stdout frame in metadata so provider decoder gaps can be fixed from host logs.
-            append(.diagnostic(AgentDiagnosticEvent(
-                code: .providerDecodeFailed,
-                severity: .error,
-                message: message,
-                metadata: [
-                    "decoder_error": .string(error.localizedDescription),
-                    "raw_stdout_line": .string(line),
-                    "stderr_tail": .string(tail)
-                ]
-            )), source: .runtime, conversationId: conversationId)
+            guard shouldAppendProviderEvent(event, conversationId: conversationId) else {
+                continue
+            }
+            hasDeferredToolStop = hasDeferredToolStop || isDeferredToolStop(event)
+            append(event, source: .stdout, conversationId: conversationId)
         }
+        if hasDeferredToolStop {
+            stopProcessAfterDeferredToolStop(conversationId: conversationId)
+        }
+    }
+
+    private func appendProviderDecodeFailure(
+        _ error: Error,
+        line: String,
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async {
+        // Stdout and stderr are pumped independently; a short grace period lets earlier stderr lines reach the tail.
+        await sleep(50_000_000)
+        guard states[conversationId]?.processToken == processToken else {
+            return
+        }
+        let tail = states[conversationId]?.stderrTail.joined(separator: "\n") ?? ""
+        let message = tail.isEmpty ? error.localizedDescription : "\(error.localizedDescription)\nRecent stderr:\n\(tail)"
+        // Preserve the raw stdout frame in metadata so provider decoder gaps can be fixed from host logs.
+        append(.diagnostic(AgentDiagnosticEvent(
+            code: .providerDecodeFailed,
+            severity: .error,
+            message: message,
+            metadata: [
+                "decoder_error": .string(error.localizedDescription),
+                "raw_stdout_line": .string(line),
+                "stderr_tail": .string(tail)
+            ]
+        )), source: .runtime, conversationId: conversationId)
+    }
+
+    private func shouldAppendProviderEvent(_ event: AgentEvent, conversationId: AgentConversationID) -> Bool {
+        guard var state = states[conversationId], var gate = state.providerResumeReplayGate else {
+            return true
+        }
+        // Suppressed replay events must not re-trigger deferred-stop handling or pending interactions.
+        let shouldSuppress = gate.shouldSuppress(event)
+        state.providerResumeReplayGate = gate.isFinished ? nil : gate
+        states[conversationId] = state
+        return !shouldSuppress
     }
 
     private func stopProcessAfterDeferredToolStop(conversationId: AgentConversationID) {
@@ -334,6 +366,10 @@ extension DefaultAgentRuntime {
         guard var state = states[conversationId] else {
             return
         }
+        guard shouldAppendEvent(event, state: state) else {
+            states[conversationId] = state
+            return
+        }
         let envelope = AgentEventEnvelope(
             generation: state.generation,
             index: (state.events.last?.index ?? -1) + 1,
@@ -350,6 +386,14 @@ extension DefaultAgentRuntime {
         state.subscribers.values.forEach { $0.yield(envelope) }
         states[conversationId] = state
         publishStatus(conversationId: conversationId)
+    }
+
+    private func shouldAppendEvent(_ event: AgentEvent, state: ConversationState) -> Bool {
+        guard case let .interaction(interaction) = event else {
+            return true
+        }
+        // Provider output can replay an interaction after the host already resolved it; keep the runtime monotonic.
+        return !state.resolvedInteractions.contains(interaction.id)
     }
 
     private func notifyProviderOfStatusSideEffects(
@@ -415,7 +459,7 @@ private extension AgentUsageEvent {
         guard !isError, permissionDenials.isEmpty else {
             return true
         }
-        guard isTerminal || (stopReason != nil && stopReason != "usage_update") else {
+        guard isTerminal || (stopReason != nil && stopReason != Self.interimUsageStopReason) else {
             return false
         }
         return stopReason != "tool_use" && stopReason != "tool_deferred"

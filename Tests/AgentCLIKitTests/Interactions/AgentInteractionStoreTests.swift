@@ -36,6 +36,20 @@ final class AgentInteractionStoreTests: XCTestCase {
         XCTAssertEqual(remaining, [])
     }
 
+    func testLateSaveDoesNotReopenResolvedInteraction() async {
+        let store = InMemoryAgentInteractionStore()
+        let record = AgentInteractionRecord(id: "approval", conversationId: "conversation", kind: .approval)
+
+        await store.save(record)
+        await store.resolve(AgentInteractionResolution(id: "approval", outcome: .approved))
+        await store.save(record)
+
+        let saved = await store.record(id: "approval")
+        let pending = await store.pending(conversationId: "conversation")
+        XCTAssertEqual(saved?.resolution?.outcome, .approved)
+        XCTAssertEqual(pending, [])
+    }
+
     func testStoreUsesLastDuplicateRecord() async {
         let first = AgentInteractionRecord(id: "approval", conversationId: "conversation", kind: .approval)
         let second = AgentInteractionRecord(id: "approval", conversationId: "conversation", kind: .prompt)

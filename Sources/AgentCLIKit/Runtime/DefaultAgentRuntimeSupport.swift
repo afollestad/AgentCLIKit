@@ -33,6 +33,7 @@ struct ConversationState {
     var resolvedInteractions: Set<AgentInteractionID>
     var persistedIndex: Int
     var hasDeferredToolStop: Bool
+    var providerResumeReplayGate: ProviderResumeReplayGate?
     var outputPumps: [OutputLinePump]
 
     mutating func compactReplayBuffer(replayLimit: Int) {
@@ -58,6 +59,113 @@ struct ConversationState {
             isProcessRunning: process?.isRunning == true,
             canCancel: lifecycleState == .starting || lifecycleState == .running
         )
+    }
+}
+
+struct ProviderResumeReplayGate {
+    private var replayEvents: [ProviderResumeReplayFingerprint]
+    private var replayIndex = 0
+    private(set) var isActive = true
+
+    init?(_ envelopes: [AgentEventEnvelope]) {
+        let replayEvents = envelopes.compactMap { envelope -> ProviderResumeReplayFingerprint? in
+            guard envelope.source == .stdout, envelope.event.isProviderResumeReplayCandidate else {
+                return nil
+            }
+            return ProviderResumeReplayFingerprint(envelope.event)
+        }
+        guard !replayEvents.isEmpty else {
+            return nil
+        }
+        self.replayEvents = Self.expandedReplayEvents(from: replayEvents)
+    }
+
+    mutating func shouldSuppress(_ event: AgentEvent) -> Bool {
+        guard isActive, let fingerprint = ProviderResumeReplayFingerprint(event) else {
+            return false
+        }
+        guard replayIndex < replayEvents.count else {
+            isActive = false
+            return false
+        }
+
+        // Claude resumes can replay a retained suffix rather than the entire retained
+        // provider transcript. Keep the gate active while the new stream is still
+        // matching any remaining retained frame, then stop at the first unmatched frame.
+        guard let matchedIndex = replayEvents[replayIndex...].firstIndex(where: { $0.matchesReplay(of: fingerprint) }) else {
+            isActive = false
+            return false
+        }
+        replayIndex = replayEvents.index(after: matchedIndex)
+        return true
+    }
+
+    var isFinished: Bool {
+        !isActive || replayIndex >= replayEvents.count
+    }
+
+    private static func expandedReplayEvents(
+        from replayEvents: [ProviderResumeReplayFingerprint]
+    ) -> [ProviderResumeReplayFingerprint] {
+        var expanded: [ProviderResumeReplayFingerprint] = []
+        var pendingDeltaMessage: PendingReplayDeltaMessage?
+
+        for replayEvent in replayEvents {
+            if case let .messageDelta(role, text, metadata) = replayEvent {
+                if pendingDeltaMessage?.canAppend(role: role, metadata: metadata) == true {
+                    pendingDeltaMessage?.text.append(text)
+                } else {
+                    appendPendingDeltaMessage(&pendingDeltaMessage, to: &expanded)
+                    pendingDeltaMessage = PendingReplayDeltaMessage(role: role, text: text, metadata: metadata)
+                }
+                expanded.append(replayEvent)
+            } else {
+                appendPendingDeltaMessage(&pendingDeltaMessage, to: &expanded)
+                expanded.append(replayEvent)
+            }
+        }
+
+        appendPendingDeltaMessage(&pendingDeltaMessage, to: &expanded)
+        return expanded
+    }
+
+    private static func appendPendingDeltaMessage(
+        _ pendingDeltaMessage: inout PendingReplayDeltaMessage?,
+        to expanded: inout [ProviderResumeReplayFingerprint]
+    ) {
+        guard let message = pendingDeltaMessage, !message.text.isEmpty else {
+            return
+        }
+        // Claude may retain an assistant response as streaming deltas, then replay
+        // it after approval as the equivalent completed message frame.
+        expanded.append(.message(
+            role: message.role,
+            text: message.text,
+            metadata: message.metadata
+        ))
+        pendingDeltaMessage = nil
+    }
+}
+
+private struct PendingReplayDeltaMessage {
+    let role: AgentMessageRole
+    var text: String
+    let metadata: [ProviderResumeMetadataEntry]
+
+    func canAppend(role: AgentMessageRole, metadata: [ProviderResumeMetadataEntry]) -> Bool {
+        self.role == role && self.metadata == metadata
+    }
+}
+
+extension AgentEvent {
+    var isProviderResumeReplayCandidate: Bool {
+        switch self {
+        case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode, .task,
+             .interaction, .rawOutput:
+            true
+        case .sessionContinuity, .lifecycle, .diagnostic:
+            false
+        }
     }
 }
 

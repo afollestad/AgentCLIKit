@@ -124,6 +124,28 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
+    func testStatusKeepsTurnActiveForInterimUsageUpdate() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("printf 'usage:usage_update\\n'; sleep 1"))
+        ])
+
+        try await runtime.spawn(
+            conversationId: "conversation",
+            config: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: FileManager.default.temporaryDirectory,
+                initialPrompt: "Run tools"
+            )
+        )
+        let status = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.lastEventIndex >= 1
+        }
+
+        XCTAssertTrue(status?.isTurnActive == true)
+
+        await runtime.shutdown()
+    }
+
     private static func collect(
         _ iterator: inout AsyncStream<AgentRuntimeStatus>.Iterator,
         until isComplete: @escaping @Sendable ([AgentRuntimeStatus]) -> Bool

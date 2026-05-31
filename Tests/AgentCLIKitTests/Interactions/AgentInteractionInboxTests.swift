@@ -68,4 +68,30 @@ final class AgentInteractionInboxTests: XCTestCase {
         XCTAssertEqual(published, [.prompt(request)])
         XCTAssertEqual(resolved, [])
     }
+
+    func testInboxDoesNotReopenResolvedInteractionAfterLatePublish() async {
+        let inbox = InMemoryAgentInteractionInbox()
+        let stream = await inbox.subscribe(conversationId: "conversation")
+        var iterator = stream.makeAsyncIterator()
+        let request = AgentPromptRequest(id: "prompt", conversationId: "conversation", prompt: "Continue?")
+        let record = AgentInteractionRecord(
+            id: "prompt",
+            conversationId: "conversation",
+            kind: .prompt,
+            promptRequest: request
+        )
+
+        _ = await iterator.next()
+        await inbox.publish(record)
+        _ = await iterator.next()
+        await inbox.resolve(AgentInteractionResolution(id: "prompt", outcome: .answered, responseText: "yes"))
+        let resolved = await iterator.next()
+        await inbox.publish(record)
+        let latePublish = await iterator.next()
+        let pending = await inbox.pendingActions(conversationId: "conversation")
+
+        XCTAssertEqual(resolved, [])
+        XCTAssertEqual(latePublish, [])
+        XCTAssertEqual(pending, [])
+    }
 }

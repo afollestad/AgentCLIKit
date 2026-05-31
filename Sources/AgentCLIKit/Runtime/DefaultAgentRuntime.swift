@@ -161,13 +161,16 @@ public actor DefaultAgentRuntime: AgentRuntime {
         }
         let previousWaitingState = states[conversationId]?.waitingState ?? .idle
         let previousInputAvailability = states[conversationId]?.inputAvailability ?? .available
+        let previousResolvedInteractions = states[conversationId]?.resolvedInteractions ?? []
+        // Mark before awaiting provider I/O so actor reentrancy cannot publish the same prompt as pending again.
+        states[conversationId]?.resolvedInteractions.insert(resolution.id)
         states[conversationId]?.waitingState = .idle
         states[conversationId]?.inputAvailability = .available
         publishStatus(conversationId: conversationId)
         do {
             try await send(.interactionResolution(resolution), conversationId: conversationId)
-            states[conversationId]?.resolvedInteractions.insert(resolution.id)
         } catch {
+            states[conversationId]?.resolvedInteractions = previousResolvedInteractions
             states[conversationId]?.waitingState = previousWaitingState
             states[conversationId]?.inputAvailability = previousInputAvailability
             publishStatus(conversationId: conversationId)

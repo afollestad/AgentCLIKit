@@ -401,6 +401,8 @@ final class ClaudeHookTests: XCTestCase {
 
     func preToolUse(
         token: String?,
+        toolUseId: String? = "tool-1",
+        toolUseIdKey: String = "tool_use_id",
         toolName: String = "Edit",
         toolInput: JSONValue = .object([:]),
         sessionId: String = "session-123",
@@ -409,10 +411,12 @@ final class ClaudeHookTests: XCTestCase {
         var payload: [String: JSONValue] = [
             "hook_event_name": .string("PreToolUse"),
             "session_id": .string(sessionId),
-            "tool_use_id": .string("tool-1"),
             "tool_name": .string(toolName),
             "tool_input": toolInput
         ]
+        if let toolUseId {
+            payload[toolUseIdKey] = .string(toolUseId)
+        }
         if let permissionMode {
             payload["permissionMode"] = .string(permissionMode)
         }

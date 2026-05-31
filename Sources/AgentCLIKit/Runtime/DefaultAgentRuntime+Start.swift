@@ -266,6 +266,8 @@ private extension DefaultAgentRuntime {
     func makeState(input: StateInput, previous: ConversationState?) -> ConversationState {
         // Fresh generations restart event indexes, so the persisted cursor is only reusable for continued sessions.
         let persistedIndex = input.fresh ? -1 : previous?.persistedIndex ?? -1
+        // Claude can replay transcript frames when a deferred tool approval resumes the provider session.
+        let providerResumeReplayGate = providerResumeReplayGate(input: input, previous: previous)
         return ConversationState(
             providerId: input.providerId,
             generation: input.generation,
@@ -288,8 +290,16 @@ private extension DefaultAgentRuntime {
             resolvedInteractions: input.fresh ? [] : previous?.resolvedInteractions ?? [],
             persistedIndex: persistedIndex,
             hasDeferredToolStop: false,
+            providerResumeReplayGate: providerResumeReplayGate,
             outputPumps: []
         )
+    }
+
+    func providerResumeReplayGate(input: StateInput, previous: ConversationState?) -> ProviderResumeReplayGate? {
+        guard !input.fresh, previous?.hasDeferredToolStop == true, let previous else {
+            return nil
+        }
+        return ProviderResumeReplayGate(previous.events.filter { $0.generation == input.generation })
     }
 
     func runProcess(
