@@ -9,6 +9,7 @@ struct ClaudeStreamEnvelope: Decodable {
     let model: String?
     let message: ClaudeStreamMessage?
     let event: ClaudeStreamEvent?
+    let origin: ClaudeStreamOrigin?
     let attachment: ClaudeAttachment?
     let toolUseResult: ClaudeToolUseResult?
     let result: String?
@@ -80,6 +81,7 @@ struct ClaudeStreamEnvelope: Decodable {
         case model
         case message
         case event
+        case origin
         case attachment
         case toolUseResult = "tool_use_result"
         case toolUseResultCamel = "toolUseResult"
@@ -112,6 +114,7 @@ struct ClaudeStreamEnvelope: Decodable {
         self.model = container.decodeLenientIfPresent(String.self, forKey: .model)
         self.message = container.decodeLenientIfPresent(ClaudeStreamMessage.self, forKey: .message)
         self.event = container.decodeLenientIfPresent(ClaudeStreamEvent.self, forKey: .event)
+        self.origin = container.decodeLenientIfPresent(ClaudeStreamOrigin.self, forKey: .origin)
         self.attachment = container.decodeLenientIfPresent(ClaudeAttachment.self, forKey: .attachment)
         self.toolUseResult = container.decodeLenientIfPresent(ClaudeToolUseResult.self, forKey: .toolUseResult)
             ?? container.decodeLenientIfPresent(ClaudeToolUseResult.self, forKey: .toolUseResultCamel)
@@ -137,6 +140,7 @@ struct ClaudeStreamEnvelope: Decodable {
 struct ClaudeStreamMessage: Decodable {
     let role: String?
     let content: [ClaudeContent]
+    let rawContent: String?
     let usage: ClaudeUsage?
 
     var agentRole: AgentMessageRole {
@@ -151,6 +155,24 @@ struct ClaudeStreamMessage: Decodable {
             .assistant
         }
     }
+
+    enum CodingKeys: String, CodingKey {
+        case role
+        case content
+        case usage
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.role = container.decodeLenientIfPresent(String.self, forKey: .role)
+        self.content = container.decodeLenientIfPresent([ClaudeContent].self, forKey: .content) ?? []
+        self.rawContent = container.decodeLenientIfPresent(String.self, forKey: .content)
+        self.usage = container.decodeLenientIfPresent(ClaudeUsage.self, forKey: .usage)
+    }
+}
+
+struct ClaudeStreamOrigin: Decodable {
+    let kind: String?
 }
 
 struct ClaudeContent: Decodable {

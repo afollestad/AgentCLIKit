@@ -122,6 +122,39 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         ])
     }
 
+    func testTaskNotificationUserMessageEmitsSubAgentCompletionMetadata() throws {
+        let events = try ClaudeStreamDecoder().decodeLine(Self.taskNotificationLine())
+
+        XCTAssertEqual(events, [
+            .task(AgentTaskEvent(
+                id: "toolu_agent",
+                phase: .notification,
+                description: "Agent & docs completed",
+                toolUses: 2,
+                totalTokens: 1234,
+                durationMs: 5678,
+                status: "completed",
+                metadata: [
+                    "tool_use_id": .string("toolu_agent"),
+                    "task_id": .string("async-agent-1"),
+                    "summary": .string("Agent & docs completed"),
+                    "result": .string("""
+                    ## Result
+
+                    | Name | Value |
+                    |---|---|
+                    | HTML | <script>Tom & Jerry</script> |
+                    """),
+                    "output_file": .string("/tmp/async-agent-1.output"),
+                    "status": .string("completed"),
+                    "total_tokens": .number(1234),
+                    "tool_uses": .number(2),
+                    "duration_ms": .number(5678)
+                ]
+            ))
+        ])
+    }
+
     func testDecodesPermissionModeAndPermissionDenials() throws {
         let decoder = ClaudeStreamDecoder()
         let system = try decoder.decodeLine(#"{"type":"system","subtype":"status","permissionMode":"plan"}"#)
@@ -261,6 +294,39 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
       }
     }
     """#
+
+    private static let taskNotificationContent = """
+    <task-notification>
+    <task-id>async-agent-1</task-id>
+    <tool-use-id>toolu_agent</tool-use-id>
+    <output-file>/tmp/async-agent-1.output</output-file>
+    <status>completed</status>
+    <summary>Agent &amp; docs completed</summary>
+    <result>## Result
+
+    | Name | Value |
+    |---|---|
+    | HTML | &lt;script&gt;Tom &amp; Jerry&lt;/script&gt; |</result>
+    <usage>
+    <total_tokens>1234</total_tokens>
+    <tool_uses>2</tool_uses>
+    <duration_ms>5678</duration_ms>
+    </usage>
+    </task-notification>
+    """
+
+    private static func taskNotificationLine() throws -> String {
+        let payload: [String: Any] = [
+            "type": "user",
+            "message": [
+                "role": "user",
+                "content": taskNotificationContent
+            ],
+            "origin": ["kind": "task-notification"]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try XCTUnwrap(String(data: data, encoding: .utf8))
+    }
 
     private static let permissionDeniedResultLine = #"""
     {
