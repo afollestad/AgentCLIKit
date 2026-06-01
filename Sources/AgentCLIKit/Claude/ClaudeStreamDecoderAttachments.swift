@@ -10,6 +10,8 @@ extension ClaudeStreamDecoder {
             return hookDeferredToolAttachmentEvents(from: envelope, attachment: attachment)
         case "hook_non_blocking_error":
             return hookErrorAttachmentEvents(from: envelope, attachment: attachment)
+        case "queued_command" where attachment.isTaskNotification:
+            return taskNotificationEvents(from: attachment.queuedCommandPrompt ?? "")
         default:
             return [.rawOutput(AgentRawOutputEvent(text: "attachment:\(attachment.type)", isComplete: true))]
         }
@@ -102,6 +104,19 @@ struct ClaudeAttachment: Decodable {
     let stderr: String?
     let stdout: String?
     let content: String?
+    let prompt: String?
+    let commandMode: String?
+    let commandModeSnake: String?
+
+    var isTaskNotification: Bool {
+        commandMode == "task-notification"
+            || commandModeSnake == "task-notification"
+            || queuedCommandPrompt?.contains("<task-notification>") == true
+    }
+
+    var queuedCommandPrompt: String? {
+        nonEmpty(prompt) ?? nonEmpty(content)
+    }
 
     var toolUseId: String? {
         nonEmpty(toolUseID) ?? nonEmpty(toolUseIdSnake)
@@ -132,6 +147,9 @@ struct ClaudeAttachment: Decodable {
         case stderr
         case stdout
         case content
+        case prompt
+        case commandMode
+        case commandModeSnake = "command_mode"
     }
 }
 

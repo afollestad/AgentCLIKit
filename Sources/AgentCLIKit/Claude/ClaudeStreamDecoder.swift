@@ -32,36 +32,25 @@ public struct ClaudeStreamDecoder: Sendable {
             return hookEvents(from: envelope)
         case "attachment":
             return attachmentEvents(from: envelope)
+        case "queue-operation":
+            return queueOperationEvents(from: envelope)
         default:
             return [.rawOutput(AgentRawOutputEvent(text: envelope.rawTypeDescription, isComplete: true))]
         }
     }
 
+    private func queueOperationEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
+        guard envelope.operation == "enqueue",
+              let content = envelope.content,
+              content.contains("<task-notification>") else {
+            return []
+        }
+        return taskNotificationEvents(from: content)
+    }
+
     private func systemEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
         var events: [AgentEvent] = []
-        var metadata: [String: JSONValue] = [:]
-        if let sessionId = envelope.sessionId {
-            metadata["session_id"] = .string(sessionId)
-        }
-        if let model = envelope.model {
-            metadata["model"] = .string(model)
-        }
-        if let toolUseId = envelope.toolUseId {
-            metadata["tool_use_id"] = .string(toolUseId)
-        }
-        if let description = envelope.description {
-            metadata["description"] = .string(description)
-        }
-        if let taskType = envelope.taskType {
-            metadata["task_type"] = .string(taskType)
-        }
-        if let lastToolName = envelope.lastToolName {
-            metadata["last_tool_name"] = .string(lastToolName)
-        }
-        if let status = envelope.status {
-            metadata["status"] = .string(status)
-        }
-        metadata.merge(envelope.usage?.taskMetadata ?? [:]) { _, new in new }
+        let metadata = systemMetadata(from: envelope)
         if let permissionMode = envelope.permissionMode {
             events.append(.permissionMode(AgentPermissionModeEvent(mode: permissionMode, metadata: metadata)))
         }
@@ -71,6 +60,28 @@ public struct ClaudeStreamDecoder: Sendable {
             events.append(.diagnostic(AgentDiagnosticEvent(severity: .info, message: envelope.subtype ?? "system", metadata: metadata)))
         }
         return events
+    }
+
+    private func systemMetadata(from envelope: ClaudeStreamEnvelope) -> [String: JSONValue] {
+        let stringFields: [(String, String?)] = [
+            ("session_id", envelope.sessionId),
+            ("model", envelope.model),
+            ("tool_use_id", envelope.toolUseId),
+            ("description", envelope.description),
+            ("summary", envelope.summary),
+            ("task_type", envelope.taskType),
+            ("last_tool_name", envelope.lastToolName),
+            ("status", envelope.status),
+            ("output_file", envelope.outputFile)
+        ]
+        var metadata = Dictionary(uniqueKeysWithValues: stringFields.compactMap { key, value -> (String, JSONValue)? in
+            guard let value else {
+                return nil
+            }
+            return (key, .string(value))
+        })
+        metadata.merge(envelope.usage?.taskMetadata ?? [:]) { _, new in new }
+        return metadata
     }
 
     private func messageEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
@@ -101,7 +112,7 @@ public struct ClaudeStreamDecoder: Sendable {
         return events
     }
 
-    private func taskNotificationEvents(from rawContent: String) -> [AgentEvent] {
+    func taskNotificationEvents(from rawContent: String) -> [AgentEvent] {
         guard let notification = ClaudeTaskNotificationParser.parse(rawContent) else {
             return []
         }
@@ -351,7 +362,7 @@ public struct ClaudeStreamDecoder: Sendable {
         return .task(AgentTaskEvent(
             id: id,
             phase: phase,
-            description: envelope.description,
+            description: envelope.description ?? envelope.summary,
             taskType: envelope.taskType,
             lastToolName: envelope.lastToolName,
             toolUses: envelope.usage?.toolUses,
@@ -441,44 +452,4 @@ private func boolValue(_ value: JSONValue?) -> Bool? {
         return nil
     }
     return bool
-}
-
-/// Removes Claude caveat prefixes that should not be persisted as assistant content.
-public enum ClaudeCaveatStripper {
-    /// Returns text without a leading caveat line.
-    public static func strip(_ text: String) -> String {
-        let text = stripLocalCommandCaveat(from: text).trimmingCharacters(in: .whitespacesAndNewlines)
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-        guard let first = lines.first, first.lowercased().hasPrefix("caveat:") else {
-            return text
-        }
-        return lines.dropFirst().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func stripLocalCommandCaveat(from text: String) -> String {
-        let startTag = "<local-command-caveat>"
-        let endTag = "</local-command-caveat>"
-        var stripped = text
-        guard let startRange = stripped.range(of: startTag),
-              let endRange = stripped.range(of: endTag, range: startRange.upperBound..<stripped.endIndex) else {
-            return stripped
-        }
-        stripped.removeSubrange(endRange)
-        stripped.removeSubrange(startRange)
-        return stripped
-    }
-}
-
-private enum ClaudeInterruptionMarker {
-    private static let userInterruptionMarkers = [
-        "[Request interrupted by user]",
-        "[Request interrupted by user for tool use]"
-    ]
-
-    static func isUserInterruption(_ text: String) -> Bool {
-        let normalizedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return userInterruptionMarkers.contains {
-            normalizedText.caseInsensitiveCompare($0) == .orderedSame
-        }
-    }
 }

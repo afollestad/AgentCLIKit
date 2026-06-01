@@ -104,4 +104,59 @@ final class ClaudeStreamDecoderAttachmentTests: XCTestCase {
             ))
         ])
     }
+
+    func testQueuedCommandAttachmentDecodesTaskNotification() throws {
+        let decoder = ClaudeStreamDecoder()
+        let line = try Self.queuedTaskNotificationLine()
+
+        let events = try decoder.decodeLine(line)
+
+        XCTAssertEqual(events, [
+            .task(AgentTaskEvent(
+                id: "toolu_agent",
+                phase: .notification,
+                description: "Agent completed",
+                toolUses: 3,
+                totalTokens: 14816,
+                durationMs: 9929,
+                status: "completed",
+                metadata: [
+                    "tool_use_id": .string("toolu_agent"),
+                    "task_id": .string("async-agent-1"),
+                    "summary": .string("Agent completed"),
+                    "result": .string("Found <script> tags & images."),
+                    "output_file": .string("/tmp/async-agent-1.output"),
+                    "status": .string("completed"),
+                    "total_tokens": .number(14816),
+                    "tool_uses": .number(3),
+                    "duration_ms": .number(9929)
+                ]
+            ))
+        ])
+    }
+
+    private static func queuedTaskNotificationLine() throws -> String {
+        let content = """
+        <task-notification>
+        <task-id>async-agent-1</task-id>
+        <tool-use-id>toolu_agent</tool-use-id>
+        <output-file>/tmp/async-agent-1.output</output-file>
+        <status>completed</status>
+        <summary>Agent completed</summary>
+        <result>Found &lt;script&gt; tags &amp; images.</result>
+        <usage><total_tokens>14816</total_tokens><tool_uses>3</tool_uses><duration_ms>9929</duration_ms></usage>
+        </task-notification>
+        """
+        let payload: [String: Any] = [
+            "type": "attachment",
+            "sessionId": "session-123",
+            "attachment": [
+                "type": "queued_command",
+                "commandMode": "task-notification",
+                "prompt": content
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try XCTUnwrap(String(data: data, encoding: .utf8))
+    }
 }

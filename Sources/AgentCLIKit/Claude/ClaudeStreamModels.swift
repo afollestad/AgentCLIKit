@@ -21,13 +21,17 @@ struct ClaudeStreamEnvelope: Decodable {
     let modelUsage: [String: ClaudeModelUsage]?
     let toolUseId: String?
     let description: String?
+    let summary: String?
     let taskType: String?
     let lastToolName: String?
     let status: String?
+    let outputFile: String?
     let deferredToolUse: ClaudeDeferredToolUse?
     let permissionMode: String?
     let permissionDenials: [ClaudePermissionDenial]
     let rateLimitInfo: ClaudeRateLimitInfo?
+    let operation: String?
+    let content: String?
 
     var parentMetadata: [String: JSONValue] {
         guard let parentToolUseId else {
@@ -94,13 +98,17 @@ struct ClaudeStreamEnvelope: Decodable {
         case modelUsage
         case toolUseId = "tool_use_id"
         case description
+        case summary
         case taskType = "task_type"
         case lastToolName = "last_tool_name"
         case status
+        case outputFile = "output_file"
         case deferredToolUse = "deferred_tool_use"
         case permissionMode
         case permissionDenials = "permission_denials"
         case rateLimitInfo = "rate_limit_info"
+        case operation
+        case content
     }
 
     init(from decoder: Decoder) throws {
@@ -127,13 +135,17 @@ struct ClaudeStreamEnvelope: Decodable {
         self.modelUsage = container.decodeLenientIfPresent([String: ClaudeModelUsage].self, forKey: .modelUsage)
         self.toolUseId = container.decodeLenientIfPresent(String.self, forKey: .toolUseId)
         self.description = container.decodeLenientIfPresent(String.self, forKey: .description)
+        self.summary = container.decodeLenientIfPresent(String.self, forKey: .summary)
         self.taskType = container.decodeLenientIfPresent(String.self, forKey: .taskType)
         self.lastToolName = container.decodeLenientIfPresent(String.self, forKey: .lastToolName)
         self.status = container.decodeLenientIfPresent(String.self, forKey: .status)
+        self.outputFile = container.decodeLenientIfPresent(String.self, forKey: .outputFile)
         self.deferredToolUse = container.decodeLenientIfPresent(ClaudeDeferredToolUse.self, forKey: .deferredToolUse)
         self.permissionMode = container.decodeLenientIfPresent(String.self, forKey: .permissionMode)
         self.permissionDenials = container.decodeLenientIfPresent([ClaudePermissionDenial].self, forKey: .permissionDenials) ?? []
         self.rateLimitInfo = container.decodeLenientIfPresent(ClaudeRateLimitInfo.self, forKey: .rateLimitInfo)
+        self.operation = container.decodeLenientIfPresent(String.self, forKey: .operation)
+        self.content = container.decodeLenientIfPresent(String.self, forKey: .content)
     }
 }
 

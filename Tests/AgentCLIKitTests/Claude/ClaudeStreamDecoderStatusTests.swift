@@ -155,6 +155,51 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         ])
     }
 
+    func testTaskNotificationQueueOperationEmitsSubAgentCompletionMetadata() throws {
+        let events = try ClaudeStreamDecoder().decodeLine(Self.taskNotificationQueueOperationLine())
+
+        XCTAssertEqual(events, [
+            .task(AgentTaskEvent(
+                id: "toolu_agent",
+                phase: .notification,
+                description: "Agent & docs completed",
+                toolUses: 2,
+                totalTokens: 1234,
+                durationMs: 5678,
+                status: "completed",
+                metadata: [
+                    "tool_use_id": .string("toolu_agent"),
+                    "task_id": .string("async-agent-1"),
+                    "summary": .string("Agent & docs completed"),
+                    "result": .string("""
+                    ## Result
+
+                    | Name | Value |
+                    |---|---|
+                    | HTML | <script>Tom & Jerry</script> |
+                    """),
+                    "output_file": .string("/tmp/async-agent-1.output"),
+                    "status": .string("completed"),
+                    "total_tokens": .number(1234),
+                    "tool_uses": .number(2),
+                    "duration_ms": .number(5678)
+                ]
+            ))
+        ])
+    }
+
+    func testTaskNotificationQueueOperationIgnoresDequeueBookkeeping() throws {
+        let events = try ClaudeStreamDecoder().decodeLine(#"""
+        {
+          "type": "queue-operation",
+          "operation": "dequeue",
+          "sessionId": "session-123"
+        }
+        """#)
+
+        XCTAssertEqual(events, [])
+    }
+
     func testDecodesPermissionModeAndPermissionDenials() throws {
         let decoder = ClaudeStreamDecoder()
         let system = try decoder.decodeLine(#"{"type":"system","subtype":"status","permissionMode":"plan"}"#)
@@ -323,6 +368,17 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
                 "content": taskNotificationContent
             ],
             "origin": ["kind": "task-notification"]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try XCTUnwrap(String(data: data, encoding: .utf8))
+    }
+
+    private static func taskNotificationQueueOperationLine() throws -> String {
+        let payload: [String: Any] = [
+            "type": "queue-operation",
+            "operation": "enqueue",
+            "sessionId": "session-123",
+            "content": taskNotificationContent
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try XCTUnwrap(String(data: data, encoding: .utf8))

@@ -104,6 +104,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     private let inputEncoder: ClaudeInputEncoder
     private let homeDirectory: URL
     private let sessionFileExists: @Sendable (URL) -> Bool
+    private let taskOutputReader = ClaudeTaskOutputReader()
     private let hookCoordinator: ClaudeHookCoordinator?
 
     /// Creates a Claude provider adapter.
@@ -231,7 +232,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
 
     /// Decodes one Claude stream JSON stdout line.
     public func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
-        try decoder.decodeLine(line)
+        try decoder.decodeLine(line).map(enrichCompletedTaskOutput)
     }
 
     /// Extracts Claude's resumable session identifier from system events.
@@ -244,6 +245,32 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             return nil
         }
         return AgentSessionID(rawValue: sessionId)
+    }
+
+    private func enrichCompletedTaskOutput(_ event: AgentEvent) -> AgentEvent {
+        guard case let .task(task) = event,
+              task.isCompletedNotification,
+              task.metadata.stringValue("result") == nil,
+              let outputFile = task.metadata.stringValue("output_file"),
+              let result = taskOutputReader.resultText(from: URL(fileURLWithPath: outputFile))?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !result.isEmpty else {
+            return event
+        }
+
+        var metadata = task.metadata
+        metadata["result"] = .string(result)
+        return .task(AgentTaskEvent(
+            id: task.id,
+            phase: task.phase,
+            description: task.description,
+            taskType: task.taskType,
+            lastToolName: task.lastToolName,
+            toolUses: task.toolUses,
+            totalTokens: task.totalTokens,
+            durationMs: task.durationMs,
+            status: task.status,
+            metadata: metadata
+        ))
     }
 
     /// Encodes host input as Claude stream JSON stdin.
@@ -380,5 +407,20 @@ public enum ClaudePathEncoder {
             workingDirectoryPath: workingDirectoryPath,
             homeDirectory: homeDirectory
         ).path)
+    }
+}
+
+private extension AgentTaskEvent {
+    var isCompletedNotification: Bool {
+        (phase == .notification && status == "completed") || phase == .completed
+    }
+}
+
+private extension [String: JSONValue] {
+    func stringValue(_ key: String) -> String? {
+        guard case let .string(value)? = self[key] else {
+            return nil
+        }
+        return value
     }
 }
