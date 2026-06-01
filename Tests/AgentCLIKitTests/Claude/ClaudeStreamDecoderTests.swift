@@ -215,6 +215,69 @@ final class ClaudeStreamDecoderTests: XCTestCase {
         ))])
     }
 
+    func testDecodesToolResultArrayContentFromToolUseResultBeforeMessageFooter() throws {
+        let decoder = ClaudeStreamDecoder()
+        let user = #"""
+        {
+          "type": "user",
+          "message": {
+            "role": "user",
+            "content": [{
+              "type": "tool_result",
+              "tool_use_id": "toolu_agent",
+              "is_error": false,
+              "content": [
+                {"type": "text", "text": "## Directory Structure Map\n\nFrom message content"},
+                {"type": "text", "text": "agentId: agent-1\n<usage>total_tokens: 10</usage>"}
+              ]
+            }]
+          },
+          "toolUseResult": {
+            "content": [
+              {"type": "text", "text": "## Directory Structure Map\n\nFrom clean tool result"}
+            ]
+          }
+        }
+        """#
+
+        let events = try decoder.decodeLine(user)
+
+        XCTAssertEqual(events, [.toolResult(AgentToolResultEvent(
+            id: "toolu_agent",
+            isError: false,
+            content: "## Directory Structure Map\n\nFrom clean tool result"
+        ))])
+    }
+
+    func testDecodesToolResultArrayContentWithoutContinuationFooter() throws {
+        let decoder = ClaudeStreamDecoder()
+        let user = #"""
+        {
+          "type": "user",
+          "message": {
+            "role": "user",
+            "content": [{
+              "type": "tool_result",
+              "tool_use_id": "toolu_agent",
+              "is_error": false,
+              "content": [
+                {"type": "text", "text": "## Directory Structure Map\n\nFrom message content"},
+                {"type": "text", "text": "agentId: agent-1\n<usage>total_tokens: 10</usage>"}
+              ]
+            }]
+          }
+        }
+        """#
+
+        let events = try decoder.decodeLine(user)
+
+        XCTAssertEqual(events, [.toolResult(AgentToolResultEvent(
+            id: "toolu_agent",
+            isError: false,
+            content: "## Directory Structure Map\n\nFrom message content"
+        ))])
+    }
+
     func testDecodesCamelCaseToolUseResultTaskMetadata() throws {
         let decoder = ClaudeStreamDecoder()
         let user = #"""

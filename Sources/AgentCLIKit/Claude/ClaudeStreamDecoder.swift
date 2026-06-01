@@ -222,7 +222,11 @@ public struct ClaudeStreamDecoder: Sendable {
         return [.toolResult(AgentToolResultEvent(
             id: toolUseId,
             isError: content.isError ?? false,
-            content: content.textContent ?? toolUseResult?.stdout ?? "",
+            content: content.textContent
+                ?? toolUseResult?.content?.text
+                ?? content.textContentWithoutContinuationMetadata
+                ?? toolUseResult?.stdout
+                ?? "",
             metadata: metadata.merging(toolUseResult?.metadata ?? [:]) { _, new in new }
         ))]
     }
