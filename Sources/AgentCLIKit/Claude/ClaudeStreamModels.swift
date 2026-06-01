@@ -82,6 +82,7 @@ struct ClaudeStreamEnvelope: Decodable {
         case event
         case attachment
         case toolUseResult = "tool_use_result"
+        case toolUseResultCamel = "toolUseResult"
         case result
         case usage
         case isError = "is_error"
@@ -113,6 +114,7 @@ struct ClaudeStreamEnvelope: Decodable {
         self.event = container.decodeLenientIfPresent(ClaudeStreamEvent.self, forKey: .event)
         self.attachment = container.decodeLenientIfPresent(ClaudeAttachment.self, forKey: .attachment)
         self.toolUseResult = container.decodeLenientIfPresent(ClaudeToolUseResult.self, forKey: .toolUseResult)
+            ?? container.decodeLenientIfPresent(ClaudeToolUseResult.self, forKey: .toolUseResultCamel)
         self.result = container.decodeLenientIfPresent(String.self, forKey: .result)
         self.usage = container.decodeLenientIfPresent(ClaudeUsage.self, forKey: .usage)
         self.isError = container.decodeLenientIfPresent(Bool.self, forKey: .isError)
@@ -213,6 +215,9 @@ struct ClaudeToolUseResult: Decodable {
     let interrupted: Bool?
     let isImage: Bool?
     let noOutputExpected: Bool?
+    let task: JSONValue?
+    let tasks: JSONValue?
+    let todos: JSONValue?
 
     var metadata: [String: JSONValue] {
         var metadata: [String: JSONValue] = [:]
@@ -227,6 +232,15 @@ struct ClaudeToolUseResult: Decodable {
         }
         if let noOutputExpected {
             metadata["no_output_expected"] = .bool(noOutputExpected)
+        }
+        if let task {
+            metadata["task"] = task
+        }
+        if let tasks {
+            metadata["tasks"] = tasks
+        }
+        if let todos {
+            metadata["todos"] = todos
         }
         return metadata
     }

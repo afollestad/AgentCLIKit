@@ -271,6 +271,13 @@ let projections = AgentTranscriptProjector().project(envelopes)
 let metrics = AgentConversationMetricsBuilder().build(from: envelopes)
 ```
 
+Task-list helpers reduce provider task tools into stable snapshots for apps that render TODO/progress blocks:
+
+```swift
+var taskLists = AgentTaskListReducer()
+let updatedSnapshots = taskLists.append(contentsOf: envelopes)
+```
+
 AgentCLIKit also provides provider-neutral MCP config stores, Claude MCP bridging, skill scanning/sync helpers, model
 context-window caches, and context handoff prompt helpers. These primitives are host-neutral; apps still own settings UI and
 project policy.

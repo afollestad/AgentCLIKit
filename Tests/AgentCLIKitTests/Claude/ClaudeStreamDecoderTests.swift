@@ -215,6 +215,39 @@ final class ClaudeStreamDecoderTests: XCTestCase {
         ))])
     }
 
+    func testDecodesCamelCaseToolUseResultTaskMetadata() throws {
+        let decoder = ClaudeStreamDecoder()
+        let user = #"""
+        {
+          "type": "user",
+          "message": {
+            "role": "user",
+            "content": [{"type":"tool_result","tool_use_id":"tool-1","is_error":false,"content":"Task #1 created successfully: Read index.html"}]
+          },
+          "toolUseResult": {
+            "task": {
+              "id": "1",
+              "subject": "Read index.html"
+            }
+          }
+        }
+        """#
+
+        let userEvents = try decoder.decodeLine(user)
+
+        XCTAssertEqual(userEvents, [.toolResult(AgentToolResultEvent(
+            id: "tool-1",
+            isError: false,
+            content: "Task #1 created successfully: Read index.html",
+            metadata: [
+                "task": .object([
+                    "id": .string("1"),
+                    "subject": .string("Read index.html")
+                ])
+            ]
+        ))])
+    }
+
     func testMalformedToolBlocksEmitDiagnostics() throws {
         let decoder = ClaudeStreamDecoder()
         let toolUse = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit"}]}}"#
