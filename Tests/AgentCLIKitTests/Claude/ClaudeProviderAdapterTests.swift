@@ -194,6 +194,41 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(prepared, launch)
     }
 
+    func testPrepareLaunchFallsBackWithoutHookSettingsWhenHookPrepFails() async throws {
+        let temporaryDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temporaryDirectory) }
+        let hookSupportDirectory = temporaryDirectory.appendingPathComponent("not-a-directory", isDirectory: true)
+        try Data("file".utf8).write(to: hookSupportDirectory)
+        let adapter = ClaudeProviderAdapter(hookSupportDirectory: hookSupportDirectory)
+        addTeardownBlock {
+            await adapter.shutdownProviderResources()
+        }
+        let launch = AgentLaunchConfiguration(
+            executable: "/usr/bin/env",
+            arguments: ["claude", "Prompt"],
+            environment: ["EXISTING": "1"],
+            workingDirectory: temporaryDirectory,
+            includesSpawnArguments: true
+        )
+
+        let prepared = try await adapter.prepareLaunchConfiguration(
+            launch,
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: temporaryDirectory,
+                permissionMode: "default",
+                initialPrompt: "Prompt"
+            ),
+            conversationId: "conversation",
+            processToken: UUID()
+        )
+
+        XCTAssertEqual(prepared, launch)
+        XCTAssertFalse(prepared.arguments.contains("--settings"))
+        XCTAssertNil(prepared.environment["AGENTCLIKIT_CLAUDE_HOOK_TOKEN"])
+    }
+
     func testInputEncoderWritesStreamJSONLine() throws {
         let data = try ClaudeInputEncoder().encode(.userMessage(AgentMessageInput(text: "Hello")))
         let json = try JSONSerialization.jsonObject(with: data.dropLast()) as? [String: Any]

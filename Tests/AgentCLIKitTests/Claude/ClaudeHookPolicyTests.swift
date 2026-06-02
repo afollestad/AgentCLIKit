@@ -3,7 +3,7 @@ import XCTest
 @testable import AgentCLIKit
 
 extension ClaudeHookTests {
-    func testPreToolUseAllowsEditInAcceptEditsModeWithoutStoringInteraction() async {
+    func testPreToolUseReturnsNoDecisionForEditInAcceptEditsModeWithoutStoringInteraction() async {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
         let token = await tokenStore.issue(validFor: 60)
@@ -12,7 +12,7 @@ extension ClaudeHookTests {
         let response = await server.handle(preToolUse(token: token.value, toolName: "Edit", permissionMode: "acceptEdits"))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
-        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .allow)
+        XCTAssertEqual(response, .noDecision)
         XCTAssertEqual(pending, [])
     }
 
@@ -29,7 +29,7 @@ extension ClaudeHookTests {
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: mcp), .deferDecision)
     }
 
-    func testPreToolUseAllowsToolsInAutoBypassAndDontAskModes() async {
+    func testPreToolUseReturnsNoDecisionForToolsInAutoBypassAndDontAskModes() async {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
         let token = await tokenStore.issue(validFor: 60)
@@ -37,14 +37,14 @@ extension ClaudeHookTests {
 
         for mode in ["auto", "bypassPermissions", "dontAsk"] {
             let response = await server.handle(preToolUse(token: token.value, toolName: "Bash", permissionMode: mode))
-            XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .allow)
+            XCTAssertEqual(response, .noDecision)
         }
 
         let pending = await interactionStore.pending(conversationId: "conversation")
         XCTAssertEqual(pending, [])
     }
 
-    func testPreToolUseAllowsReadOnlyMCPInAcceptEditsMode() async {
+    func testPreToolUseReturnsNoDecisionForReadOnlyMCPInAcceptEditsMode() async {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
         let token = await tokenStore.issue(validFor: 60)
@@ -56,7 +56,7 @@ extension ClaudeHookTests {
             permissionMode: "acceptEdits"
         ))
 
-        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .allow)
+        XCTAssertEqual(response, .noDecision)
     }
 
     func testPreToolUseExitPlanModeOnlyDefersInPlanMode() async {
@@ -73,7 +73,7 @@ extension ClaudeHookTests {
         let planMode = await server.handle(preToolUse(token: token.value, toolName: "ExitPlanMode", permissionMode: "plan"))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
-        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: defaultMode), .allow)
+        XCTAssertEqual(defaultMode, .noDecision)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: planMode), .deferDecision)
         XCTAssertEqual(pending.first?.kind, .planModeExit)
     }

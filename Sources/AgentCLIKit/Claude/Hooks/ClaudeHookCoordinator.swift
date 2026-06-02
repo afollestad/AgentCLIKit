@@ -53,6 +53,7 @@ public actor ClaudeHookCoordinator {
     public func prepareLaunch(
         conversationId: AgentConversationID,
         processToken: UUID,
+        permissionMode: String? = nil,
         timeoutSeconds: Int = ClaudeHookPolicy.defaultHookTimeoutSeconds
     ) async throws -> ClaudeHookLaunchConfiguration {
         let port = try await ensureListenerPort()
@@ -77,6 +78,7 @@ public actor ClaudeHookCoordinator {
             try? fileManager.removeItem(at: settingsURL)
             throw error
         }
+        await server.updatePermissionMode(permissionMode, for: conversationId)
         launchTokens[processToken] = token.value
         launchSettingsFiles[processToken] = settingsURL
         return ClaudeHookLaunchConfiguration(

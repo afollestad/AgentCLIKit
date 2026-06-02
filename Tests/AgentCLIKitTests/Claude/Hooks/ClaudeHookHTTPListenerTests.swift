@@ -57,7 +57,30 @@ final class ClaudeHookHTTPListenerTests: XCTestCase {
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deny)
     }
 
+    func testHookListenerSendsEmptyBodyForNoDecisionResponse() async throws {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+        let token = await tokenStore.issue(validFor: 60)
+        let listener = ClaudeHookHTTPListener(server: server)
+        let port = try await listener.start()
+        defer { Task { await listener.stop() } }
+
+        let result = try await postRawHook(port: port, token: token.value, body: #"{"tool_name":"EnterPlanMode","tool_use_id":"tool-1"}"#)
+        let pending = await interactionStore.pending(conversationId: "conversation")
+
+        XCTAssertEqual(result.response.statusCode, 200)
+        XCTAssertEqual(result.data, Data())
+        XCTAssertEqual(pending, [])
+    }
+
     private func postHook(port: Int, token: String, body: String) async throws -> AgentHookResponse {
+        let result = try await postRawHook(port: port, token: token, body: body)
+        let json = try JSONDecoder().decode(JSONValue.self, from: result.data)
+        return AgentHookResponse(statusCode: result.response.statusCode, body: json)
+    }
+
+    private func postRawHook(port: Int, token: String, body: String) async throws -> (data: Data, response: HTTPURLResponse) {
         let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/claude/hooks/pre-tool-use?conversation_id=conversation"))
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -65,7 +88,6 @@ final class ClaudeHookHTTPListenerTests: XCTestCase {
         request.httpBody = Data(body.utf8)
         let (data, response) = try await URLSession.shared.data(for: request)
         let httpResponse = try XCTUnwrap(response as? HTTPURLResponse)
-        let json = try JSONDecoder().decode(JSONValue.self, from: data)
-        return AgentHookResponse(statusCode: httpResponse.statusCode, body: json)
+        return (data, httpResponse)
     }
 }

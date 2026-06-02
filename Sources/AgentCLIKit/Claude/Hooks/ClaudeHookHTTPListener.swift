@@ -119,7 +119,12 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
     }
 
     private func send(_ response: AgentHookResponse, on connection: NWConnection) {
-        let body = (try? JSONEncoder().encode(response.body ?? .object([:]))) ?? Data(#"{"decision":"deny"}"#.utf8)
+        let body: Data
+        if let responseBody = response.body {
+            body = (try? JSONEncoder().encode(responseBody)) ?? Data(#"{"decision":"deny"}"#.utf8)
+        } else {
+            body = Data()
+        }
         let status = response.statusCode == 200 ? "200 OK" : "\(response.statusCode) Error"
         let header = "HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
         var data = Data(header.utf8)

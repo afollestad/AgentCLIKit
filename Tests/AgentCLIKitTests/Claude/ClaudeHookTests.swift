@@ -256,7 +256,7 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertTrue(pending.first?.promptRequest?.allowsCustomResponse == true)
     }
 
-    func testPreToolUseEnterPlanModeAllowsWithoutStoringInteraction() async {
+    func testPreToolUseEnterPlanModeReturnsNoDecisionWithoutStoringInteraction() async {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
         let token = await tokenStore.issue(validFor: 60)
@@ -266,7 +266,7 @@ final class ClaudeHookTests: XCTestCase {
         let pending = await interactionStore.pending(conversationId: "conversation")
 
         XCTAssertEqual(response.statusCode, 200)
-        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .allow)
+        XCTAssertEqual(response, .noDecision)
         XCTAssertEqual(pending, [])
     }
 
@@ -383,10 +383,32 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertTrue(pending.contains { $0.kind == .planModeExit })
     }
 
+    func testUnknownHookReturnsNoDecisionWithoutStoringInteraction() async {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let token = await tokenStore.issue(validFor: 60)
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+
+        let response = await server.handle(ClaudeHookRequest(
+            bearerToken: token.value,
+            hookName: "NonActionableHook",
+            conversationId: "conversation",
+            payload: .object([:])
+        ))
+        let pending = await interactionStore.pending(conversationId: "conversation")
+
+        XCTAssertEqual(response, .noDecision)
+        XCTAssertEqual(pending, [])
+    }
+
     func testResponseMapperFailsClosedForAmbiguous2xx() {
         let response = AgentHookResponse(statusCode: 200, body: .object([:]))
 
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deny)
+    }
+
+    func testResponseMapperFailsClosedForNoBody2xx() {
+        XCTAssertEqual(ClaudeHookResponseMapper.decision(from: .noDecision), .deny)
     }
 
     func testResponseMapperUnderstandsClaudeHookSpecificOutput() {

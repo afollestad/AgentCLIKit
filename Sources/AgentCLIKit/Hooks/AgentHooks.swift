@@ -59,6 +59,11 @@ public struct AgentHookResponse: Codable, Equatable, Sendable {
         self.statusCode = statusCode
         self.body = body
     }
+
+    /// Successful hook response that leaves the provider to make its normal decision.
+    public static var noDecision: AgentHookResponse {
+        AgentHookResponse(statusCode: 200, body: nil)
+    }
 }
 
 /// Token lifecycle service for local provider hook listeners.

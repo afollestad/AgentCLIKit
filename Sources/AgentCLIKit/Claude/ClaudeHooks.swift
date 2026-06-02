@@ -165,7 +165,7 @@ public actor ClaudeHookServer {
         case "PlanModeExit":
             return await handlePlanModeExit(request)
         default:
-            return response(for: .deferDecision)
+            return .noDecision
         }
     }
 
@@ -191,14 +191,14 @@ public actor ClaudeHookServer {
         case "AskUserQuestion":
             return await handlePrompt(request)
         case "EnterPlanMode":
-            return response(for: .allow())
+            return .noDecision
         case "ExitPlanMode":
             return await handlePlanModeExit(request)
         default:
             break
         }
         guard ClaudeHookPolicy.shouldDefer(toolName: operation, permissionMode: permissionMode(for: request)) else {
-            return response(for: .allow())
+            return .noDecision
         }
 
         let interactionId = request.interactionId
@@ -255,7 +255,7 @@ public actor ClaudeHookServer {
     private func handlePlanModeExit(_ request: ClaudeHookRequest) async -> AgentHookResponse {
         rememberPermissionMode(from: request)
         guard ClaudeHookPolicy.shouldDefer(toolName: "ExitPlanMode", permissionMode: permissionMode(for: request)) else {
-            return response(for: .allow())
+            return .noDecision
         }
         let interactionId = request.interactionId
         if let policyDecision = await policyDecision(operation: "ExitPlanMode", interactionId: interactionId, request: request) {

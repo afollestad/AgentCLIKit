@@ -278,7 +278,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         try inputEncoder.encode(input)
     }
 
-    /// Adds generated Claude hook settings and bearer token environment for this launch.
+    /// Adds generated Claude hook settings and bearer token environment for this launch when hook setup succeeds.
     public func prepareLaunchConfiguration(
         _ launch: AgentLaunchConfiguration,
         spawnConfig: AgentSpawnConfig,
@@ -292,7 +292,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         do {
             let hooks = try await hookCoordinator.prepareLaunch(
                 conversationId: conversationId,
-                processToken: processToken
+                processToken: processToken,
+                permissionMode: spawnConfig.permissionMode
             )
             var arguments = launch.arguments
             let prompt = spawnConfig.initialPrompt
@@ -313,7 +314,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             )
         } catch {
             await hookCoordinator.invalidate(processToken: processToken)
-            throw error
+            return launch
         }
     }
 
