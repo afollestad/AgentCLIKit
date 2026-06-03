@@ -63,6 +63,26 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsUsage: Bool
     /// Whether the provider can accept user input while a turn is active.
     public let supportsMidTurnSteering: Bool
+    /// Whether the provider emits provider-neutral tool call and tool result events.
+    public let supportsToolEvents: Bool
+    /// Whether the provider emits enough metadata to group tool output in transcripts.
+    public let supportsGroupedToolOutput: Bool
+    /// Whether the provider supports plan-mode entry or exit events.
+    public let supportsPlanMode: Bool
+    /// Whether the provider emits task-list or todo snapshots.
+    public let supportsTaskLists: Bool
+    /// Whether the provider emits sub-agent or collaboration events.
+    public let supportsSubagents: Bool
+    /// Whether the provider can request host-provided prompt answers.
+    public let supportsPromptRequests: Bool
+    /// Whether the provider reports context-window usage or limits.
+    public let supportsContextWindow: Bool
+    /// Whether the provider can fork a native provider thread or session.
+    public let supportsNativeThreadFork: Bool
+    /// Whether the provider can ask the host to grant permission profiles or modes.
+    public let supportsPermissionPrompts: Bool
+    /// Whether the provider can list selectable model options.
+    public let supportsModelListing: Bool
 
     /// Creates provider capability metadata.
     public init(
@@ -71,7 +91,17 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         supportsMCP: Bool = false,
         supportsApprovals: Bool = false,
         supportsUsage: Bool = false,
-        supportsMidTurnSteering: Bool = false
+        supportsMidTurnSteering: Bool = false,
+        supportsToolEvents: Bool = false,
+        supportsGroupedToolOutput: Bool = false,
+        supportsPlanMode: Bool = false,
+        supportsTaskLists: Bool = false,
+        supportsSubagents: Bool = false,
+        supportsPromptRequests: Bool = false,
+        supportsContextWindow: Bool = false,
+        supportsNativeThreadFork: Bool = false,
+        supportsPermissionPrompts: Bool = false,
+        supportsModelListing: Bool = false
     ) {
         self.supportsSessionResume = supportsSessionResume
         self.supportsHooks = supportsHooks
@@ -79,6 +109,16 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsApprovals = supportsApprovals
         self.supportsUsage = supportsUsage
         self.supportsMidTurnSteering = supportsMidTurnSteering
+        self.supportsToolEvents = supportsToolEvents
+        self.supportsGroupedToolOutput = supportsGroupedToolOutput
+        self.supportsPlanMode = supportsPlanMode
+        self.supportsTaskLists = supportsTaskLists
+        self.supportsSubagents = supportsSubagents
+        self.supportsPromptRequests = supportsPromptRequests
+        self.supportsContextWindow = supportsContextWindow
+        self.supportsNativeThreadFork = supportsNativeThreadFork
+        self.supportsPermissionPrompts = supportsPermissionPrompts
+        self.supportsModelListing = supportsModelListing
     }
 
     /// Decodes capability metadata, defaulting additive fields for older persisted values.
@@ -90,6 +130,16 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsApprovals = try container.decodeIfPresent(Bool.self, forKey: .supportsApprovals) ?? false
         self.supportsUsage = try container.decodeIfPresent(Bool.self, forKey: .supportsUsage) ?? false
         self.supportsMidTurnSteering = try container.decodeIfPresent(Bool.self, forKey: .supportsMidTurnSteering) ?? false
+        self.supportsToolEvents = try container.decodeIfPresent(Bool.self, forKey: .supportsToolEvents) ?? false
+        self.supportsGroupedToolOutput = try container.decodeIfPresent(Bool.self, forKey: .supportsGroupedToolOutput) ?? false
+        self.supportsPlanMode = try container.decodeIfPresent(Bool.self, forKey: .supportsPlanMode) ?? false
+        self.supportsTaskLists = try container.decodeIfPresent(Bool.self, forKey: .supportsTaskLists) ?? false
+        self.supportsSubagents = try container.decodeIfPresent(Bool.self, forKey: .supportsSubagents) ?? false
+        self.supportsPromptRequests = try container.decodeIfPresent(Bool.self, forKey: .supportsPromptRequests) ?? false
+        self.supportsContextWindow = try container.decodeIfPresent(Bool.self, forKey: .supportsContextWindow) ?? false
+        self.supportsNativeThreadFork = try container.decodeIfPresent(Bool.self, forKey: .supportsNativeThreadFork) ?? false
+        self.supportsPermissionPrompts = try container.decodeIfPresent(Bool.self, forKey: .supportsPermissionPrompts) ?? false
+        self.supportsModelListing = try container.decodeIfPresent(Bool.self, forKey: .supportsModelListing) ?? false
     }
 }
 

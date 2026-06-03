@@ -104,17 +104,19 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
     }
 
     func testProviderIdDecodesKnownPersistedValue() throws {
-        let data = Data(#""claude""#.utf8)
+        for expectedProviderId in AgentProviderID.allCases {
+            let data = Data("\"\(expectedProviderId.rawValue)\"".utf8)
 
-        let providerId = try JSONDecoder().decode(AgentProviderID.self, from: data)
-        let encoded = try JSONEncoder().encode(providerId)
+            let providerId = try JSONDecoder().decode(AgentProviderID.self, from: data)
+            let encoded = try JSONEncoder().encode(providerId)
 
-        XCTAssertEqual(providerId, .claude)
-        XCTAssertEqual(String(data: encoded, encoding: .utf8), #""claude""#)
+            XCTAssertEqual(providerId, expectedProviderId)
+            XCTAssertEqual(String(data: encoded, encoding: .utf8), "\"\(expectedProviderId.rawValue)\"")
+        }
     }
 
     func testProviderIdRejectsUnknownPersistedValue() {
-        let data = Data(#""codex""#.utf8)
+        let data = Data(#""future-provider""#.utf8)
 
         XCTAssertThrowsError(try JSONDecoder().decode(AgentProviderID.self, from: data))
     }

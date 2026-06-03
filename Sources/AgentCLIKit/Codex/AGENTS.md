@@ -1,0 +1,7 @@
+## Codex Provider
+
+- Keep Codex App Server launch details, JSON-RPC/App Server wire formats, `.codex` config behavior, permission-profile handling, model-list defaults, and Codex-specific policies here.
+- Keep provider-neutral runtime, session, event, interaction, transcript, MCP, usage, diagnostics, and discovery APIs outside this folder.
+- Use the Phase 3 protocol fixture before adding or changing Codex App Server request, notification, or approval behavior.
+- Do not start a Codex App Server process from provider discovery or static provider metadata.
+- Treat Codex permission-profile denial semantics as live-validated behavior; do not invent a decline enum for `item/permissions/requestApproval`.

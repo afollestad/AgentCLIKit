@@ -15,6 +15,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `.agents/checks/AGENTS.md`: repo-local review, audit, and check workflows.
 - `Sources/AgentCLIKit/Claude/AGENTS.md`: Claude provider adapter, config, stream decoding, and hook server behavior.
 - `Sources/AgentCLIKit/Claude/Hooks/AGENTS.md`: Claude hook transport.
+- `Sources/AgentCLIKit/Codex/AGENTS.md`: Codex App Server metadata, wire formats, config, and permission semantics.
 - `Sources/AgentCLIKit/Runtime/AGENTS.md`: runtime process lifecycle, replay buffers, and deferred-tool resume behavior.
 - `Sources/AgentCLIKitDemo/AGENTS.md`: macOS demo app.
 - `Sources/AgentCLIKitDemo/Interactions/AGENTS.md`: demo prompt and hook-decision UI.

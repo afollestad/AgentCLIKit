@@ -60,6 +60,21 @@ public actor AgentProviderRegistry {
     }
 }
 
+public extension AgentProviderRegistry {
+    /// Built-in provider definitions that can be registered without constructing runtime adapters.
+    static var builtInDefinitions: [AgentProviderDefinition] {
+        [
+            ClaudeProviderDefinition.definition,
+            CodexProviderDefinition.definition
+        ]
+    }
+
+    /// Creates a registry preloaded with built-in AgentCLIKit provider definitions.
+    static func builtIn() -> AgentProviderRegistry {
+        AgentProviderRegistry(definitions: builtInDefinitions)
+    }
+}
+
 /// Read-only provider lookup contract used by services that should not mutate registration.
 public protocol AgentProviderLookup: Sendable {
     /// Returns a provider definition by identifier.

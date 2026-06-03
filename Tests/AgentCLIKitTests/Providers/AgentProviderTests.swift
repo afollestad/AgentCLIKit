@@ -3,11 +3,29 @@ import XCTest
 @testable import AgentCLIKit
 
 final class AgentProviderTests: XCTestCase {
+    func testProviderIDIncludesCodex() throws {
+        let decoded = try JSONDecoder().decode(AgentProviderID.self, from: Data(#""codex""#.utf8))
+
+        XCTAssertEqual(AgentProviderID.allCases, [.claude, .codex])
+        XCTAssertEqual(decoded, .codex)
+        XCTAssertEqual(decoded.rawValue, "codex")
+    }
+
     func testDefaultAdapterSetExposesClaudeDefinition() {
         let adapterSet = AgentProviderAdapterSet.default
 
         XCTAssertEqual(adapterSet.definitions.map(\.id), [.claude])
         XCTAssertEqual(adapterSet.definitions.first?.displayName, "Claude")
+    }
+
+    func testBuiltInProviderDefinitionsIncludeClaudeAndCodexWithoutRuntimeAdapters() {
+        let definitions = AgentProviderRegistry.builtInDefinitions
+
+        XCTAssertEqual(definitions.map(\.id), [.claude, .codex])
+        XCTAssertEqual(definitions.map(\.displayName), ["Claude", "Codex"])
+        XCTAssertTrue(definitions[0].capabilities.supportsHooks)
+        XCTAssertFalse(definitions[1].capabilities.supportsHooks)
+        XCTAssertTrue(definitions[1].capabilities.supportsModelListing)
     }
 
     func testAdapterSetOverridesBuiltInAdapters() {
@@ -35,13 +53,11 @@ final class AgentProviderTests: XCTestCase {
     }
 
     func testRegistryReturnsRegisteredDefinitions() async {
-        let registry = AgentProviderRegistry(definitions: [
-            AgentProviderDefinition(id: .claude, displayName: "Claude", executableNames: ["claude"])
-        ])
+        let registry = AgentProviderRegistry.builtIn()
 
         let definitions = await registry.allDefinitions()
 
-        XCTAssertEqual(definitions.map(\.id), [.claude])
+        XCTAssertEqual(definitions.map(\.id), [.claude, .codex])
     }
 
     func testRegistryUsesLastDuplicateDefinition() async {
@@ -62,7 +78,19 @@ final class AgentProviderTests: XCTestCase {
             displayName: "Claude",
             executableNames: ["claude"],
             versionArguments: ["version"],
-            capabilities: AgentProviderCapabilities(supportsMidTurnSteering: true),
+            capabilities: AgentProviderCapabilities(
+                supportsMidTurnSteering: true,
+                supportsToolEvents: true,
+                supportsGroupedToolOutput: true,
+                supportsPlanMode: true,
+                supportsTaskLists: true,
+                supportsSubagents: true,
+                supportsPromptRequests: true,
+                supportsContextWindow: true,
+                supportsNativeThreadFork: true,
+                supportsPermissionPrompts: true,
+                supportsModelListing: true
+            ),
             supportedPermissionModes: [
                 AgentProviderOption(value: "plan", label: "Plan", description: "Read-only planning.")
             ],
@@ -80,8 +108,21 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertEqual(decoded.versionArguments, ["version"])
         XCTAssertEqual(decoded.supportedPermissionModes?.map(\.value), ["plan"])
         XCTAssertEqual(decoded.supportedEffortLevels, ["low", "high"])
+        XCTAssertTrue(decoded.capabilities.supportsToolEvents)
+        XCTAssertTrue(decoded.capabilities.supportsPromptRequests)
+        XCTAssertTrue(decoded.capabilities.supportsModelListing)
         XCTAssertEqual(legacy.versionArguments, ["--version"])
         XCTAssertFalse(legacy.capabilities.supportsMidTurnSteering)
+        XCTAssertFalse(legacy.capabilities.supportsToolEvents)
+        XCTAssertFalse(legacy.capabilities.supportsGroupedToolOutput)
+        XCTAssertFalse(legacy.capabilities.supportsPlanMode)
+        XCTAssertFalse(legacy.capabilities.supportsTaskLists)
+        XCTAssertFalse(legacy.capabilities.supportsSubagents)
+        XCTAssertFalse(legacy.capabilities.supportsPromptRequests)
+        XCTAssertFalse(legacy.capabilities.supportsContextWindow)
+        XCTAssertFalse(legacy.capabilities.supportsNativeThreadFork)
+        XCTAssertFalse(legacy.capabilities.supportsPermissionPrompts)
+        XCTAssertFalse(legacy.capabilities.supportsModelListing)
         XCTAssertNil(legacy.supportedPermissionModes)
         XCTAssertNil(legacy.supportedEffortLevels)
     }

@@ -3,7 +3,7 @@ import Foundation
 /// Claude Code provider adapter.
 public struct ClaudeProviderAdapter: AgentProviderAdapter {
     /// Claude provider identifier.
-    public static let providerId: AgentProviderID = .claude
+    public static let providerId = ClaudeProviderDefinition.providerId
 
     /// Configuration used to create a Claude provider adapter.
     public struct Configuration: Sendable {
@@ -62,42 +62,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     }
 
     /// Static Claude provider metadata.
-    public let definition = AgentProviderDefinition(
-        id: ClaudeProviderAdapter.providerId,
-        displayName: "Claude",
-        executableNames: ["claude"],
-        capabilities: AgentProviderCapabilities(
-            supportsSessionResume: true,
-            supportsHooks: true,
-            supportsMCP: true,
-            supportsApprovals: true,
-            supportsUsage: true,
-            supportsMidTurnSteering: true
-        ),
-        supportedPermissionModes: [
-            AgentProviderOption(
-                value: "default",
-                label: "Default permissions",
-                description: "Safe default; denied writes return as tool errors in non-interactive mode."
-            ),
-            AgentProviderOption(
-                value: "plan",
-                label: "Plan",
-                description: "Read-only exploration and planning."
-            ),
-            AgentProviderOption(
-                value: "acceptEdits",
-                label: "Accept edits",
-                description: "Auto-accept file edits while keeping stronger checks for other actions."
-            ),
-            AgentProviderOption(
-                value: "auto",
-                label: "Automatic",
-                description: "Auto-approve most actions with safety checks."
-            )
-        ],
-        supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"]
-    )
+    public let definition = ClaudeProviderDefinition.definition
 
     private let executablePath: String
     private let decoder: ClaudeStreamDecoder

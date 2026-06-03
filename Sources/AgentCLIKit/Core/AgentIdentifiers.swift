@@ -4,6 +4,8 @@ import Foundation
 public enum AgentProviderID: String, Codable, Hashable, Sendable, CaseIterable {
     /// Claude Code provider.
     case claude
+    /// Codex provider backed by Codex App Server.
+    case codex
 }
 
 /// Host-defined identifier for an app-level agent conversation.

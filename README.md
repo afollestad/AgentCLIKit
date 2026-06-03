@@ -32,6 +32,7 @@ AgentCLIKit is split into provider-neutral subsystems and provider implementatio
 - `MCP`: provider-agnostic MCP server management.
 - `Skills`: provider skill-directory scanning and sync helpers.
 - `Claude`: Claude Code adapter, config, hooks, approval policy, MCP bridge, and stream decoding.
+- `Codex`: Codex App Server metadata, scoped guidance, and protocol validation fixtures.
 
 Host apps own UI state, persistence, drafts, notifications, and queueing policy. AgentCLIKit owns runtime mechanics and emits provider-neutral events that hosts can persist or render however they want.
 

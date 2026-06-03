@@ -25,6 +25,8 @@ let package = Package(
                 "Claude/CLAUDE.md",
                 "Claude/Hooks/AGENTS.md",
                 "Claude/Hooks/CLAUDE.md",
+                "Codex/AGENTS.md",
+                "Codex/CLAUDE.md",
                 "Runtime/AGENTS.md",
                 "Runtime/CLAUDE.md"
             ],
