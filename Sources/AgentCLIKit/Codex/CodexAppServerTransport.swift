@@ -12,6 +12,9 @@ public protocol CodexAppServerTransport: Sendable {
     /// Starts the underlying transport if it is not already running.
     func start() async throws
 
+    /// Returns incoming server notifications and server-originated requests.
+    func incomingMessages() -> AsyncStream<CodexAppServerIncomingMessage>
+
     /// Sends a JSON-RPC request and returns the result payload.
     func sendRequest(method: String, params: JSONValue?) async throws -> JSONValue
 
@@ -20,6 +23,45 @@ public protocol CodexAppServerTransport: Sendable {
 
     /// Shuts down the underlying transport and releases resources.
     func shutdown() async
+}
+
+/// Incoming JSON-RPC message sent by Codex App Server.
+public enum CodexAppServerIncomingMessage: Sendable {
+    /// Server notification that does not require a response.
+    case notification(CodexAppServerNotification)
+    /// Server request that requires a response.
+    case request(CodexAppServerRequest)
+}
+
+/// Codex App Server notification payload.
+public struct CodexAppServerNotification: Sendable {
+    /// Notification method.
+    public let method: String
+    /// Optional notification parameters.
+    public let params: JSONValue?
+
+    /// Creates an App Server notification payload.
+    public init(method: String, params: JSONValue?) {
+        self.method = method
+        self.params = params
+    }
+}
+
+/// Codex App Server request payload.
+public struct CodexAppServerRequest: Sendable {
+    /// JSON-RPC request identifier.
+    public let id: JSONValue
+    /// Request method.
+    public let method: String
+    /// Optional request parameters.
+    public let params: JSONValue?
+
+    /// Creates an App Server request payload.
+    public init(id: JSONValue, method: String, params: JSONValue?) {
+        self.id = id
+        self.method = method
+        self.params = params
+    }
 }
 
 /// Errors produced while bootstrapping or communicating with Codex App Server.
@@ -92,11 +134,27 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     private var stdoutBuffer = Data()
     private var nextRequestID = 1
     private var pendingResponses: [Int: PendingResponse] = [:]
+    private var incomingContinuations: [UUID: AsyncStream<CodexAppServerIncomingMessage>.Continuation] = [:]
     private var stderrTail: [String] = []
 
     /// Creates a stdio App Server transport.
     public init(configuration: CodexProviderAdapter.Configuration) {
         self.configuration = configuration
+    }
+
+    /// Returns an incoming App Server message stream.
+    public nonisolated func incomingMessages() -> AsyncStream<CodexAppServerIncomingMessage> {
+        let id = UUID()
+        return AsyncStream { continuation in
+            Task {
+                await self.addIncomingContinuation(continuation, id: id)
+            }
+            continuation.onTermination = { _ in
+                Task {
+                    await self.removeIncomingContinuation(id: id)
+                }
+            }
+        }
     }
 
     /// Starts `codex app-server --stdio` when needed.
@@ -189,6 +247,8 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
             $0.continuation.resume(throwing: AgentCLIError.invalidInput("Codex App Server shut down."))
         }
         pendingResponses.removeAll()
+        incomingContinuations.values.forEach { $0.finish() }
+        incomingContinuations.removeAll()
         stdin = nil
         stdoutReadHandle?.readabilityHandler = nil
         stderrReadHandle?.readabilityHandler = nil
@@ -256,11 +316,25 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
 
     private func handleStdoutLine(_ lineData: Data) {
         guard let value = try? JSONDecoder().decode(JSONValue.self, from: lineData),
-              case let .object(object) = value,
-              let id = object["id"]?.intValue,
-              let pending = pendingResponses.removeValue(forKey: id) else {
+              case let .object(object) = value else {
             return
         }
+        if let id = object["id"]?.intValue,
+           let pending = pendingResponses.removeValue(forKey: id) {
+            handleResponse(object, pending: pending)
+            return
+        }
+        guard case let .string(method)? = object["method"] else {
+            return
+        }
+        if let id = object["id"] {
+            publishIncoming(.request(CodexAppServerRequest(id: id, method: method, params: object["params"])))
+        } else {
+            publishIncoming(.notification(CodexAppServerNotification(method: method, params: object["params"])))
+        }
+    }
+
+    private func handleResponse(_ object: [String: JSONValue], pending: PendingResponse) {
         pending.timeoutTask.cancel()
         if let error = object["error"]?.jsonRPCError {
             pending.continuation.resume(throwing: CodexAppServerError.jsonRPCError(
@@ -271,6 +345,18 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
         } else {
             pending.continuation.resume(returning: object["result"] ?? .null)
         }
+    }
+
+    private func addIncomingContinuation(_ continuation: AsyncStream<CodexAppServerIncomingMessage>.Continuation, id: UUID) {
+        incomingContinuations[id] = continuation
+    }
+
+    private func removeIncomingContinuation(id: UUID) {
+        incomingContinuations[id] = nil
+    }
+
+    private func publishIncoming(_ message: CodexAppServerIncomingMessage) {
+        incomingContinuations.values.forEach { $0.yield(message) }
     }
 
     private func failPendingResponse(id: Int, error: Error) {
@@ -288,6 +374,8 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
             $0.continuation.resume(throwing: error)
         }
         pendingResponses.removeAll()
+        incomingContinuations.values.forEach { $0.finish() }
+        incomingContinuations.removeAll()
         process = nil
         stdin = nil
     }

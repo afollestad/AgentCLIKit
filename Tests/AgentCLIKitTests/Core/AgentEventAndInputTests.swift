@@ -56,6 +56,24 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(decoded, event)
     }
 
+    func testActivityEventRoundTripsThroughJSONAndDefaultsMetadata() throws {
+        let event = AgentEvent.activity(AgentActivityEvent(
+            state: .active,
+            turnId: "turn-1",
+            metadata: ["provider": .string("codex")]
+        ))
+
+        let data = try JSONEncoder().encode(event)
+        let decoded = try JSONDecoder().decode(AgentEvent.self, from: data)
+        let legacyActivity = try JSONDecoder().decode(
+            AgentActivityEvent.self,
+            from: Data(#"{"state":"idle","turnId":"turn-1"}"#.utf8)
+        )
+
+        XCTAssertEqual(decoded, event)
+        XCTAssertEqual(legacyActivity.metadata, [:])
+    }
+
     func testMessageAndToolEventsDecodeWhenMetadataIsMissing() throws {
         let messageData = Data(#"{"role":"assistant","text":"Done."}"#.utf8)
         let toolCallData = Data(#"{"id":"tool-1","name":"Edit","input":{"file_path":"README.md"}}"#.utf8)

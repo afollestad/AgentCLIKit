@@ -141,14 +141,73 @@ public actor DefaultAgentRuntime: AgentRuntime {
         let processToken = state.processToken
         let marksTurnActive = input.isUserMessage
         try await stdinWriter.enqueue {
-            let data = try await adapter.encodeInput(input)
-            try await self.writeInputData(
-                data,
+            let context = try await self.inputContext(conversationId: conversationId, processToken: processToken)
+            let markedTurnActive = try await self.markTurnActiveBeforeInputIfNeeded(
                 conversationId: conversationId,
                 processToken: processToken,
                 marksTurnActive: marksTurnActive
             )
+            do {
+                let data = try await adapter.encodeInput(input, context: context)
+                try await self.writeInputData(
+                    data,
+                    conversationId: conversationId,
+                    processToken: processToken,
+                    marksTurnActive: false
+                )
+            } catch {
+                if markedTurnActive {
+                    await self.clearTurnActiveAfterFailedInput(conversationId: conversationId, processToken: processToken)
+                }
+                throw error
+            }
         }
+    }
+
+    private func inputContext(
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) throws -> AgentProviderInputContext {
+        guard let state = states[conversationId], state.processToken == processToken else {
+            throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
+        }
+        return AgentProviderInputContext(
+            conversationId: conversationId,
+            processToken: processToken,
+            providerSessionId: state.providerSessionId,
+            spawnConfig: state.spawnConfig,
+            isTurnActive: state.isTurnActive
+        )
+    }
+
+    private func markTurnActiveBeforeInputIfNeeded(
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        marksTurnActive: Bool
+    ) throws -> Bool {
+        guard marksTurnActive else {
+            return false
+        }
+        guard let state = states[conversationId], state.processToken == processToken else {
+            throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
+        }
+        guard !state.isTurnActive else {
+            return false
+        }
+        states[conversationId]?.isTurnActive = true
+        publishStatus(conversationId: conversationId)
+        return true
+    }
+
+    private func clearTurnActiveAfterFailedInput(
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) {
+        guard states[conversationId]?.processToken == processToken else {
+            return
+        }
+        states[conversationId]?.isTurnActive = false
+        publishStatus(conversationId: conversationId)
     }
 
     /// Resolves a pending interaction and sends the resolution to the provider process.
@@ -217,9 +276,30 @@ public actor DefaultAgentRuntime: AgentRuntime {
         guard shouldAcceptCancellation(conversationId: conversationId) else {
             return
         }
+        let state = states[conversationId]
         emitLifecycle(.cancelled, conversationId: conversationId, exitCode: nil, message: "Cancelled by host.")
         states[conversationId]?.stdin = nil
         states[conversationId]?.stdinWriter = nil
+        if let state {
+            let context = AgentProviderInterruptContext(
+                conversationId: conversationId,
+                processToken: state.processToken,
+                providerSessionId: state.providerSessionId,
+                spawnConfig: state.spawnConfig,
+                reason: "Cancelled by host."
+            )
+            do {
+                try await state.adapter.interrupt(context: context)
+            } catch {
+                emitDiagnostic(
+                    severity: .warning,
+                    message: "Provider interrupt failed: \(error.localizedDescription)",
+                    metadata: ["interrupt_error": .string(error.localizedDescription)],
+                    source: .runtime,
+                    conversationId: conversationId
+                )
+            }
+        }
         states[conversationId]?.process?.terminate()
     }
 
@@ -243,6 +323,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         removedPendingSubscribers?.values.forEach { $0.finish() }
         statusSubscribers.removeValue(forKey: conversationId)?.values.forEach { $0.finish() }
         removedState?.outputPumps.forEach { $0.cancel() }
+        removedState?.providerEventTasks.forEach { $0.cancel() }
         if let removedState {
             await removedState.adapter.processDidTerminate(processToken: removedState.processToken)
         }
@@ -255,6 +336,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         cancelAllStarts()
         for state in states.values {
             state.outputPumps.forEach { $0.cancel() }
+            state.providerEventTasks.forEach { $0.cancel() }
             state.subscribers.values.forEach { $0.finish() }
             await state.adapter.processDidTerminate(processToken: state.processToken)
             forceKill(state.process)

@@ -108,9 +108,25 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         return AgentSessionID(rawValue: threadId)
     }
 
-    /// Codex turn input is mapped onto App Server requests in a later adapter phase.
+    /// Encodes no process stdin bytes because Codex turns are sent through App Server requests.
     public func encodeInput(_ input: AgentInput) async throws -> Data {
-        throw AgentCLIError.invalidInput("Codex App Server turn input is not implemented yet.")
+        throw AgentCLIError.invalidInput("Codex App Server input requires runtime context.")
+    }
+
+    /// Sends Codex input through App Server `turn/start`, `turn/steer`, or related requests.
+    public func encodeInput(_ input: AgentInput, context: AgentProviderInputContext) async throws -> Data {
+        try await client.send(input, context: context)
+        return Data()
+    }
+
+    /// Returns Codex App Server notification events for the bound runtime conversation.
+    public func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
+        client.runtimeEvents(context: context)
+    }
+
+    /// Interrupts the active Codex App Server turn.
+    public func interrupt(context: AgentProviderInterruptContext) async throws {
+        try await client.interrupt(context: context)
     }
 
     /// Stops the shared App Server transport.

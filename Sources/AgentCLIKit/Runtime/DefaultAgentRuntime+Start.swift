@@ -39,6 +39,7 @@ extension DefaultAgentRuntime {
             conversationId: conversationId,
             processToken: prepared.stateInput.processToken
         )
+        startProviderRuntimeEvents(conversationId: conversationId, processToken: prepared.stateInput.processToken)
     }
 
     func cancelStart(conversationId: AgentConversationID) {
@@ -260,6 +261,7 @@ private extension DefaultAgentRuntime {
         guard let previous else {
             return
         }
+        previous.providerEventTasks.forEach { $0.cancel() }
         await previous.adapter.processDidTerminate(processToken: previous.processToken)
     }
 
@@ -291,7 +293,8 @@ private extension DefaultAgentRuntime {
             persistedIndex: persistedIndex,
             hasDeferredToolStop: false,
             providerResumeReplayGate: providerResumeReplayGate,
-            outputPumps: []
+            outputPumps: [],
+            providerEventTasks: []
         )
     }
 

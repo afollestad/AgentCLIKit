@@ -73,6 +73,8 @@ public enum AgentEvent: Codable, Equatable, Sendable {
     case usage(AgentUsageEvent)
     /// Provider rate-limit state update.
     case rateLimit(AgentRateLimitEvent)
+    /// Provider turn or thread activity state changed.
+    case activity(AgentActivityEvent)
     /// Provider permission mode changed.
     case permissionMode(AgentPermissionModeEvent)
     /// Provider task or sub-agent activity.
@@ -87,6 +89,39 @@ public enum AgentEvent: Codable, Equatable, Sendable {
     case diagnostic(AgentDiagnosticEvent)
     /// Raw provider output retained for debugging or compatibility.
     case rawOutput(AgentRawOutputEvent)
+}
+
+/// Provider turn or thread activity state used for runtime work detection.
+public struct AgentActivityEvent: Codable, Equatable, Sendable {
+    /// Activity state.
+    public let state: AgentActivityState
+    /// Provider turn identifier when known.
+    public let turnId: String?
+    /// Provider-specific activity metadata.
+    public let metadata: [String: JSONValue]
+
+    /// Creates an activity event.
+    public init(state: AgentActivityState, turnId: String? = nil, metadata: [String: JSONValue] = [:]) {
+        self.state = state
+        self.turnId = turnId
+        self.metadata = metadata
+    }
+
+    /// Decodes activity events, defaulting metadata for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.state = try container.decode(AgentActivityState.self, forKey: .state)
+        self.turnId = try container.decodeIfPresent(String.self, forKey: .turnId)
+        self.metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
+    }
+}
+
+/// Provider activity state.
+public enum AgentActivityState: String, Codable, Hashable, Sendable {
+    /// Provider is actively working on a turn.
+    case active
+    /// Provider is not actively working on a turn.
+    case idle
 }
 
 /// Role attached to a message event or message input.

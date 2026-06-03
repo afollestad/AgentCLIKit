@@ -269,6 +269,8 @@ extension DefaultAgentRuntime {
         case .cancelled, .exited, .failed:
             states[conversationId]?.stdin = nil
             states[conversationId]?.stdinWriter = nil
+            states[conversationId]?.providerEventTasks.forEach { $0.cancel() }
+            states[conversationId]?.providerEventTasks = []
             // Cancellation publishes while the process may still be running; publish again
             // from the termination callback so hosts clear cached process-running flags.
             publishStatus(conversationId: conversationId)
@@ -287,6 +289,8 @@ extension DefaultAgentRuntime {
         emitLifecycle(state, conversationId: conversationId, exitCode: exitCode)
         states[conversationId]?.stdin = nil
         states[conversationId]?.stdinWriter = nil
+        states[conversationId]?.providerEventTasks.forEach { $0.cancel() }
+        states[conversationId]?.providerEventTasks = []
         await latest.adapter.processDidTerminate(processToken: processToken)
     }
 
@@ -412,6 +416,11 @@ extension DefaultAgentRuntime {
 
     private func applyStatusSideEffects(for event: AgentEvent, state: inout ConversationState) {
         switch event {
+        case let .activity(activity):
+            state.isTurnActive = activity.state == .active
+            if activity.state == .idle, state.waitingState == .idle, !state.lifecycleState.isTerminal {
+                state.inputAvailability = .available
+            }
         case let .permissionMode(permissionMode):
             state.permissionMode = permissionMode.mode
         case let .interaction(interaction):

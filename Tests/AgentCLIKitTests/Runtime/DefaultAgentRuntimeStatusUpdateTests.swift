@@ -146,6 +146,31 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
+    func testStatusUsesProviderOwnedActivityEvents() async throws {
+        let activitySource = ProviderActivitySource()
+        let runtime = DefaultAgentRuntime(adapters: [
+            ActivityReportingProviderAdapter(command: shell("sleep 1"), activitySource: activitySource)
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        await waitForActivitySource(activitySource)
+        await activitySource.emit(AgentProviderRuntimeEvent(event: .activity(AgentActivityEvent(state: .active, turnId: "turn-1"))))
+        let active = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.isTurnActive
+        }
+
+        XCTAssertTrue(active?.isTurnActive == true)
+
+        await activitySource.emit(AgentProviderRuntimeEvent(event: .activity(AgentActivityEvent(state: .idle, turnId: "turn-1"))))
+        let idle = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            !status.isTurnActive && status.lastEventIndex >= 2
+        }
+
+        XCTAssertFalse(idle?.isTurnActive == true)
+
+        await runtime.shutdown()
+    }
+
     private static func collect(
         _ iterator: inout AsyncStream<AgentRuntimeStatus>.Iterator,
         until isComplete: @escaping @Sendable ([AgentRuntimeStatus]) -> Bool
@@ -175,6 +200,15 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 10_000_000)
         }
         return await runtime.status(conversationId: conversationId)
+    }
+
+    private func waitForActivitySource(_ activitySource: ProviderActivitySource) async {
+        for _ in 0..<100 {
+            if await activitySource.isReady {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
     }
 
     private func waitUntilStatus(
@@ -214,6 +248,23 @@ private actor StatusAccumulator {
     }
 }
 
+private actor ProviderActivitySource {
+    private var continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation?
+    var isReady: Bool {
+        continuation != nil
+    }
+
+    func stream() -> AsyncStream<AgentProviderRuntimeEvent> {
+        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+        continuation = stream.continuation
+        return stream.stream
+    }
+
+    func emit(_ event: AgentProviderRuntimeEvent) {
+        continuation?.yield(event)
+    }
+}
+
 private struct StatusReportingProviderAdapter: AgentProviderAdapter {
     let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
@@ -250,5 +301,30 @@ private struct StatusReportingProviderAdapter: AgentProviderAdapter {
             return Data((message.text + "\n").utf8)
         }
         return Data()
+    }
+}
+
+private struct ActivityReportingProviderAdapter: AgentProviderAdapter {
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let command: AgentLaunchConfiguration
+    let activitySource: ProviderActivitySource
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?
+    ) async throws -> AgentLaunchConfiguration {
+        command
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        []
+    }
+
+    func encodeInput(_ input: AgentInput) async throws -> Data {
+        Data()
+    }
+
+    func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
+        await activitySource.stream()
     }
 }

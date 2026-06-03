@@ -33,6 +33,15 @@ public protocol AgentProviderAdapter: Sendable {
     /// Encodes host input into provider stdin data.
     func encodeInput(_ input: AgentInput) async throws -> Data
 
+    /// Encodes host input with runtime context into provider stdin data.
+    func encodeInput(_ input: AgentInput, context: AgentProviderInputContext) async throws -> Data
+
+    /// Subscribes to provider-owned runtime events that do not arrive through stdout or stderr.
+    func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent>
+
+    /// Sends a provider-native interruption request for the active turn, if supported.
+    func interrupt(context: AgentProviderInterruptContext) async throws
+
     /// Notifies the provider that runtime-observed permission mode changed for a conversation.
     func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async
 
@@ -60,6 +69,21 @@ public extension AgentProviderAdapter {
         nil
     }
 
+    /// Encodes input using the legacy provider stdin encoder.
+    func encodeInput(_ input: AgentInput, context: AgentProviderInputContext) async throws -> Data {
+        try await encodeInput(input)
+    }
+
+    /// Returns an immediately finished stream for providers that only emit process stdout or stderr.
+    func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+
+    /// Performs no provider-native interruption for process-only providers.
+    func interrupt(context: AgentProviderInterruptContext) async throws {}
+
     /// Does nothing for providers without permission-mode-sensitive runtime resources.
     func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async {}
 
@@ -68,6 +92,103 @@ public extension AgentProviderAdapter {
 
     /// Does nothing for providers that do not retain shared runtime resources.
     func shutdownProviderResources() async {}
+}
+
+/// Runtime context supplied while a provider encodes host input.
+public struct AgentProviderInputContext: Sendable {
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Runtime process generation token.
+    public let processToken: UUID
+    /// Provider session identifier known to the runtime.
+    public let providerSessionId: AgentSessionID?
+    /// Spawn configuration for the active process generation.
+    public let spawnConfig: AgentSpawnConfig
+    /// Whether the runtime currently considers a provider turn active.
+    public let isTurnActive: Bool
+
+    /// Creates provider input context.
+    public init(
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        providerSessionId: AgentSessionID?,
+        spawnConfig: AgentSpawnConfig,
+        isTurnActive: Bool
+    ) {
+        self.conversationId = conversationId
+        self.processToken = processToken
+        self.providerSessionId = providerSessionId
+        self.spawnConfig = spawnConfig
+        self.isTurnActive = isTurnActive
+    }
+}
+
+/// Runtime context used to attach provider-owned event streams.
+public struct AgentProviderRuntimeContext: Sendable {
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Runtime process generation token.
+    public let processToken: UUID
+    /// Provider session identifier known to the runtime.
+    public let providerSessionId: AgentSessionID?
+    /// Spawn configuration for the active process generation.
+    public let spawnConfig: AgentSpawnConfig
+
+    /// Creates provider runtime event context.
+    public init(
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        providerSessionId: AgentSessionID?,
+        spawnConfig: AgentSpawnConfig
+    ) {
+        self.conversationId = conversationId
+        self.processToken = processToken
+        self.providerSessionId = providerSessionId
+        self.spawnConfig = spawnConfig
+    }
+}
+
+/// Runtime context supplied for provider-native turn interruption.
+public struct AgentProviderInterruptContext: Sendable {
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Runtime process generation token.
+    public let processToken: UUID
+    /// Provider session identifier known to the runtime.
+    public let providerSessionId: AgentSessionID?
+    /// Spawn configuration for the active process generation.
+    public let spawnConfig: AgentSpawnConfig
+    /// Optional host-supplied cancellation reason.
+    public let reason: String?
+
+    /// Creates provider interruption context.
+    public init(
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        providerSessionId: AgentSessionID?,
+        spawnConfig: AgentSpawnConfig,
+        reason: String? = nil
+    ) {
+        self.conversationId = conversationId
+        self.processToken = processToken
+        self.providerSessionId = providerSessionId
+        self.spawnConfig = spawnConfig
+        self.reason = reason
+    }
+}
+
+/// Event emitted by provider-owned runtime resources outside process stdout and stderr.
+public struct AgentProviderRuntimeEvent: Sendable {
+    /// Provider-neutral event payload.
+    public let event: AgentEvent
+    /// Event source to store in the runtime envelope.
+    public let source: AgentEventSource
+
+    /// Creates a provider runtime event.
+    public init(event: AgentEvent, source: AgentEventSource = .runtime) {
+        self.event = event
+        self.source = source
+    }
 }
 
 /// Process launch configuration produced by a provider adapter.

@@ -60,6 +60,8 @@ extension DemoModel {
             handleUsage(usage, envelope: envelope, sessionID: sessionID)
         case .rateLimit(let rateLimit):
             handleRateLimit(rateLimit, envelope: envelope, sessionID: sessionID)
+        case .activity(let activity):
+            handleActivity(activity, sessionID: sessionID)
         case .permissionMode(let permissionMode):
             appendAgentEvent(.status("Permission: \(permissionMode.mode)"), envelope: envelope, sessionID: sessionID)
         case .task(let task):
@@ -155,6 +157,19 @@ extension DemoModel {
             }
         default:
             appendAgentEvent(.rateLimit(summary), envelope: envelope, sessionID: sessionID)
+        }
+    }
+
+    private func handleActivity(_ activity: AgentActivityEvent, sessionID: AgentConversationID) {
+        updateTurnState(for: sessionID) { state in
+            switch activity.state {
+            case .active:
+                state.isActive = true
+                state.statusMessage = "Working"
+            case .idle:
+                state.isActive = false
+                state.statusMessage = nil
+            }
         }
     }
 

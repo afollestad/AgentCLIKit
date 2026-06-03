@@ -35,6 +35,7 @@ struct ConversationState {
     var hasDeferredToolStop: Bool
     var providerResumeReplayGate: ProviderResumeReplayGate?
     var outputPumps: [OutputLinePump]
+    var providerEventTasks: [Task<Void, Never>]
 
     mutating func compactReplayBuffer(replayLimit: Int) {
         // Acknowledged events can be trimmed to a small tail; unacknowledged events stay available for host recovery.
@@ -163,7 +164,7 @@ extension AgentEvent {
         case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode, .task,
              .interaction, .rawOutput:
             true
-        case .sessionContinuity, .lifecycle, .diagnostic:
+        case .activity, .sessionContinuity, .lifecycle, .diagnostic:
             false
         }
     }

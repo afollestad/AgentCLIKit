@@ -96,7 +96,7 @@ enum ProviderResumeReplayFingerprint: Equatable {
             )
         case .rawOutput(let rawOutput):
             self = .rawOutput(text: rawOutput.text, isComplete: rawOutput.isComplete)
-        case .sessionContinuity, .lifecycle, .diagnostic:
+        case .activity, .sessionContinuity, .lifecycle, .diagnostic:
             return nil
         }
     }

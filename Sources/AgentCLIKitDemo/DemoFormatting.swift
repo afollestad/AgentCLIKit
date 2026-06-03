@@ -93,6 +93,9 @@ extension DemoModel {
             return "usage stop_reason=\(stopReason)"
         case .rateLimit(let rateLimit):
             return "rate_limit \(rateLimitSummary(rateLimit))"
+        case .activity(let activity):
+            let turnId = activity.turnId.map { " turn_id=\($0)" } ?? ""
+            return "activity state=\(activity.state.rawValue)\(turnId)"
         case .permissionMode(let permissionMode):
             return "permission_mode mode=\(permissionMode.mode)"
         case .task(let task):
