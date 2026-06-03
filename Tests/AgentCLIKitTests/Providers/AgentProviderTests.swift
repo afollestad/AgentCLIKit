@@ -11,11 +11,11 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertEqual(decoded.rawValue, "codex")
     }
 
-    func testDefaultAdapterSetExposesClaudeDefinition() {
+    func testDefaultAdapterSetExposesBuiltInRuntimeDefinitions() {
         let adapterSet = AgentProviderAdapterSet.default
 
-        XCTAssertEqual(adapterSet.definitions.map(\.id), [.claude])
-        XCTAssertEqual(adapterSet.definitions.first?.displayName, "Claude")
+        XCTAssertEqual(adapterSet.definitions.map(\.id), [.claude, .codex])
+        XCTAssertEqual(adapterSet.definitions.map(\.displayName), ["Claude", "Codex"])
     }
 
     func testBuiltInProviderDefinitionsIncludeClaudeAndCodexWithoutRuntimeAdapters() {
@@ -33,9 +33,10 @@ final class AgentProviderTests: XCTestCase {
             FakeProviderAdapter(command: AgentLaunchConfiguration(executable: "/usr/bin/true"))
         ])
 
-        XCTAssertEqual(adapterSet.adapters.count, 1)
+        XCTAssertEqual(adapterSet.adapters.count, 2)
         XCTAssertEqual(adapterSet.definitions.first?.id, .claude)
         XCTAssertEqual(adapterSet.definitions.first?.displayName, "Fake")
+        XCTAssertEqual(adapterSet.definitions.last?.id, .codex)
     }
 
     func testDefaultAdapterSetAcceptsClaudeConfiguration() async throws {

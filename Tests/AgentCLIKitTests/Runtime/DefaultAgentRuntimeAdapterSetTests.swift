@@ -3,12 +3,13 @@ import XCTest
 @testable import AgentCLIKit
 
 extension DefaultAgentRuntimeTests {
-    func testDefaultRuntimeRegistersBuiltInClaudeAdapter() async {
+    func testDefaultRuntimeRegistersBuiltInAdapters() async {
         let runtime = DefaultAgentRuntime()
 
         let adapters = await runtime.adapters
 
         XCTAssertEqual(adapters[.claude]?.definition.displayName, "Claude")
+        XCTAssertEqual(adapters[.codex]?.definition.displayName, "Codex")
     }
 
     func testRuntimeAdapterSetKeepsExplicitAdapterOverride() async {
@@ -19,6 +20,7 @@ extension DefaultAgentRuntimeTests {
         let adapters = await runtime.adapters
 
         XCTAssertEqual(adapters[.claude]?.definition.displayName, "Fake")
+        XCTAssertEqual(adapters[.codex]?.definition.displayName, "Codex")
     }
 
     func testEmptyAdapterSetReportsProviderNotRegistered() async throws {

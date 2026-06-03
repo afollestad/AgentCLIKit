@@ -12,13 +12,18 @@ public struct AgentProviderAdapterSet: Sendable {
 
     /// Built-in AgentCLIKit providers using their default configuration.
     public static let `default` = AgentProviderAdapterSet(adapters: [
-        ClaudeProviderAdapter()
+        ClaudeProviderAdapter(),
+        CodexProviderAdapter()
     ])
 
-    /// Creates the built-in provider set with a custom Claude configuration.
-    public static func `default`(claude: ClaudeProviderAdapter.Configuration) -> AgentProviderAdapterSet {
+    /// Creates the built-in provider set with custom provider configurations.
+    public static func `default`(
+        claude: ClaudeProviderAdapter.Configuration,
+        codex: CodexProviderAdapter.Configuration = CodexProviderAdapter.Configuration()
+    ) -> AgentProviderAdapterSet {
         AgentProviderAdapterSet(adapters: [
-            ClaudeProviderAdapter(configuration: claude)
+            ClaudeProviderAdapter(configuration: claude),
+            CodexProviderAdapter(configuration: codex)
         ])
     }
 

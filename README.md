@@ -46,13 +46,17 @@ let runtime = DefaultAgentRuntime(
 )
 ```
 
-Hosts that need custom Claude hook stores or test adapters can provide an adapter set:
+The default adapter set includes Claude and Codex runtime adapters. Codex starts its App Server lazily only when a `.codex`
+conversation is spawned; static provider metadata and discovery do not launch it.
+
+Hosts that need custom Claude hook stores, Codex App Server configuration, or test adapters can provide an adapter set:
 
 ```swift
 let adapterSet = AgentProviderAdapterSet.default(
     claude: ClaudeProviderAdapter.Configuration(
         hookDecisionProvider: hookDecisionProvider
-    )
+    ),
+    codex: CodexProviderAdapter.Configuration()
 )
 let runtime = DefaultAgentRuntime(adapterSet: adapterSet, sessionStore: sessionStore)
 ```

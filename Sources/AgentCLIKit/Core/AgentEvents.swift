@@ -366,6 +366,16 @@ public enum AgentDiagnosticCode: String, Codable, Hashable, Sendable {
     case hookApprovalFailed
     /// Provider session persistence failed.
     case sessionStoreSaveFailed
+    /// Codex App Server process exited unexpectedly.
+    case codexAppServerCrash
+    /// Codex App Server returned a JSON-RPC error response.
+    case codexAppServerJSONRPCError
+    /// Codex App Server request timed out.
+    case codexAppServerRequestTimeout
+    /// Codex App Server request response could not be sent.
+    case codexAppServerResponseFailure
+    /// Codex App Server shutdown timed out.
+    case codexAppServerShutdownTimeout
 }
 
 /// Severity for diagnostic events.
