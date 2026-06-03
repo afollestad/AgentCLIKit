@@ -4,17 +4,18 @@ import Darwin
 #endif
 
 #if canImport(Darwin)
-final class ClaudeConfigFileObserver: @unchecked Sendable {
+final class AgentConfigFileObserver: @unchecked Sendable {
     private let configURL: URL
-    private let queue = DispatchQueue(label: "com.agentclikit.claude-config-observer")
+    private let queue: DispatchQueue
     private let onChange: @Sendable () -> Void
     private var directoryDescriptor: CInt = -1
     private var directorySource: DispatchSourceFileSystemObject?
     private var fileDescriptor: CInt = -1
     private var fileSource: DispatchSourceFileSystemObject?
 
-    init?(configURL: URL, onChange: @escaping @Sendable () -> Void) {
+    init?(configURL: URL, queueLabel: String, onChange: @escaping @Sendable () -> Void) {
         self.configURL = configURL
+        self.queue = DispatchQueue(label: queueLabel)
         self.onChange = onChange
 
         let directoryURL = configURL.deletingLastPathComponent()
@@ -82,8 +83,8 @@ final class ClaudeConfigFileObserver: @unchecked Sendable {
     }
 }
 #else
-final class ClaudeConfigFileObserver: @unchecked Sendable {
-    init?(configURL: URL, onChange: @escaping @Sendable () -> Void) {
+final class AgentConfigFileObserver: @unchecked Sendable {
+    init?(configURL: URL, queueLabel: String, onChange: @escaping @Sendable () -> Void) {
         return nil
     }
 }

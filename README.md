@@ -32,7 +32,7 @@ AgentCLIKit is split into provider-neutral subsystems and provider implementatio
 - `MCP`: provider-agnostic MCP server management.
 - `Skills`: provider skill-directory scanning and sync helpers.
 - `Claude`: Claude Code adapter, config, hooks, approval policy, MCP bridge, and stream decoding.
-- `Codex`: Codex App Server metadata, scoped guidance, and protocol validation fixtures.
+- `Codex`: Codex App Server adapter, `.codex` config, App Server protocol decoding, approval handling, MCP bridge, and validation fixtures.
 
 Host apps own UI state, persistence, drafts, notifications, and queueing policy. AgentCLIKit owns runtime mechanics and emits provider-neutral events that hosts can persist or render however they want.
 
@@ -132,7 +132,8 @@ try await runtime.send(
 )
 ```
 
-Provider adapters serialize input in their native format. Claude writes stream JSON; future providers can use JSONL, plain text, or another bridge while keeping the same host-facing API.
+Provider adapters serialize input in their native format. Claude writes stream JSON, while Codex sends turn input and
+steering through App Server JSON-RPC while keeping the same host-facing API.
 
 ## Observe Status
 
@@ -171,7 +172,10 @@ Resolution is idempotent for a runtime conversation, so duplicate UI actions do 
 
 ## Provider Setup
 
-Claude-specific config, setup, MCP bridging, hook approval, and stream decoding live under `Claude/`. Generic host code should depend on `AgentRuntime`, `AgentProviderAdapter`, `AgentProviderSetup`, `AgentEventEnvelope`, `AgentInput`, and provider-neutral store/service protocols.
+Claude-specific config, setup, MCP bridging, hook approval, and stream decoding live under `Claude/`. Codex-specific App
+Server transport, `.codex` config, setup, MCP bridging, approval mapping, and protocol decoding live under `Codex/`.
+Generic host code should depend on `AgentRuntime`, `AgentProviderAdapter`, `AgentProviderSetup`, `AgentEventEnvelope`,
+`AgentInput`, and provider-neutral store/service protocols.
 
 Provider setup services prepare local provider config before launch. Claude setup can trust a project while preserving unrelated Claude config such as MCP servers:
 
@@ -179,6 +183,19 @@ Provider setup services prepare local provider config before launch. Claude setu
 let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: claudeConfigURL)
 try await setup.trustProject(at: projectPath)
 ```
+
+Codex setup writes Codex's documented user-level project trust table, separate from auth readiness. AgentCLIKit can report
+inspectable credential material, but it does not trigger `codex login`:
+
+```swift
+let codexSetup = CodexProviderSetup(codexHomeDirectoryURL: codexHomeURL)
+try await codexSetup.trustProject(at: projectPath)
+let authReadiness = codexSetup.authReadiness()
+```
+
+`CodexConfigStore` can read/write user-level `~/.codex/config.toml` or project-level `.codex/config.toml`. Project config
+should be loaded through `loadTrustedProjectConfig(for:)` when a host wants to mirror Codex behavior, because Codex ignores
+project `.codex/` layers until the user-level config marks that project trusted.
 
 Use `AgentProjectTrustService` when host UI needs provider-neutral project readiness. Cached status is synchronous and does not touch disk, while refreshed status can perform provider-specific config reads:
 
@@ -291,9 +308,9 @@ var taskLists = AgentTaskListReducer()
 let updatedSnapshots = taskLists.append(contentsOf: envelopes)
 ```
 
-AgentCLIKit also provides provider-neutral MCP config stores, Claude MCP bridging, skill scanning/sync helpers, model
-context-window caches, and context handoff prompt helpers. These primitives are host-neutral; apps still own settings UI and
-project policy.
+AgentCLIKit also provides provider-neutral MCP config stores, Claude and Codex MCP bridging, skill scanning/sync helpers,
+model context-window caches, and context handoff prompt helpers. These primitives are host-neutral; apps still own settings
+UI and project policy.
 
 ## Validation
 

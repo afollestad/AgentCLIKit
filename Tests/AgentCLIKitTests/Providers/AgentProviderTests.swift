@@ -26,6 +26,7 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertTrue(definitions[0].capabilities.supportsHooks)
         XCTAssertFalse(definitions[1].capabilities.supportsHooks)
         XCTAssertTrue(definitions[1].capabilities.supportsModelListing)
+        XCTAssertEqual(definitions[1].supportedPermissionModes?.map(\.value), ["untrusted", "on-request", "never"])
     }
 
     func testAdapterSetOverridesBuiltInAdapters() {

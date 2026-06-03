@@ -26,6 +26,23 @@ public enum CodexProviderDefinition {
             supportsNativeThreadFork: true,
             supportsPermissionPrompts: true,
             supportsModelListing: true
-        )
+        ),
+        supportedPermissionModes: [
+            AgentProviderOption(
+                value: "untrusted",
+                label: "Untrusted",
+                description: "Only known-safe read-only commands run without approval; other commands prompt."
+            ),
+            AgentProviderOption(
+                value: "on-request",
+                label: "On request",
+                description: "Codex decides when to request approval for higher-risk commands."
+            ),
+            AgentProviderOption(
+                value: "never",
+                label: "Never ask",
+                description: "Codex never prompts for command approval and returns failures directly to the model."
+            )
+        ]
     )
 }

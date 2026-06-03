@@ -275,6 +275,19 @@ final class CodexNotificationPhase8Tests: XCTestCase {
         ])
     }
 
+    func testIgnoresUnsupportedReviewModeNotifications() {
+        let events = decoder.decode(notification(
+            method: "review/session/updated",
+            params: [
+                "threadId": .string("thread-1"),
+                "turnId": .string("turn-1"),
+                "status": .string("active")
+            ]
+        ))
+
+        XCTAssertEqual(events.map(\.event), [])
+    }
+
     private func notification(method: String, params: [String: JSONValue]) -> CodexAppServerNotification {
         CodexAppServerNotification(method: method, params: .object(params))
     }

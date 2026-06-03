@@ -19,6 +19,11 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentProviderRuntimeEvent.self)
         assertSendable(AgentProjectTrustStatus.self)
         assertSendable(DefaultAgentProjectTrustService.self)
+        assertSendable(CodexConfig.self)
+        assertSendable(CodexConfigSnapshot.self)
+        assertSendable(CodexMCPServerConfig.self)
+        assertSendable(CodexAuthReadiness.self)
+        assertSendable(CodexAuthProbe.self)
         assertSendable(ClaudeProviderAdapter.Configuration.self)
         assertSendable(MainActorClaudeHookDecisionProvider.self)
     }

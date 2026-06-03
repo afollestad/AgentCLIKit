@@ -70,7 +70,7 @@ public struct ClaudeMCPServerConfig: Codable, Equatable, Sendable {
 public actor ClaudeConfigStore {
     private let fileURL: URL
     private let snapshotCache: ClaudeConfigSnapshotCache
-    private var fileObserver: ClaudeConfigFileObserver?
+    private var fileObserver: AgentConfigFileObserver?
     private var cachedRoot: [String: Any]
     private var lastObservedCanonicalJSON: String
     private var snapshotContinuations: [UUID: AsyncStream<ClaudeConfigSnapshot>.Continuation] = [:]
@@ -287,7 +287,10 @@ public actor ClaudeConfigStore {
         guard fileObserver == nil else {
             return
         }
-        fileObserver = ClaudeConfigFileObserver(configURL: fileURL) { [weak self] in
+        fileObserver = AgentConfigFileObserver(
+            configURL: fileURL,
+            queueLabel: "com.agentclikit.claude-config-observer"
+        ) { [weak self] in
             Task {
                 await self?.refreshCacheFromObserver()
             }
