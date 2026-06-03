@@ -88,10 +88,23 @@ struct DemoShellView: View {
                 session: session,
                 rows: model.currentRows,
                 turnState: model.currentTurnState,
+                providerId: model.providerId(for: session.id),
+                selectedModelOptionID: model.selectedModelOptionID(for: session.id),
+                providerStatuses: model.providerStatuses,
+                providerOrdering: model.providerOrdering,
+                canEditProviderSelection: model.canEditProviderSelection(for: session.id),
                 draft: $draft,
                 onSend: { model.sendCurrentMessage($0) },
                 onCancel: { model.cancelCurrentSession() },
-                onSubmitPrompt: { model.submitPromptAnswers(promptID: $0, answers: $1) }
+                onSubmitPrompt: { model.submitPromptAnswers(promptID: $0, answers: $1) },
+                onProviderChange: { model.setProvider($0, for: session.id) },
+                onModelChange: { model.setModelOptionID($0, for: session.id) },
+                onTrustProject: { model.trustProject(for: session.id) },
+                onRefreshProviders: {
+                    Task {
+                        await model.refreshProviderStatuses()
+                    }
+                }
             )
             .id(session.id)
         } else {
@@ -104,10 +117,19 @@ private struct ChatDetailView: View {
     let session: DemoSession
     let rows: [DemoChatRow]
     let turnState: DemoTurnState
+    let providerId: AgentProviderID
+    let selectedModelOptionID: String
+    let providerStatuses: [AgentProviderID: AgentProviderStatus]
+    let providerOrdering: [AgentProviderID]
+    let canEditProviderSelection: Bool
     @Binding var draft: String
     var onSend: (String) -> Void
     var onCancel: () -> Void
     var onSubmitPrompt: (AgentInteractionID, [DemoPromptAnswer]) -> Void
+    var onProviderChange: (AgentProviderID) -> Void
+    var onModelChange: (String) -> Void
+    var onTrustProject: () -> Void
+    var onRefreshProviders: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -141,6 +163,19 @@ private struct ChatDetailView: View {
                 }
             }
             Divider()
+            ProviderComposerControls(
+                providerId: providerId,
+                selectedModelOptionID: selectedModelOptionID,
+                providerStatuses: providerStatuses,
+                providerOrdering: providerOrdering,
+                canEditProviderSelection: canEditProviderSelection,
+                onProviderChange: onProviderChange,
+                onModelChange: onModelChange,
+                onTrustProject: onTrustProject,
+                onRefreshProviders: onRefreshProviders
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 10)
             ComposerView(text: $draft) {
                 let outbound = draft
                 draft = ""
@@ -227,6 +262,113 @@ private struct ChatDetailView: View {
         }
         let previous = visibleRows[index - 1]
         return previous.side == row.side ? 6 : 12
+    }
+}
+
+private struct ProviderComposerControls: View {
+    let providerId: AgentProviderID
+    let selectedModelOptionID: String
+    let providerStatuses: [AgentProviderID: AgentProviderStatus]
+    let providerOrdering: [AgentProviderID]
+    let canEditProviderSelection: Bool
+    var onProviderChange: (AgentProviderID) -> Void
+    var onModelChange: (String) -> Void
+    var onTrustProject: () -> Void
+    var onRefreshProviders: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Picker("Provider", selection: providerBinding) {
+                ForEach(orderedProviderIds, id: \.self) { providerID in
+                    Text(providerStatuses[providerID]?.definition?.displayName ?? providerID.rawValue.capitalized)
+                        .tag(providerID)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 130)
+            .disabled(!canEditProviderSelection)
+
+            Picker("Model", selection: modelBinding) {
+                ForEach(modelOptions, id: \.id) { option in
+                    Text(option.label).tag(option.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(width: 170)
+            .disabled(!canEditProviderSelection || modelOptions.count <= 1)
+
+            Text(statusText)
+                .font(.caption)
+                .foregroundStyle(isReady ? Color.secondary : Color.orange)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if shouldShowTrustButton {
+                Button(action: onTrustProject) {
+                    Label("Trust Project", systemImage: "checkmark.shield")
+                }
+                .buttonStyle(.borderless)
+                .help("Trust this project for \(providerDisplayName)")
+            }
+
+            Button(action: onRefreshProviders) {
+                Label("Refresh", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.borderless)
+            .help("Refresh provider status")
+        }
+        .controlSize(.small)
+    }
+
+    private var providerBinding: Binding<AgentProviderID> {
+        Binding(
+            get: { providerId },
+            set: { newValue in onProviderChange(newValue) }
+        )
+    }
+
+    private var modelBinding: Binding<String> {
+        Binding(
+            get: { selectedModelOptionID },
+            set: { newValue in onModelChange(newValue) }
+        )
+    }
+
+    private var orderedProviderIds: [AgentProviderID] {
+        let extras = providerStatuses.keys.filter { !providerOrdering.contains($0) }.sorted { $0.rawValue < $1.rawValue }
+        return providerOrdering + extras
+    }
+
+    private var modelOptions: [AgentModelOption] {
+        let options = providerStatuses[providerId]?.modelOptions ?? []
+        return options.isEmpty ? AgentDefaultModelOptions.providerDefault(for: providerId) : options
+    }
+
+    private var providerDisplayName: String {
+        providerStatuses[providerId]?.definition?.displayName ?? providerId.rawValue.capitalized
+    }
+
+    private var isReady: Bool {
+        providerStatuses[providerId]?.isReadyInProject == true
+    }
+
+    private var shouldShowTrustButton: Bool {
+        guard let status = providerStatuses[providerId],
+              status.isEnabled,
+              status.isInstalled,
+              status.isSetupReady,
+              let projectTrust = status.projectTrust else {
+            return false
+        }
+        return !projectTrust.allowsProviderWork
+    }
+
+    private var statusText: String {
+        guard let status = providerStatuses[providerId] else {
+            return "Status unknown"
+        }
+        return DemoModel.providerStatusSummary(status)
     }
 }
 

@@ -282,7 +282,7 @@ try await runtime.resolveInteraction(answer.resolution(), conversationId: conver
 
 ## Provider UI Helpers
 
-Provider readiness and selection UI can observe the registry:
+Provider readiness and selection UI can observe the registry for definition-level changes:
 
 ```swift
 for await readiness in await providerRegistry.readinessUpdates() {
@@ -293,6 +293,26 @@ for await readiness in await providerRegistry.readinessUpdates() {
 `AgentProviderDefinition` exposes executable candidates, version arguments, supported permission modes, effort levels, and
 capability metadata for host settings. `AgentProviderDetector` resolves executables through absolute paths, `PATH`, common
 shell init files, and standard install locations.
+
+Use `AgentProviderDiscoveryService` when UI needs installed/available providers, enablement, setup readiness, scoped
+project trust, diagnostics, and selectable models in one provider-keyed snapshot:
+
+```swift
+let setups: [any AgentProviderSetup] = [
+    ClaudeProviderSetup(configStore: ClaudeConfigStore()),
+    CodexProviderSetup()
+]
+let discovery = DefaultAgentProviderDiscoveryService(providerSetups: setups)
+let statuses = await discovery.providerStatuses(projectURL: projectURL)
+let ordering = await discovery.stableProviderOrdering()
+let codexModels = await discovery.modelOptions(for: .codex)
+```
+
+`AgentProviderStatus` includes `isInstalled`, `isSetupReady`, and `isReadyInProject` conveniences for host filtering.
+`installedProviderStatuses(projectURL:)` returns only installed providers, while
+`availableProviderStatuses(projectURL:)` keeps enabled providers with unknown installation state so optimistic UI can still
+surface them. `CodexAppServerModelOptionSource` can query Codex `model/list`, but it starts a temporary App Server
+transport when called; the default discovery service uses static/cache-safe options and does not launch Codex.
 
 Transcript and metrics helpers provide renderable host projections:
 

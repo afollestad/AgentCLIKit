@@ -42,7 +42,8 @@ struct DemoSession: Identifiable {
 
     var title: String {
         if let rawValue = record?.providerSessionId.rawValue, !rawValue.isEmpty {
-            return "Claude \(rawValue.prefix(8))"
+            let providerName = record?.providerId.rawValue.capitalized ?? "Provider"
+            return "\(providerName) \(rawValue.prefix(8))"
         }
         return "Session \(id.rawValue.prefix(8))"
     }

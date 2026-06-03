@@ -7,9 +7,15 @@ final class DemoModel: ObservableObject {
     @Published var selectedSessionID: AgentConversationID?
     @Published var rowsBySession: [AgentConversationID: [DemoChatRow]] = [:]
     @Published var turnStates: [AgentConversationID: DemoTurnState] = [:]
+    @Published var providerStatuses: [AgentProviderID: AgentProviderStatus] = [:]
+    @Published var providerOrdering: [AgentProviderID] = AgentProviderID.allCases
+    @Published private var providerSelectionBySession: [AgentConversationID: AgentProviderID] = [:]
+    @Published private var modelSelectionBySession: [AgentConversationID: String] = [:]
 
     private let sessionStore: JSONFileAgentSessionStore
     private let runtime: DefaultAgentRuntime
+    private let providerDiscovery: DefaultAgentProviderDiscoveryService
+    private let projectTrustService: DefaultAgentProjectTrustService
     let hookDecisionProvider: DemoHookDecisionProvider
     private let workingDirectory: URL
     var spawnedSessionIDs: Set<AgentConversationID> = []
@@ -20,8 +26,19 @@ final class DemoModel: ObservableObject {
     init() {
         let store = JSONFileAgentSessionStore(fileURL: Self.sessionStoreURL())
         let hookDecisionProvider = DemoHookDecisionProvider()
+        let providerSetups: [any AgentProviderSetup] = [
+            ClaudeProviderSetup(configStore: ClaudeConfigStore()),
+            CodexProviderSetup()
+        ]
+        let projectTrustService = DefaultAgentProjectTrustService(setups: providerSetups)
         self.sessionStore = store
         self.hookDecisionProvider = hookDecisionProvider
+        self.projectTrustService = projectTrustService
+        self.providerDiscovery = DefaultAgentProviderDiscoveryService(
+            projectTrustService: projectTrustService,
+            providerSetups: providerSetups,
+            modelOptionSource: CodexAppServerModelOptionSource()
+        )
         let adapterSet = AgentProviderAdapterSet.default(
             claude: ClaudeProviderAdapter.Configuration(
                 hookDecisionProvider: hookDecisionProvider,
@@ -34,7 +51,10 @@ final class DemoModel: ObservableObject {
         )
         self.workingDirectory = URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)
         hookDecisionProvider.bind(model: self)
-        Task { await loadSessions() }
+        Task {
+            await loadSessions()
+            await refreshProviderStatuses()
+        }
     }
 
     var currentSession: DemoSession? {
@@ -64,6 +84,9 @@ final class DemoModel: ObservableObject {
             sessions = records.map { record in
                 DemoSession(id: record.conversationId, record: record, createdAt: record.createdAt)
             }
+            for record in records {
+                providerSelectionBySession[record.conversationId] = record.providerId
+            }
             if sessions.isEmpty {
                 addSession()
             } else {
@@ -85,7 +108,86 @@ final class DemoModel: ObservableObject {
         sessions.append(session)
         rowsBySession[id] = []
         turnStates[id] = DemoTurnState()
+        providerSelectionBySession[id] = defaultProviderId()
+        modelSelectionBySession[id] = defaultModelOptionID(providerId: providerSelectionBySession[id] ?? .claude)
         selectedSessionID = id
+    }
+
+    func refreshProviderStatuses() async {
+        let statuses = await providerDiscovery.providerStatuses(projectURL: workingDirectory)
+        providerStatuses = statuses
+        providerOrdering = await providerDiscovery.stableProviderOrdering()
+        let fallbackProviderId = defaultProviderId()
+        for session in sessions where session.record == nil && !spawnedSessionIDs.contains(session.id) {
+            let hasRows = rowsBySession[session.id]?.isEmpty == false
+            guard !hasRows else {
+                continue
+            }
+            let selectedProviderId = providerSelectionBySession[session.id]
+            if selectedProviderId == nil || providerStatuses[selectedProviderId ?? fallbackProviderId]?.isReadyInProject != true {
+                providerSelectionBySession[session.id] = fallbackProviderId
+                modelSelectionBySession[session.id] = defaultModelOptionID(providerId: fallbackProviderId)
+            }
+        }
+    }
+
+    func providerId(for sessionID: AgentConversationID) -> AgentProviderID {
+        if let record = sessions.first(where: { $0.id == sessionID })?.record {
+            return record.providerId
+        }
+        return providerSelectionBySession[sessionID] ?? defaultProviderId()
+    }
+
+    func selectedModelOptionID(for sessionID: AgentConversationID) -> String {
+        let providerId = providerId(for: sessionID)
+        let options = modelOptions(for: providerId)
+        if let selected = modelSelectionBySession[sessionID],
+           options.contains(where: { $0.id == selected }) {
+            return selected
+        }
+        return defaultModelOptionID(providerId: providerId)
+    }
+
+    func setProvider(_ providerId: AgentProviderID, for sessionID: AgentConversationID) {
+        guard canEditProviderSelection(for: sessionID) else {
+            return
+        }
+        providerSelectionBySession[sessionID] = providerId
+        modelSelectionBySession[sessionID] = defaultModelOptionID(providerId: providerId)
+    }
+
+    func setModelOptionID(_ modelOptionID: String, for sessionID: AgentConversationID) {
+        guard canEditProviderSelection(for: sessionID) else {
+            return
+        }
+        modelSelectionBySession[sessionID] = modelOptionID
+    }
+
+    func trustProject(for sessionID: AgentConversationID) {
+        guard hasSession(sessionID) else {
+            return
+        }
+        let providerId = providerId(for: sessionID)
+        let providerName = providerStatuses[providerId]?.definition?.displayName ?? providerId.rawValue.capitalized
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+            do {
+                try await projectTrustService.trustProject(providerId: providerId, projectURL: workingDirectory)
+                await refreshProviderStatuses()
+                appendDiagnostic("Trusted \(workingDirectory.path) for \(providerName).", severity: .info, to: sessionID)
+            } catch {
+                appendStatus("Could not trust project for \(providerName): \(error.localizedDescription)", to: sessionID)
+            }
+        }
+    }
+
+    func canEditProviderSelection(for sessionID: AgentConversationID) -> Bool {
+        guard let session = sessions.first(where: { $0.id == sessionID }) else {
+            return false
+        }
+        return session.record == nil && !spawnedSessionIDs.contains(sessionID) && (turnStates[sessionID]?.isActive ?? false) == false
     }
 
     func sendCurrentMessage(_ text: String) {
@@ -150,6 +252,7 @@ final class DemoModel: ObservableObject {
                 guard hasSession(sessionID) else {
                     return
                 }
+                await refreshProviderStatuses()
                 try await ensureRuntime(for: sessionID)
                 guard hasSession(sessionID) else {
                     // Deletion can happen while spawn awaits the runtime actor; tear down any process before it receives input.
@@ -179,11 +282,14 @@ final class DemoModel: ObservableObject {
         guard !spawnedSessionIDs.contains(sessionID) else {
             return
         }
+        let providerId = providerId(for: sessionID)
+        try validateProviderReadiness(providerId, sessionID: sessionID)
         try await runtime.spawn(
             conversationId: sessionID,
             config: AgentSpawnConfig(
-                providerId: ClaudeProviderAdapter.providerId,
-                workingDirectory: workingDirectory
+                providerId: providerId,
+                workingDirectory: workingDirectory,
+                model: selectedModelOption(for: sessionID, providerId: providerId)?.model
             )
         )
         spawnedSessionIDs.insert(sessionID)
@@ -234,13 +340,17 @@ final class DemoModel: ObservableObject {
     }
 
     func appendStatus(_ message: String, to sessionID: AgentConversationID?) {
+        appendDiagnostic(message, severity: .error, to: sessionID)
+    }
+
+    func appendDiagnostic(_ message: String, severity: AgentDiagnosticSeverity, to sessionID: AgentConversationID?) {
         guard let sessionID else {
             return
         }
         append(
             DemoChatRow(
                 id: "status-\(UUID().uuidString)",
-                kind: .diagnostic(severity: .error, message: message)
+                kind: .diagnostic(severity: severity, message: message)
             ),
             to: sessionID
         )
@@ -262,6 +372,39 @@ final class DemoModel: ObservableObject {
             FileHandle.standardError.write(data)
         }
     }
+
+    private func defaultProviderId() -> AgentProviderID {
+        providerOrdering.first { providerStatuses[$0]?.isReadyInProject == true }
+            ?? providerOrdering.first
+            ?? .claude
+    }
+
+    private func defaultModelOptionID(providerId: AgentProviderID) -> String {
+        let options = modelOptions(for: providerId)
+        return options.first(where: \.isDefault)?.id ?? options.first?.id ?? "default"
+    }
+
+    private func modelOptions(for providerId: AgentProviderID) -> [AgentModelOption] {
+        let options = providerStatuses[providerId]?.modelOptions ?? []
+        return options.isEmpty ? AgentDefaultModelOptions.providerDefault(for: providerId) : options
+    }
+
+    private func selectedModelOption(for sessionID: AgentConversationID, providerId: AgentProviderID) -> AgentModelOption? {
+        let options = modelOptions(for: providerId)
+        let selectedID = modelSelectionBySession[sessionID] ?? defaultModelOptionID(providerId: providerId)
+        return options.first { $0.id == selectedID } ?? options.first(where: \.isDefault) ?? options.first
+    }
+
+    private func validateProviderReadiness(_ providerId: AgentProviderID, sessionID: AgentConversationID) throws {
+        guard let status = providerStatuses[providerId] else {
+            throw AgentCLIError.providerUnavailable(providerId)
+        }
+        guard status.isReadyInProject else {
+            let message = Self.providerStatusSummary(status)
+            appendStatus(message, to: sessionID)
+            throw AgentCLIError.invalidInput(message)
+        }
+    }
 }
 
 extension DemoModel {
@@ -277,11 +420,13 @@ extension DemoModel {
             return
         }
         let session = sessions[index]
-        let providerId = session.record?.providerId ?? ClaudeProviderAdapter.providerId
+        let providerId = session.record?.providerId ?? providerSelectionBySession[sessionID] ?? ClaudeProviderAdapter.providerId
         subscriptionTasks.removeValue(forKey: sessionID)?.cancel()
         statusTasks.removeValue(forKey: sessionID)?.cancel()
         subscribedSessionIDs.remove(sessionID)
         spawnedSessionIDs.remove(sessionID)
+        providerSelectionBySession[sessionID] = nil
+        modelSelectionBySession[sessionID] = nil
         rowsBySession[sessionID] = nil
         turnStates[sessionID] = nil
         sessions.remove(at: index)

@@ -21,6 +21,8 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     }
 
     private var threadIds: [String]
+    private var modelListResponses: [JSONValue]
+    private let failModelListRequests: Bool
     private var turnIndex = 0
     private var incomingContinuations: [UUID: AsyncStream<CodexAppServerIncomingMessage>.Continuation] = [:]
     private(set) var startCount = 0
@@ -33,8 +35,10 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private(set) var errorResponseLog: [ErrorResponse] = []
     private(set) var incomingStreamCount = 0
 
-    init(threadIds: [String]) {
+    init(threadIds: [String], modelListResponses: [JSONValue] = [], failModelListRequests: Bool = false) {
         self.threadIds = threadIds
+        self.modelListResponses = modelListResponses
+        self.failModelListRequests = failModelListRequests
     }
 
     func start() async throws {
@@ -81,6 +85,14 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
             return .object(["turnId": .string("turn-\(turnIndex)")])
         case "turn/interrupt":
             return .object([:])
+        case "model/list":
+            if failModelListRequests {
+                throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "Model list failed.")
+            }
+            guard !modelListResponses.isEmpty else {
+                return .object(["data": .array([])])
+            }
+            return modelListResponses.removeFirst()
         default:
             return .null
         }

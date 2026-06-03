@@ -74,6 +74,22 @@ extension DemoModel {
         return parts.joined(separator: " - ")
     }
 
+    static func providerStatusSummary(_ status: AgentProviderStatus) -> String {
+        if !status.isEnabled {
+            return "\(status.definition?.displayName ?? status.providerId.rawValue) is disabled."
+        }
+        if !status.isInstalled {
+            return status.diagnostics.first ?? "\(status.definition?.displayName ?? status.providerId.rawValue) is not installed."
+        }
+        if !status.isSetupReady {
+            return status.diagnostics.first ?? "\(status.definition?.displayName ?? status.providerId.rawValue) needs setup."
+        }
+        if let projectTrust = status.projectTrust, !projectTrust.allowsProviderWork {
+            return "Project trust is required for \(status.definition?.displayName ?? status.providerId.rawValue)."
+        }
+        return "\(status.definition?.displayName ?? status.providerId.rawValue) ready"
+    }
+
     // swiftlint:disable:next cyclomatic_complexity
     static func eventSummary(_ event: AgentEvent) -> String {
         switch event {

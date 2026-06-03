@@ -223,6 +223,18 @@ final class CodexConfigTests: XCTestCase {
         XCTAssertEqual(trustStatus, .notTrusted)
     }
 
+    func testProviderSetupSeparatesCachedAndRefreshedAuthReadiness() async throws {
+        let codexHome = temporaryDirectory()
+        let authFileURL = codexHome.appendingPathComponent("auth.json")
+        let setup = CodexProviderSetup(codexHomeDirectoryURL: codexHome)
+        try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
+        try "{}".write(to: authFileURL, atomically: true, encoding: .utf8)
+        let refreshedReadiness = await setup.setupReadiness()
+
+        XCTAssertEqual(setup.cachedSetupReadiness(), .needsSetup)
+        XCTAssertEqual(refreshedReadiness, .ready)
+    }
+
     func testAuthProbeDetectsEnvironmentAndAuthJSONCredentialMaterial() throws {
         let authFileURL = temporaryDirectory().appendingPathComponent("auth.json")
         try FileManager.default.createDirectory(at: authFileURL.deletingLastPathComponent(), withIntermediateDirectories: true)

@@ -24,6 +24,15 @@ public protocol AgentProviderSetup: Sendable {
     /// Provider identifier this setup service manages.
     var providerId: AgentProviderID { get }
 
+    /// Returns cached provider setup readiness without disk IO or other refreshing work.
+    func cachedSetupReadiness() -> AgentProviderReadinessState
+
+    /// Returns refreshed provider setup readiness.
+    func setupReadiness() async -> AgentProviderReadinessState
+
+    /// Returns host-facing provider setup diagnostics.
+    func setupDiagnostics() async -> [String]
+
     /// Returns cached project trust without disk IO or other refreshing work.
     ///
     /// Actor conformers should implement this synchronously using a nonisolated cache so host UI can call it
@@ -38,6 +47,21 @@ public protocol AgentProviderSetup: Sendable {
 }
 
 public extension AgentProviderSetup {
+    /// Returns `.ready` for providers that do not expose additional setup gates.
+    func cachedSetupReadiness() -> AgentProviderReadinessState {
+        .ready
+    }
+
+    /// Returns `.ready` for providers that do not expose additional setup gates.
+    func setupReadiness() async -> AgentProviderReadinessState {
+        cachedSetupReadiness()
+    }
+
+    /// Returns no diagnostics for providers that do not expose additional setup gates.
+    func setupDiagnostics() async -> [String] {
+        []
+    }
+
     /// Returns `.notRequired` for providers that do not need project trust.
     func cachedProjectTrustStatus(for projectURL: URL) -> AgentProjectTrustStatus {
         .notRequired

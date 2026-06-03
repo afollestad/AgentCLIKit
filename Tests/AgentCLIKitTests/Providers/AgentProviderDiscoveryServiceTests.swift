@@ -1,0 +1,156 @@
+import XCTest
+
+@testable import AgentCLIKit
+
+final class AgentProviderDiscoveryServiceTests: XCTestCase {
+    func testProviderStatusesIncludeInstallationEnablementSetupTrustAndModels() async {
+        let projectURL = URL(fileURLWithPath: "/tmp/project", isDirectory: true)
+        let codexSetup = DiscoverySetup(
+            providerId: .codex,
+            setup: .needsSetup,
+            diagnostics: ["Codex auth is missing."],
+            trustedProjects: []
+        )
+        let service = DefaultAgentProviderDiscoveryService(
+            providerRegistry: AgentProviderRegistry(definitions: definitions),
+            executableDetector: DiscoveryDetector(availabilities: [
+                .claude: AgentProviderAvailability(providerId: .claude, executablePath: "/usr/bin/claude"),
+                .codex: AgentProviderAvailability(providerId: .codex, executablePath: nil)
+            ]),
+            providerSetups: [
+                DiscoverySetup(providerId: .claude, trustedProjects: [projectURL.path]),
+                codexSetup
+            ],
+            enablementSource: DiscoveryEnablement(disabledProviderIds: [.codex]),
+            modelOptionSource: DiscoveryModelOptions(options: [
+                .claude: [
+                    AgentModelOption(providerId: .claude, id: "sonnet", model: "sonnet", label: "Sonnet")
+                ],
+                .codex: [
+                    AgentModelOption(providerId: .codex, id: "default", model: nil, label: "Provider default", isDefault: true)
+                ]
+            ])
+        )
+
+        let statuses = await service.providerStatuses(projectURL: projectURL)
+        let ordering = await service.stableProviderOrdering()
+
+        XCTAssertEqual(ordering, [.claude, .codex])
+        XCTAssertEqual(statuses[.claude]?.installation, .installed)
+        XCTAssertEqual(statuses[.claude]?.isEnabled, true)
+        XCTAssertEqual(statuses[.claude]?.setup, .ready)
+        XCTAssertEqual(statuses[.claude]?.projectTrust, .trusted)
+        XCTAssertEqual(statuses[.claude]?.modelOptions.map(\.id), ["sonnet"])
+        XCTAssertTrue(statuses[.claude]?.isReadyInProject == true)
+        XCTAssertEqual(statuses[.codex]?.installation, .missing)
+        XCTAssertEqual(statuses[.codex]?.isEnabled, false)
+        XCTAssertEqual(statuses[.codex]?.setup, .needsSetup)
+        XCTAssertEqual(statuses[.codex]?.projectTrust, .notTrusted)
+        XCTAssertEqual(statuses[.codex]?.diagnostics, [
+            "No Codex executable was found. Checked: codex.",
+            "Codex auth is missing."
+        ])
+        XCTAssertFalse(statuses[.codex]?.isReadyInProject == true)
+    }
+
+    func testInstalledAndAvailableProviderFiltersKeepUnknownAvailableCandidates() async {
+        let service = DefaultAgentProviderDiscoveryService(
+            providerRegistry: AgentProviderRegistry(definitions: definitions),
+            executableDetector: DiscoveryDetector(availabilities: [
+                .claude: AgentProviderAvailability(providerId: .claude, executablePath: "/usr/bin/claude")
+            ]),
+            enablementSource: DiscoveryEnablement(disabledProviderIds: [])
+        )
+
+        let installed = await service.installedProviderStatuses(projectURL: nil)
+        let available = await service.availableProviderStatuses(projectURL: nil)
+
+        XCTAssertEqual(installed.keys.sorted { $0.rawValue < $1.rawValue }, [.claude])
+        XCTAssertEqual(available.keys.sorted { $0.rawValue < $1.rawValue }, [.claude, .codex])
+        XCTAssertEqual(available[.codex]?.installation, .unknown)
+    }
+
+    func testModelOptionsFallBackToProviderDefaultWhenSourceIsEmpty() async {
+        let service = DefaultAgentProviderDiscoveryService(
+            providerRegistry: AgentProviderRegistry(definitions: definitions),
+            executableDetector: DiscoveryDetector(availabilities: [:]),
+            modelOptionSource: DiscoveryModelOptions(options: [:])
+        )
+
+        let options = await service.modelOptions(for: .codex)
+
+        XCTAssertEqual(options, AgentDefaultModelOptions.providerDefault(for: .codex))
+    }
+
+    private var definitions: [AgentProviderDefinition] {
+        [
+            AgentProviderDefinition(id: .claude, displayName: "Claude", executableNames: ["claude"]),
+            AgentProviderDefinition(id: .codex, displayName: "Codex", executableNames: ["codex"])
+        ]
+    }
+}
+
+private struct DiscoveryDetector: AgentProviderExecutableDetecting {
+    let availabilities: [AgentProviderID: AgentProviderAvailability]
+
+    func availability(for definitions: [AgentProviderDefinition]) async -> [AgentProviderAvailability] {
+        definitions.compactMap { availabilities[$0.id] }
+    }
+}
+
+private struct DiscoveryEnablement: AgentProviderEnablementSource {
+    let disabledProviderIds: Set<AgentProviderID>
+
+    func isProviderEnabled(_ providerId: AgentProviderID) async -> Bool {
+        !disabledProviderIds.contains(providerId)
+    }
+}
+
+private struct DiscoveryModelOptions: AgentModelOptionSource {
+    let options: [AgentProviderID: [AgentModelOption]]
+
+    func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] {
+        options[providerId] ?? []
+    }
+}
+
+private final class DiscoverySetup: AgentProviderSetup, @unchecked Sendable {
+    let providerId: AgentProviderID
+    private let setup: AgentProviderReadinessState
+    private let diagnostics: [String]
+    private let trustedProjects: Set<String>
+
+    init(
+        providerId: AgentProviderID,
+        setup: AgentProviderReadinessState = .ready,
+        diagnostics: [String] = [],
+        trustedProjects: Set<String> = []
+    ) {
+        self.providerId = providerId
+        self.setup = setup
+        self.diagnostics = diagnostics
+        self.trustedProjects = trustedProjects
+    }
+
+    func cachedSetupReadiness() -> AgentProviderReadinessState {
+        setup
+    }
+
+    func setupReadiness() async -> AgentProviderReadinessState {
+        setup
+    }
+
+    func setupDiagnostics() async -> [String] {
+        diagnostics
+    }
+
+    func cachedProjectTrustStatus(for projectURL: URL) -> AgentProjectTrustStatus {
+        trustedProjects.contains(projectURL.path) ? .trusted : .notTrusted
+    }
+
+    func projectTrustStatus(for projectURL: URL) async throws -> AgentProjectTrustStatus {
+        cachedProjectTrustStatus(for: projectURL)
+    }
+
+    func trustProject(at projectURL: URL) async throws {}
+}

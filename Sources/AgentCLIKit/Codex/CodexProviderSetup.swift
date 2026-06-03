@@ -7,23 +7,44 @@ public struct CodexProviderSetup: AgentProviderSetup {
 
     private let configStore: CodexConfigStore
     private let authProbe: CodexAuthProbe
+    private let cachedAuthReadiness: CodexAuthReadiness
 
     /// Creates a Codex provider setup service.
     public init(configStore: CodexConfigStore, authProbe: CodexAuthProbe = CodexAuthProbe()) {
         self.configStore = configStore
         self.authProbe = authProbe
+        self.cachedAuthReadiness = authProbe.readiness()
     }
 
     /// Creates a Codex provider setup service for a Codex config file URL.
     public init(configFileURL: URL) {
         self.configStore = CodexConfigStore(fileURL: configFileURL)
-        self.authProbe = CodexAuthProbe(authFileURL: configFileURL.deletingLastPathComponent().appendingPathComponent("auth.json"))
+        let authProbe = CodexAuthProbe(authFileURL: configFileURL.deletingLastPathComponent().appendingPathComponent("auth.json"))
+        self.authProbe = authProbe
+        self.cachedAuthReadiness = authProbe.readiness()
     }
 
     /// Creates a Codex provider setup service for a Codex home directory.
     public init(codexHomeDirectoryURL: URL = CodexConfigStore.defaultCodexHomeDirectoryURL) {
         self.configStore = CodexConfigStore(codexHomeDirectoryURL: codexHomeDirectoryURL)
-        self.authProbe = CodexAuthProbe(codexHomeDirectoryURL: codexHomeDirectoryURL)
+        let authProbe = CodexAuthProbe(codexHomeDirectoryURL: codexHomeDirectoryURL)
+        self.authProbe = authProbe
+        self.cachedAuthReadiness = authProbe.readiness()
+    }
+
+    /// Returns cached Codex setup readiness from inspectable auth material.
+    public func cachedSetupReadiness() -> AgentProviderReadinessState {
+        cachedAuthReadiness.hasCredentialMaterial ? .ready : .needsSetup
+    }
+
+    /// Returns refreshed Codex setup readiness from inspectable auth material.
+    public func setupReadiness() async -> AgentProviderReadinessState {
+        authReadiness().hasCredentialMaterial ? .ready : .needsSetup
+    }
+
+    /// Returns Codex auth diagnostics without triggering login or App Server startup.
+    public func setupDiagnostics() async -> [String] {
+        authReadiness().diagnostics
     }
 
     /// Returns cached Codex project trust without disk IO.
