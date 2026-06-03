@@ -21,6 +21,12 @@ public protocol CodexAppServerTransport: Sendable {
     /// Sends a JSON-RPC notification without waiting for a response.
     func sendNotification(method: String, params: JSONValue?) async throws
 
+    /// Sends a successful response to a server-originated JSON-RPC request.
+    func sendResponse(id: JSONValue, result: JSONValue?) async throws
+
+    /// Sends an error response to a server-originated JSON-RPC request.
+    func sendErrorResponse(id: JSONValue, code: Int, message: String, data: JSONValue?) async throws
+
     /// Shuts down the underlying transport and releases resources.
     func shutdown() async
 }
@@ -240,6 +246,31 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
         try writeMessage(id: nil, method: method, params: params)
     }
 
+    /// Sends a successful response to an App Server request.
+    public func sendResponse(id: JSONValue, result: JSONValue?) async throws {
+        try await start()
+        try writeObject(.object([
+            "id": id,
+            "result": result ?? .null
+        ]))
+    }
+
+    /// Sends an error response to an App Server request.
+    public func sendErrorResponse(id: JSONValue, code: Int, message: String, data: JSONValue?) async throws {
+        try await start()
+        var error: [String: JSONValue] = [
+            "code": .number(Double(code)),
+            "message": .string(message)
+        ]
+        if let data {
+            error["data"] = data
+        }
+        try writeObject(.object([
+            "id": id,
+            "error": .object(error)
+        ]))
+    }
+
     /// Terminates the App Server process and fails any pending responses.
     public func shutdown() async {
         pendingResponses.values.forEach {
@@ -274,9 +305,6 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     }
 
     private func writeMessage(id: Int?, method: String, params: JSONValue?) throws {
-        guard let stdin else {
-            throw AgentCLIError.invalidInput("Codex App Server stdin is unavailable.")
-        }
         var object: [String: JSONValue] = ["method": .string(method)]
         if let id {
             object["id"] = .number(Double(id))
@@ -284,7 +312,14 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
         if let params {
             object["params"] = params
         }
-        var data = try JSONEncoder().encode(JSONValue.object(object))
+        try writeObject(.object(object))
+    }
+
+    private func writeObject(_ value: JSONValue) throws {
+        guard let stdin else {
+            throw AgentCLIError.invalidInput("Codex App Server stdin is unavailable.")
+        }
+        var data = try JSONEncoder().encode(value)
         data.append(0x0A)
         try stdin.write(contentsOf: data)
     }

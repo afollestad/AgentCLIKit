@@ -8,6 +8,18 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         let params: JSONValue?
     }
 
+    struct Response: Sendable {
+        let id: JSONValue
+        let result: JSONValue?
+    }
+
+    struct ErrorResponse: Sendable {
+        let id: JSONValue
+        let code: Int
+        let message: String
+        let data: JSONValue?
+    }
+
     private var threadIds: [String]
     private var turnIndex = 0
     private var incomingContinuations: [UUID: AsyncStream<CodexAppServerIncomingMessage>.Continuation] = [:]
@@ -17,6 +29,8 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private(set) var notificationMethods: [String] = []
     private(set) var requestParams: [String: JSONValue] = [:]
     private(set) var requestLog: [Request] = []
+    private(set) var responseLog: [Response] = []
+    private(set) var errorResponseLog: [ErrorResponse] = []
     private(set) var incomingStreamCount = 0
 
     init(threadIds: [String]) {
@@ -76,6 +90,14 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         notificationMethods.append(method)
     }
 
+    func sendResponse(id: JSONValue, result: JSONValue?) async throws {
+        responseLog.append(Response(id: id, result: result))
+    }
+
+    func sendErrorResponse(id: JSONValue, code: Int, message: String, data: JSONValue?) async throws {
+        errorResponseLog.append(ErrorResponse(id: id, code: code, message: message, data: data))
+    }
+
     func shutdown() async {
         shutdownCount += 1
     }
@@ -83,6 +105,12 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     func emitNotification(method: String, params: JSONValue?) {
         incomingContinuations.values.forEach {
             $0.yield(.notification(CodexAppServerNotification(method: method, params: params)))
+        }
+    }
+
+    func emitRequest(id: JSONValue, method: String, params: JSONValue?) {
+        incomingContinuations.values.forEach {
+            $0.yield(.request(CodexAppServerRequest(id: id, method: method, params: params)))
         }
     }
 

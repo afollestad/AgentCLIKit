@@ -249,6 +249,7 @@ final class ClaudeHookTests: XCTestCase {
             AgentPromptOption(
                 id: "0",
                 label: "A",
+                description: "First",
                 responseText: "A",
                 metadata: ["label": .string("A"), "description": .string("First")]
             )

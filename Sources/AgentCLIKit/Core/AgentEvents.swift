@@ -304,15 +304,34 @@ public struct AgentInteractionEvent: Codable, Equatable, Sendable {
     public let kind: AgentInteractionKind
     /// User-facing prompt or summary.
     public let prompt: String
+    /// Structured prompt options when the interaction asks a fixed-choice question.
+    public let promptOptions: [AgentPromptOption]
     /// Provider-specific metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates an interaction event.
-    public init(id: AgentInteractionID, kind: AgentInteractionKind, prompt: String, metadata: [String: JSONValue] = [:]) {
+    public init(
+        id: AgentInteractionID,
+        kind: AgentInteractionKind,
+        prompt: String,
+        promptOptions: [AgentPromptOption] = [],
+        metadata: [String: JSONValue] = [:]
+    ) {
         self.id = id
         self.kind = kind
         self.prompt = prompt
+        self.promptOptions = promptOptions
         self.metadata = metadata
+    }
+
+    /// Decodes an interaction event, defaulting additive prompt option fields for older persisted events.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(AgentInteractionID.self, forKey: .id)
+        self.kind = try container.decode(AgentInteractionKind.self, forKey: .kind)
+        self.prompt = try container.decode(String.self, forKey: .prompt)
+        self.promptOptions = try container.decodeIfPresent([AgentPromptOption].self, forKey: .promptOptions) ?? []
+        self.metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
     }
 }
 

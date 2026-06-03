@@ -43,6 +43,7 @@ extension ClaudeHookRequest {
             return AgentPromptOption(
                 id: option["id"]?.stringValue ?? "\(index)",
                 label: label,
+                description: option["description"]?.stringValue,
                 responseText: responseText,
                 metadata: option
             )

@@ -177,17 +177,45 @@ public struct AgentPromptOption: Codable, Equatable, Sendable, Identifiable {
     public let id: String
     /// User-facing option label.
     public let label: String
+    /// Optional user-facing description for the option.
+    public let description: String?
     /// Text sent back to the provider when this option is selected.
     public let responseText: String
     /// Provider-neutral option metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a prompt option.
-    public init(id: String, label: String, responseText: String, metadata: [String: JSONValue] = [:]) {
+    public init(
+        id: String,
+        label: String,
+        description: String? = nil,
+        responseText: String,
+        metadata: [String: JSONValue] = [:]
+    ) {
         self.id = id
         self.label = label
+        self.description = description
         self.responseText = responseText
         self.metadata = metadata
+    }
+
+    /// Decodes prompt options, defaulting additive fields for older persisted records.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.label = try container.decode(String.self, forKey: .label)
+        self.responseText = try container.decode(String.self, forKey: .responseText)
+        let metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
+        self.metadata = metadata
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+            ?? Self.description(from: metadata)
+    }
+
+    private static func description(from metadata: [String: JSONValue]) -> String? {
+        guard case let .string(value)? = metadata["description"], !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 }
 

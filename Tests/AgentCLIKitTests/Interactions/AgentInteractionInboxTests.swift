@@ -19,6 +19,30 @@ final class AgentInteractionInboxTests: XCTestCase {
         XCTAssertTrue(request.allowsCustomResponse)
     }
 
+    func testPromptOptionDecodesDescriptionAndLegacyDefaults() throws {
+        let optionWithMetadataDescription = try JSONDecoder().decode(
+            AgentPromptOption.self,
+            from: Data("""
+            {
+              "id": "a",
+              "label": "Option A",
+              "responseText": "A",
+              "metadata": {
+                "description": "Use option A"
+              }
+            }
+            """.utf8)
+        )
+        let legacyOption = try JSONDecoder().decode(
+            AgentPromptOption.self,
+            from: Data(#"{"id":"b","label":"Option B","responseText":"B"}"#.utf8)
+        )
+
+        XCTAssertEqual(optionWithMetadataDescription.description, "Use option A")
+        XCTAssertEqual(legacyOption.description, nil)
+        XCTAssertEqual(legacyOption.metadata, [:])
+    }
+
     func testPromptAnswerBuildsCustomResponseResolution() {
         let answer = AgentPromptAnswer(interactionId: "prompt", responseText: "Use the API", source: .customResponse)
 

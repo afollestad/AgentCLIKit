@@ -74,6 +74,33 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(legacyActivity.metadata, [:])
     }
 
+    func testInteractionEventRoundTripsPromptOptionsAndDefaultsLegacyFields() throws {
+        let event = AgentInteractionEvent(
+            id: "prompt",
+            kind: .prompt,
+            prompt: "Pick one",
+            promptOptions: [
+                AgentPromptOption(
+                    id: "a",
+                    label: "Option A",
+                    description: "Use A",
+                    responseText: "A"
+                )
+            ],
+            metadata: ["provider": .string("codex")]
+        )
+        let data = try JSONEncoder().encode(event)
+        let decoded = try JSONDecoder().decode(AgentInteractionEvent.self, from: data)
+        let legacy = try JSONDecoder().decode(
+            AgentInteractionEvent.self,
+            from: Data(#"{"id":"prompt","kind":"prompt","prompt":"Pick one"}"#.utf8)
+        )
+
+        XCTAssertEqual(decoded, event)
+        XCTAssertEqual(legacy.promptOptions, [])
+        XCTAssertEqual(legacy.metadata, [:])
+    }
+
     func testMessageAndToolEventsDecodeWhenMetadataIsMissing() throws {
         let messageData = Data(#"{"role":"assistant","text":"Done."}"#.utf8)
         let toolCallData = Data(#"{"id":"tool-1","name":"Edit","input":{"file_path":"README.md"}}"#.utf8)

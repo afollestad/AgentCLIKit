@@ -6,7 +6,7 @@ struct CodexThreadBootstrap: Sendable {
 }
 
 actor CodexAppServerClient {
-    private struct ConversationBinding {
+    struct ConversationBinding {
         let threadId: AgentSessionID
         let processToken: UUID
         let spawnConfig: AgentSpawnConfig
@@ -16,13 +16,16 @@ actor CodexAppServerClient {
     }
 
     private let configuration: CodexProviderAdapter.Configuration
-    private var transport: (any CodexAppServerTransport)?
+    var transport: (any CodexAppServerTransport)?
     private var incomingTask: Task<Void, Never>?
     private var incomingTaskID: UUID?
     private var isInitialized = false
-    private var bindingsByConversation: [AgentConversationID: ConversationBinding] = [:]
-    private var conversationByThreadId: [AgentSessionID: AgentConversationID] = [:]
+    var bindingsByConversation: [AgentConversationID: ConversationBinding] = [:]
+    var conversationByThreadId: [AgentSessionID: AgentConversationID] = [:]
+    var pendingServerRequests: [AgentInteractionID: CodexPendingServerRequest] = [:]
     private let notificationDecoder = CodexAppServerNotificationDecoder()
+    let serverRequestMapper = CodexAppServerServerRequestMapper()
+    let resolutionEncoder = CodexInteractionResolutionEncoder()
 
     init(configuration: CodexProviderAdapter.Configuration) {
         self.configuration = configuration
@@ -51,6 +54,7 @@ actor CodexAppServerClient {
         bindingsByConversation.values.forEach { $0.continuation?.finish() }
         bindingsByConversation.removeAll()
         conversationByThreadId.removeAll()
+        pendingServerRequests.removeAll()
         await transport?.shutdown()
         transport = nil
         isInitialized = false
@@ -81,8 +85,8 @@ actor CodexAppServerClient {
                 spawnConfig: context.spawnConfig,
                 reason: interruptInput.reason
             ))
-        case .interactionResolution:
-            throw AgentCLIError.invalidInput("Codex interaction resolution is not implemented yet.")
+        case let .interactionResolution(resolution):
+            try await resolveInteraction(resolution, context: context)
         }
     }
 
@@ -135,6 +139,7 @@ actor CodexAppServerClient {
             if let existing {
                 conversationByThreadId[existing.threadId] = nil
                 existing.continuation?.finish()
+                pendingServerRequests = pendingServerRequests.filter { $0.value.conversationId != context.conversationId }
             }
             binding = ConversationBinding(
                 threadId: threadId,
@@ -155,6 +160,7 @@ actor CodexAppServerClient {
         }
         conversationByThreadId[binding.threadId] = nil
         bindingsByConversation[context.conversationId] = nil
+        pendingServerRequests = pendingServerRequests.filter { $0.value.conversationId != context.conversationId }
     }
 
     private func startInitialPromptIfNeeded(conversationId: AgentConversationID) {
@@ -262,7 +268,9 @@ actor CodexAppServerClient {
         case let .notification(notification):
             handleNotification(notification)
         case let .request(request):
-            handleUnsupportedServerRequest(request)
+            Task {
+                await self.handleServerRequest(request)
+            }
         }
     }
 
@@ -275,34 +283,20 @@ actor CodexAppServerClient {
         if let startedTurnId = notification.startedTurnId {
             binding.activeTurnId = startedTurnId
         }
-        if let completedTurnId = notification.completedTurnId,
-           binding.activeTurnId == completedTurnId {
-            binding.activeTurnId = nil
+        if let completedTurnId = notification.completedTurnId {
+            if binding.activeTurnId == completedTurnId {
+                binding.activeTurnId = nil
+            }
+            clearPendingServerRequests(conversationId: conversationId, turnId: completedTurnId)
         }
         if notification.marksThreadIdle {
             binding.activeTurnId = nil
+            clearPendingServerRequests(conversationId: conversationId, turnId: nil)
         }
         bindingsByConversation[conversationId] = binding
         for event in notificationDecoder.decode(notification) {
             binding.continuation?.yield(event)
         }
-    }
-
-    private func handleUnsupportedServerRequest(_ request: CodexAppServerRequest) {
-        guard let threadId = request.threadId,
-              let conversationId = conversationByThreadId[AgentSessionID(rawValue: threadId)],
-              let continuation = bindingsByConversation[conversationId]?.continuation else {
-            return
-        }
-        continuation.yield(AgentProviderRuntimeEvent(event: .diagnostic(AgentDiagnosticEvent(
-            code: .codexAppServerResponseFailure,
-            severity: .warning,
-            message: "Codex App Server request '\(request.method)' is not implemented yet.",
-            metadata: [
-                "codex_method": .string(request.method),
-                "codex_thread_id": .string(threadId)
-            ]
-        ))))
     }
 
     private func binding(for conversationId: AgentConversationID, processToken: UUID) -> ConversationBinding? {
@@ -321,7 +315,19 @@ actor CodexAppServerClient {
         bindingsByConversation[conversationId] = binding
     }
 
-    private func emitDiagnostic(_ error: Error, conversationId: AgentConversationID, message: String) {
+    private func clearPendingServerRequests(conversationId: AgentConversationID, turnId: String?) {
+        pendingServerRequests = pendingServerRequests.filter { _, pending in
+            guard pending.conversationId == conversationId else {
+                return true
+            }
+            if let turnId {
+                return pending.turnId != turnId
+            }
+            return false
+        }
+    }
+
+    func emitDiagnostic(_ error: Error, conversationId: AgentConversationID, message: String) {
         bindingsByConversation[conversationId]?.continuation?.yield(AgentProviderRuntimeEvent(event: .diagnostic(AgentDiagnosticEvent(
             code: (error as? CodexAppServerError)?.diagnosticCode,
             severity: .error,
