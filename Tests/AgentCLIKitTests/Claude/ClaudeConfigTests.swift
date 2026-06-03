@@ -108,19 +108,72 @@ final class ClaudeConfigTests: XCTestCase {
         XCTAssertTrue(snapshot.isTrustedProject(path: "/tmp/other"))
     }
 
+    func testConfigStorePublishesSnapshotForObservedExternalFileChanges() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            .appendingPathComponent("claude.json")
+        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let store = ClaudeConfigStore(fileURL: fileURL)
+        let stream = await store.snapshots()
+        let didReceiveUpdate = expectation(description: "Received observed Claude config update")
+
+        Task {
+            var iterator = stream.makeAsyncIterator()
+            _ = await iterator.next()
+            let updated = await iterator.next()
+            XCTAssertEqual(updated?.revision, 1)
+            XCTAssertTrue(updated?.isTrustedProject(path: "/tmp/observed") == true)
+            didReceiveUpdate.fulfill()
+        }
+
+        try """
+        {
+          "projects": {
+            "/tmp/observed": {
+              "hasTrustDialogAccepted": true,
+              "hasCompletedProjectOnboarding": true
+            }
+          }
+        }
+        """.write(to: fileURL, atomically: true, encoding: .utf8)
+
+        await fulfillment(of: [didReceiveUpdate], timeout: 2)
+    }
+
     func testProviderSetupTrustsClaudeProject() async throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
             .appendingPathComponent("claude.json")
         let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: fileURL)
+        let projectURL = URL(fileURLWithPath: "/tmp/project")
 
-        try await setup.trustProject(at: URL(fileURLWithPath: "/tmp/project"))
+        XCTAssertEqual(setup.cachedProjectTrustStatus(for: projectURL), .notTrusted)
+        let statusBeforeTrust = try await setup.projectTrustStatus(for: projectURL)
+        XCTAssertEqual(statusBeforeTrust, .notTrusted)
+
+        try await setup.trustProject(at: projectURL)
 
         let root = try readJSONObject(fileURL: fileURL)
         let project = (root["projects"] as? [String: Any])?["/tmp/project"] as? [String: Any]
         XCTAssertEqual(setup.providerId, .claude)
         XCTAssertEqual(project?["hasTrustDialogAccepted"] as? Bool, true)
         XCTAssertEqual(project?["hasCompletedProjectOnboarding"] as? Bool, true)
+        XCTAssertEqual(setup.cachedProjectTrustStatus(for: projectURL), .trusted)
+        let statusAfterTrust = try await setup.projectTrustStatus(for: projectURL)
+        XCTAssertEqual(statusAfterTrust, .trusted)
+    }
+
+    func testConfigStoreHomeDirectoryInitializerUsesGlobalClaudeConfigPath() async throws {
+        let homeDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store = ClaudeConfigStore(homeDirectoryURL: homeDirectory)
+        let projectURL = URL(fileURLWithPath: "/tmp/project")
+
+        try await store.trustProject(projectURL)
+
+        let root = try readJSONObject(fileURL: homeDirectory.appendingPathComponent(".claude.json"))
+        let project = (root["projects"] as? [String: Any])?["/tmp/project"] as? [String: Any]
+        XCTAssertEqual(project?["hasTrustDialogAccepted"] as? Bool, true)
     }
 
     func testConfigStoreSavePreservesExistingProjectEntries() async throws {

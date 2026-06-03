@@ -70,6 +70,7 @@ public struct ClaudeMCPServerConfig: Codable, Equatable, Sendable {
 public actor ClaudeConfigStore {
     private let fileURL: URL
     private let snapshotCache: ClaudeConfigSnapshotCache
+    private var fileObserver: ClaudeConfigFileObserver?
     private var cachedRoot: [String: Any]
     private var lastObservedCanonicalJSON: String
     private var snapshotContinuations: [UUID: AsyncStream<ClaudeConfigSnapshot>.Continuation] = [:]
@@ -84,19 +85,31 @@ public actor ClaudeConfigStore {
         self.snapshotCache = ClaudeConfigSnapshotCache(snapshot: Self.snapshot(from: root, revision: 0))
     }
 
+    /// Creates a Claude config store for a home directory's `.claude.json` file.
+    public init(homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)) {
+        self.init(fileURL: homeDirectoryURL.appendingPathComponent(".claude.json"))
+    }
+
     /// Returns the latest cached trust snapshot without disk IO.
     public nonisolated func cachedSnapshot() -> ClaudeConfigSnapshot {
         snapshotCache.snapshot
     }
 
+    /// Returns the latest cached project trust status without disk IO.
+    public nonisolated func cachedProjectTrustStatus(_ projectURL: URL) -> AgentProjectTrustStatus {
+        cachedSnapshot().isTrustedProject(path: projectURL.path) ? .trusted : .notTrusted
+    }
+
     /// Returns the latest trust snapshot after refreshing from disk when needed.
     public func currentSnapshot() throws -> ClaudeConfigSnapshot {
+        startObservingIfNeeded()
         try refreshCacheIfNeeded()
         return snapshotCache.snapshot
     }
 
     /// Streams trust snapshots, starting with the latest cached value.
     public func snapshots() -> AsyncStream<ClaudeConfigSnapshot> {
+        startObservingIfNeeded()
         _ = try? refreshCacheIfNeeded()
         let snapshot = snapshotCache.snapshot
         let id = UUID()
@@ -116,14 +129,21 @@ public actor ClaudeConfigStore {
         try currentSnapshot().isTrustedProject(path: projectURL.path)
     }
 
+    /// Returns refreshed project trust status.
+    public func projectTrustStatus(_ projectURL: URL) throws -> AgentProjectTrustStatus {
+        try isTrustedProject(projectURL) ? .trusted : .notTrusted
+    }
+
     /// Loads Claude configuration, returning an empty config when the file does not exist.
     public func load() throws -> ClaudeConfig {
+        startObservingIfNeeded()
         let root = try refreshCacheIfNeeded()
         return try config(from: root)
     }
 
     /// Saves Claude configuration.
     public func save(_ config: ClaudeConfig) throws {
+        startObservingIfNeeded()
         var root = try refreshCacheIfNeeded()
         let existingProjects = root[ClaudeConfigKey.projects] as? [String: Any] ?? [:]
         root[ClaudeConfigKey.projects] = projectsObject(from: config.trustedProjects, existingProjects: existingProjects)
@@ -131,10 +151,12 @@ public actor ClaudeConfigStore {
         root.removeValue(forKey: ClaudeConfigKey.legacyTrustedProjects)
         try writeRoot(root)
         try refreshCacheIfNeeded(root: root)
+        startObservingIfNeeded()
     }
 
     /// Marks a project path as trusted.
     public func trustProject(_ projectURL: URL) throws {
+        startObservingIfNeeded()
         var root = try refreshCacheIfNeeded()
         let path = ClaudePathEncoder.encode(projectURL)
         var projects = root[ClaudeConfigKey.projects] as? [String: Any] ?? [:]
@@ -146,18 +168,22 @@ public actor ClaudeConfigStore {
         root.removeValue(forKey: ClaudeConfigKey.legacyTrustedProjects)
         try writeRoot(root)
         try refreshCacheIfNeeded(root: root)
+        startObservingIfNeeded()
     }
 
     /// Replaces Claude MCP servers.
     public func saveMCPConfig(_ mcpConfig: AgentMCPConfig) throws {
+        startObservingIfNeeded()
         var root = try refreshCacheIfNeeded()
         root[ClaudeConfigKey.mcpServers] = try mcpServersObject(from: mcpConfig.servers)
         try writeRoot(root)
         try refreshCacheIfNeeded(root: root)
+        startObservingIfNeeded()
     }
 
     /// Reads Claude-native MCP server entries.
     public func readMCPServers() throws -> [String: ClaudeMCPServerConfig] {
+        startObservingIfNeeded()
         let root = try refreshCacheIfNeeded()
         guard let rawServers = root[ClaudeConfigKey.mcpServers] as? [String: Any] else {
             return [:]
@@ -168,11 +194,13 @@ public actor ClaudeConfigStore {
 
     /// Writes Claude-native MCP server entries while preserving unrelated config keys.
     public func writeMCPServers(_ servers: [String: ClaudeMCPServerConfig]) throws {
+        startObservingIfNeeded()
         var root = try refreshCacheIfNeeded()
         let data = try JSONEncoder().encode(servers)
         root[ClaudeConfigKey.mcpServers] = try JSONSerialization.jsonObject(with: data)
         try writeRoot(root)
         try refreshCacheIfNeeded(root: root)
+        startObservingIfNeeded()
     }
 
     private static func readRoot(fileURL: URL) throws -> [String: Any] {
@@ -249,6 +277,21 @@ public actor ClaudeConfigStore {
             continuation.yield(snapshot)
         }
         return root
+    }
+
+    private func refreshCacheFromObserver() {
+        _ = try? refreshCacheIfNeeded()
+    }
+
+    private func startObservingIfNeeded() {
+        guard fileObserver == nil else {
+            return
+        }
+        fileObserver = ClaudeConfigFileObserver(configURL: fileURL) { [weak self] in
+            Task {
+                await self?.refreshCacheFromObserver()
+            }
+        }
     }
 
     private func removeSnapshotContinuation(id: UUID) {
@@ -329,6 +372,16 @@ public struct ClaudeProviderSetup: AgentProviderSetup {
     /// Creates a Claude provider setup service for a Claude config file URL.
     public init(configFileURL: URL) {
         self.configStore = ClaudeConfigStore(fileURL: configFileURL)
+    }
+
+    /// Returns cached Claude project trust without disk IO.
+    public func cachedProjectTrustStatus(for projectURL: URL) -> AgentProjectTrustStatus {
+        configStore.cachedProjectTrustStatus(projectURL)
+    }
+
+    /// Returns refreshed Claude project trust.
+    public func projectTrustStatus(for projectURL: URL) async throws -> AgentProjectTrustStatus {
+        try await configStore.projectTrustStatus(projectURL)
     }
 
     /// Marks a project as trusted in Claude config while preserving unrelated config keys.

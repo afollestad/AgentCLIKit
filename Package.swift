@@ -24,7 +24,9 @@ let package = Package(
                 "Claude/AGENTS.md",
                 "Claude/CLAUDE.md",
                 "Claude/Hooks/AGENTS.md",
-                "Claude/Hooks/CLAUDE.md"
+                "Claude/Hooks/CLAUDE.md",
+                "Runtime/AGENTS.md",
+                "Runtime/CLAUDE.md"
             ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency")

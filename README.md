@@ -175,6 +175,14 @@ let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: claudeCon
 try await setup.trustProject(at: projectPath)
 ```
 
+Use `AgentProjectTrustService` when host UI needs provider-neutral project readiness. Cached status is synchronous and does not touch disk, while refreshed status can perform provider-specific config reads:
+
+```swift
+let trustService = DefaultAgentProjectTrustService(setups: [setup])
+let cached = trustService.cachedStatus(providerId: .claude, projectURL: projectPath)
+let refreshed = await trustService.status(providerId: .claude, projectURL: projectPath)
+```
+
 For host persistence, implement the provider-neutral store protocols instead of storing runtime internals. `AgentSessionStore`, `AgentInteractionStore`, and `AgentApprovalPolicyStore` are durable async boundaries that can be backed by SwiftData, SQLite, files, or another store. Session stores support reverse lookup and cleanup by provider session, provider, and canonical working directory. Live hook continuations, launch tokens, listener ports, and in-flight decision races remain internal to the runtime.
 
 Thrown `AgentCLIError` values expose stable `code` and structured `metadata` so hosts can map failures without parsing
