@@ -1,8 +1,13 @@
 import Foundation
 
 struct CodexAppServerNotificationDecoder {
+    private let itemDecoder = CodexAppServerItemEventDecoder()
+
     func decode(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
-        switch notification.method {
+        if let itemEvents = itemDecoder.decode(notification) {
+            return itemEvents
+        }
+        return switch notification.method {
         case "thread/status/changed":
             decodeThreadStatusChanged(notification)
         case "turn/started":
