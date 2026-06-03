@@ -3,6 +3,7 @@ import Foundation
 struct CodexAppServerNotificationDecoder {
     private let itemDecoder = CodexAppServerItemEventDecoder()
 
+    // swiftlint:disable:next cyclomatic_complexity
     func decode(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
         if let itemEvents = itemDecoder.decode(notification) {
             return itemEvents
@@ -16,6 +17,20 @@ struct CodexAppServerNotificationDecoder {
             decodeTurnCompleted(notification)
         case "thread/settings/updated":
             decodeThreadSettingsUpdated(notification)
+        case "thread/tokenUsage/updated":
+            decodeThreadTokenUsageUpdated(notification)
+        case "account/rateLimits/updated":
+            decodeAccountRateLimitsUpdated(notification)
+        case "turn/plan/updated":
+            decodeTurnPlanUpdated(notification)
+        case "item/plan/delta":
+            decodePlanDelta(notification)
+        case "thread/compacted":
+            decodeThreadCompacted(notification)
+        case "model/rerouted":
+            decodeModelRerouted(notification)
+        case "model/verification":
+            decodeModelVerification(notification)
         default:
             []
         }

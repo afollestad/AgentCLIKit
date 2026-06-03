@@ -68,11 +68,16 @@ struct CodexAppServerItemEventDecoder {
             return [runtimeEvent(dynamicToolCall(payload))]
         case "webSearch":
             return [runtimeEvent(webSearchToolCall(payload))]
+        case "collabAgentToolCall":
+            return [runtimeEvent(.task(collabAgentTask(payload, phase: .started)))]
+        case "contextCompaction":
+            return [runtimeEvent(.task(contextCompactionTask(payload, phase: .started)))]
         default:
             return []
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func decodeItemCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
         guard let payload = itemPayload(notification, phase: "completed") else {
             return []
@@ -94,6 +99,10 @@ struct CodexAppServerItemEventDecoder {
             return [runtimeEvent(dynamicToolResult(payload))]
         case "webSearch":
             return [runtimeEvent(webSearchToolResult(payload))]
+        case "collabAgentToolCall":
+            return [runtimeEvent(.task(collabAgentTask(payload, phase: .completed)))]
+        case "contextCompaction":
+            return [runtimeEvent(.task(contextCompactionTask(payload, phase: .completed)))]
         default:
             return []
         }

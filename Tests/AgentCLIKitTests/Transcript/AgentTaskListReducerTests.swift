@@ -84,6 +84,33 @@ final class AgentTaskListReducerTests: XCTestCase {
         XCTAssertEqual(nextSnapshot?.items.map(\.subject), ["Second"])
     }
 
+    func testTaskEventMetadataReplacesTaskListSnapshot() {
+        var reducer = AgentTaskListReducer()
+        let snapshot = reducer.append(envelope(
+            index: 0,
+            event: .task(AgentTaskEvent(
+                id: "plan-1",
+                phase: .progress,
+                metadata: ["todos": .array([
+                    .object([
+                        "id": .string("todo-1"),
+                        "subject": .string("Inspect"),
+                        "status": .string("completed")
+                    ]),
+                    .object([
+                        "id": .string("todo-2"),
+                        "subject": .string("Implement"),
+                        "status": .string("inProgress")
+                    ])
+                ])]
+            ))
+        ))
+
+        XCTAssertEqual(snapshot?.id, "tasks-plan-1")
+        XCTAssertEqual(snapshot?.items.map(\.subject), ["Inspect", "Implement"])
+        XCTAssertEqual(snapshot?.items.map(\.status), [.completed, .inProgress])
+    }
+
     func testRecognizesTaskOnlyToolDiscovery() {
         let taskDiscovery = toolCallEnvelope(index: 0, id: "search", name: "ToolSearch", input: [
             "query": .string("select:TaskCreate,TaskUpdate,TaskList,TaskGet")

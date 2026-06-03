@@ -42,6 +42,8 @@ public struct AgentTaskListReducer: Sendable {
             return mutation(from: tool)
         case let .toolResult(result):
             return mutation(from: result)
+        case let .task(task):
+            return mutation(from: task)
         default:
             return nil
         }
@@ -109,6 +111,13 @@ private extension AgentTaskListReducer {
             item: AgentTaskListItem(id: parsed.id, subject: parsed.subject ?? ""),
             itemId: parsed.id
         )
+    }
+
+    static func mutation(from task: AgentTaskEvent) -> AgentTaskListMutation? {
+        guard let items = taskItems(from: task.metadata["tasks"]) ?? taskItems(from: task.metadata["todos"]) else {
+            return nil
+        }
+        return AgentTaskListMutation(kind: .replace, toolCallId: task.id, items: items)
     }
 
     static func taskCreateMutation(from tool: AgentToolCallEvent) -> AgentTaskListMutation? {
