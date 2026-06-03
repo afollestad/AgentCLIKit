@@ -1,7 +1,7 @@
 import Foundation
 
 extension DefaultAgentRuntime {
-    func startProviderRuntimeEvents(conversationId: AgentConversationID, processToken: UUID) {
+    func startProviderRuntimeEvents(conversationId: AgentConversationID, processToken: UUID) async {
         guard let state = states[conversationId], state.processToken == processToken else {
             return
         }
@@ -12,8 +12,8 @@ extension DefaultAgentRuntime {
             spawnConfig: state.spawnConfig
         )
         let adapter = state.adapter
+        let stream = await adapter.runtimeEvents(context: context)
         let task = Task {
-            let stream = await adapter.runtimeEvents(context: context)
             for await providerEvent in stream {
                 await self.consumeProviderRuntimeEvent(providerEvent, conversationId: conversationId, processToken: processToken)
             }

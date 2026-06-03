@@ -77,6 +77,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
             ],
             workingDirectory: spawnConfig.workingDirectory,
             sessionContinuity: bootstrap.continuity,
+            providerSessionId: bootstrap.threadId,
             includesSpawnArguments: true
         )
     }
@@ -121,7 +122,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
 
     /// Returns Codex App Server notification events for the bound runtime conversation.
     public func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
-        client.runtimeEvents(context: context)
+        await client.runtimeEvents(context: context)
     }
 
     /// Interrupts the active Codex App Server turn.

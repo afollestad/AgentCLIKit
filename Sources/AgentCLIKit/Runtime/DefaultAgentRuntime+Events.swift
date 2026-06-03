@@ -170,11 +170,13 @@ extension DefaultAgentRuntime {
         else {
             return
         }
-        guard state.providerSessionId != providerSessionId else {
+        let shouldPersistSeededSession = state.providerSessionId == providerSessionId && state.providerSessionCreatedAt == nil
+        guard state.providerSessionId != providerSessionId || shouldPersistSeededSession else {
             return
         }
 
-        // Session IDs are discovered from provider output; update runtime status before awaiting durable storage.
+        // Session IDs are usually discovered from provider output. Some providers seed the ID during launch, then confirm it
+        // through output so the same durable persistence path still runs.
         state.providerSessionId = providerSessionId
         let createdAt = state.providerSessionCreatedAt ?? now()
         state.providerSessionCreatedAt = createdAt

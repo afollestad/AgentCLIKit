@@ -60,17 +60,15 @@ actor CodexAppServerClient {
         isInitialized = false
     }
 
-    nonisolated func runtimeEvents(context: AgentProviderRuntimeContext) -> AsyncStream<AgentProviderRuntimeEvent> {
-        AsyncStream { continuation in
+    func runtimeEvents(context: AgentProviderRuntimeContext) -> AsyncStream<AgentProviderRuntimeEvent> {
+        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+        registerRuntimeEvents(context: context, continuation: stream.continuation)
+        stream.continuation.onTermination = { _ in
             Task {
-                await self.registerRuntimeEvents(context: context, continuation: continuation)
-            }
-            continuation.onTermination = { _ in
-                Task {
-                    await self.unregisterRuntimeEvents(context: context)
-                }
+                await self.unregisterRuntimeEvents(context: context)
             }
         }
+        return stream.stream
     }
 
     func send(_ input: AgentInput, context: AgentProviderInputContext) async throws {

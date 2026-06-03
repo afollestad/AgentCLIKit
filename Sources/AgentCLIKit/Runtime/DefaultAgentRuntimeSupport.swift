@@ -373,6 +373,7 @@ struct StateInput {
     let preparedProcess: PreparedProcess
     let spawnConfig: AgentSpawnConfig
     let resumedSession: AgentSessionRecord?
+    let launchProviderSessionId: AgentSessionID?
     let fresh: Bool
 }
 

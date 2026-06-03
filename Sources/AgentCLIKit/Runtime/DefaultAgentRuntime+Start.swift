@@ -19,7 +19,7 @@ extension DefaultAgentRuntime {
         emitLifecycle(.running, conversationId: conversationId)
         emitSessionContinuity(
             prepared.launch.sessionContinuity,
-            providerSessionId: prepared.resumedSession?.providerSessionId,
+            providerSessionId: prepared.launch.providerSessionId ?? prepared.resumedSession?.providerSessionId,
             conversationId: conversationId
         )
         pump(
@@ -39,7 +39,7 @@ extension DefaultAgentRuntime {
             conversationId: conversationId,
             processToken: prepared.stateInput.processToken
         )
-        startProviderRuntimeEvents(conversationId: conversationId, processToken: prepared.stateInput.processToken)
+        await startProviderRuntimeEvents(conversationId: conversationId, processToken: prepared.stateInput.processToken)
     }
 
     func cancelStart(conversationId: AgentConversationID) {
@@ -95,6 +95,7 @@ private extension DefaultAgentRuntime {
             preparedProcess: preparedProcess,
             spawnConfig: config,
             resumedSession: resumedSession,
+            launchProviderSessionId: launch.providerSessionId,
             fresh: fresh
         )
         return PreparedStart(
@@ -283,7 +284,7 @@ private extension DefaultAgentRuntime {
             subscribers: previous?.subscribers ?? pendingSubscribers.removeValue(forKey: input.conversationId) ?? [:],
             stderrTail: [],
             lifecycleState: .starting,
-            providerSessionId: input.resumedSession?.providerSessionId,
+            providerSessionId: input.launchProviderSessionId ?? input.resumedSession?.providerSessionId,
             providerSessionCreatedAt: input.resumedSession?.createdAt,
             permissionMode: nil,
             isTurnActive: input.spawnConfig.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,

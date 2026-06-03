@@ -19,6 +19,29 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         }
     }
 
+    func testRuntimeCanSendImmediatelyAfterFreshSpawn() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let runtime = DefaultAgentRuntime(adapters: [adapter])
+        let conversationId = AgentConversationID(rawValue: "codex-immediate-send")
+        let spawnConfig = AgentSpawnConfig(
+            providerId: .codex,
+            workingDirectory: FileManager.default.temporaryDirectory,
+            model: "model-a"
+        )
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig)
+        try await runtime.send(.userMessage(AgentMessageInput(text: "Start work")), conversationId: conversationId)
+        let requestLog = await waitForRequestLog(transport) { log in
+            log.map(\.method).contains("turn/start")
+        }
+        let status = await runtime.status(conversationId: conversationId)
+        await runtime.destroy(conversationId: conversationId)
+
+        XCTAssertEqual(status?.providerSessionId, "thread-123")
+        XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "turn/start"])
+    }
+
     func testStartsTurnAndSteersActiveTurn() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))

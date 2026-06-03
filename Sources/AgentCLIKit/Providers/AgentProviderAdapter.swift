@@ -203,6 +203,8 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
     public let workingDirectory: URL?
     /// Provider session continuity outcome for this launch when known.
     public let sessionContinuity: AgentSessionContinuity?
+    /// Provider session identifier known before process output is decoded, if available.
+    public let providerSessionId: AgentSessionID?
     /// Whether `arguments` already include `AgentSpawnConfig.arguments`.
     public let includesSpawnArguments: Bool
 
@@ -213,6 +215,7 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
         environment: [String: String] = [:],
         workingDirectory: URL? = nil,
         sessionContinuity: AgentSessionContinuity? = nil,
+        providerSessionId: AgentSessionID? = nil,
         includesSpawnArguments: Bool = false
     ) {
         self.executable = executable
@@ -220,6 +223,7 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
         self.environment = environment
         self.workingDirectory = workingDirectory
         self.sessionContinuity = sessionContinuity
+        self.providerSessionId = providerSessionId
         self.includesSpawnArguments = includesSpawnArguments
     }
 
@@ -231,6 +235,7 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
         self.environment = try container.decodeIfPresent([String: String].self, forKey: .environment) ?? [:]
         self.workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory)
         self.sessionContinuity = try container.decodeIfPresent(AgentSessionContinuity.self, forKey: .sessionContinuity)
+        self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
         self.includesSpawnArguments = try container.decodeIfPresent(Bool.self, forKey: .includesSpawnArguments) ?? false
     }
 }

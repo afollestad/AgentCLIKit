@@ -129,6 +129,29 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertNil(legacy.supportedEffortLevels)
     }
 
+    func testLaunchConfigurationRoundTripsProviderSessionIdAndDefaultsLegacyFields() throws {
+        let launch = AgentLaunchConfiguration(
+            executable: "/usr/bin/env",
+            arguments: ["claude"],
+            sessionContinuity: .fresh,
+            providerSessionId: "provider-session",
+            includesSpawnArguments: true
+        )
+
+        let data = try JSONEncoder().encode(launch)
+        let decoded = try JSONDecoder().decode(AgentLaunchConfiguration.self, from: data)
+        let legacy = try JSONDecoder().decode(
+            AgentLaunchConfiguration.self,
+            from: Data(#"{"executable":"/usr/bin/env","arguments":["claude"]}"#.utf8)
+        )
+
+        XCTAssertEqual(decoded, launch)
+        XCTAssertEqual(decoded.providerSessionId, "provider-session")
+        XCTAssertNil(legacy.providerSessionId)
+        XCTAssertNil(legacy.sessionContinuity)
+        XCTAssertFalse(legacy.includesSpawnArguments)
+    }
+
     func testDetectorFindsFirstAvailableExecutableAndVersion() async {
         let whichClaude = ShellCommand(executable: "/usr/bin/env", arguments: ["which", "claude"])
         let versionClaude = ShellCommand(executable: "/opt/homebrew/bin/claude", arguments: ["--version"])
