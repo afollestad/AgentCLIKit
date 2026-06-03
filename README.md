@@ -303,6 +303,11 @@ The build and test scripts pipe `xcodebuild` through `xcsift -f toon -w` when `x
 `validate-package-consumer.sh` builds a temporary package that imports the library product from a fresh scratch/cache path
 and also validates the demo product through SwiftPM.
 
+Codex App Server validation fixtures live under `Tests/AgentCLIKitTests/Resources/CodexAppServer/`. They are sanitized
+summaries of local `codex app-server` schema output and live protocol probes, not raw captures. Regenerate schema into a
+scratch directory with `codex app-server generate-json-schema --out <scratch>` and
+`codex app-server generate-ts --out <scratch>`, then run any live probes through the test redactor before committing.
+
 Repo-local agent workflows live under `.agents`: capability skills in `.agents/skills` and flat review, audit, or check workflow files in `.agents/checks`.
 
 ## Demo App

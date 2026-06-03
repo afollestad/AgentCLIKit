@@ -1,0 +1,398 @@
+{
+  "codexCLI": {
+    "version": "codex-cli 0.136.0-alpha.2",
+    "schemaCommands": [
+      "codex app-server generate-json-schema --out <redacted:path>",
+      "codex app-server generate-ts --out <redacted:path>"
+    ],
+    "generatedSchema": {
+      "jsonBundleFiles": [
+        "codex_app_server_protocol.schemas.json",
+        "codex_app_server_protocol.v2.schemas.json"
+      ],
+      "jsonBundleByteCounts": {
+        "codex_app_server_protocol.schemas.json": 509729,
+        "codex_app_server_protocol.v2.schemas.json": 424682
+      }
+    }
+  },
+  "documentation": {
+    "source": "https://developers.openai.com/codex/app-server",
+    "transport": {
+      "default": "stdio://",
+      "stdioFraming": "newline-delimited JSON",
+      "websocket": "experimental and unsupported",
+      "unixSocket": "websocket over a Unix socket"
+    },
+    "jsonRPC": {
+      "wireOmitsJsonrpcHeader": true,
+      "requestsUseIdMethodParams": true,
+      "responsesUseIdAndResultOrError": true,
+      "notificationsOmitId": true
+    },
+    "initialization": {
+      "requiresInitializeBeforeOtherRequests": true,
+      "requiresInitializedNotification": true,
+      "experimentalApiCapability": "capabilities.experimentalApi"
+    }
+  },
+  "schema": {
+    "clientRequestsValidatedForV1": [
+      "initialize",
+      "thread/start",
+      "thread/resume",
+      "thread/archive",
+      "thread/read",
+      "turn/start",
+      "turn/steer",
+      "turn/interrupt",
+      "thread/compact/start",
+      "model/list",
+      "permissionProfile/list"
+    ],
+    "clientRequestsObservedInGeneratedSchema": [
+      "config/read",
+      "config/value/write",
+      "config/batchWrite",
+      "mcpServerStatus/list",
+      "mcpServer/oauth/login",
+      "mcpServer/resource/read",
+      "mcpServer/tool/call",
+      "review/start"
+    ],
+    "serverRequests": [
+      "item/commandExecution/requestApproval",
+      "item/fileChange/requestApproval",
+      "item/permissions/requestApproval",
+      "mcpServer/elicitation/request",
+      "item/tool/requestUserInput",
+      "item/tool/call",
+      "account/chatgptAuthTokens/refresh",
+      "attestation/generate",
+      "applyPatchApproval",
+      "execCommandApproval"
+    ],
+    "serverNotificationsRelevantToV1": [
+      "thread/started",
+      "thread/status/changed",
+      "thread/settings/updated",
+      "turn/started",
+      "turn/completed",
+      "turn/diff/updated",
+      "turn/plan/updated",
+      "thread/tokenUsage/updated",
+      "thread/compact/start",
+      "thread/compacted",
+      "item/started",
+      "item/completed",
+      "item/agentMessage/delta",
+      "fileChange/patch/updated",
+      "model/rerouted",
+      "model/verification",
+      "serverRequest/resolved"
+    ],
+    "approvalResponses": {
+      "commandExecution": {
+        "method": "item/commandExecution/requestApproval",
+        "responseShape": {
+          "decision": "CommandExecutionApprovalDecision"
+        },
+        "decisions": [
+          "accept",
+          "acceptForSession",
+          "acceptWithExecpolicyAmendment",
+          "applyNetworkPolicyAmendment",
+          "decline",
+          "cancel"
+        ]
+      },
+      "fileChange": {
+        "method": "item/fileChange/requestApproval",
+        "responseShape": {
+          "decision": "FileChangeApprovalDecision"
+        },
+        "decisions": [
+          "accept",
+          "acceptForSession",
+          "decline",
+          "cancel"
+        ]
+      },
+      "permissionProfile": {
+        "method": "item/permissions/requestApproval",
+        "responseShape": {
+          "permissions": "GrantedPermissionProfile",
+          "scope": "turn | session",
+          "strictAutoReview": "optional boolean"
+        },
+        "denialSemantics": {
+          "schemaHasExplicitDenialDecision": false,
+          "liveProbeStatus": "notTriggeredByPromptedRequest",
+          "implementationGuidance": "Do not invent a decline enum. Treat host denial as unresolved until adapter work validates a safe fallback, such as JSON-RPC error or turn interrupt, against an actual server request."
+        }
+      },
+      "mcpElicitation": {
+        "method": "mcpServer/elicitation/request",
+        "responseShape": {
+          "action": "accept | decline | cancel",
+          "content": "nullable JSON value",
+          "_meta": "nullable JSON value"
+        }
+      },
+      "toolRequestUserInput": {
+        "method": "item/tool/requestUserInput",
+        "responseShape": {
+          "answers": "dictionary keyed by question id"
+        },
+        "classification": "answer-oriented prompt, not an approval prompt"
+      },
+      "dynamicToolCall": {
+        "method": "item/tool/call",
+        "responseShape": {
+          "contentItems": "array",
+          "success": "boolean"
+        },
+        "v1Guidance": "Return an unsupported-tool response unless adapter live validation proves host-defined tool handling is required for normal built-in operation."
+      }
+    }
+  },
+  "liveValidation": {
+    "redaction": {
+      "rawCapturesCommitted": false,
+      "redactedFields": [
+        "account ids",
+        "workspace ids",
+        "installation ids",
+        "environment ids",
+        "tokens",
+        "local paths",
+        "prompts",
+        "model identifiers",
+        "entitlement and rate-limit details",
+        "auth data"
+      ]
+    },
+    "probes": [
+      {
+        "name": "stdio handshake and list APIs",
+        "authOrNetworkRequiredForCI": false,
+        "observations": [
+          {
+            "request": "model/list before initialize",
+            "result": {
+              "errorCode": -32600,
+              "message": "Not initialized"
+            }
+          },
+          {
+            "request": "initialize with experimentalApi",
+            "result": {
+              "platformFamily": "unix",
+              "platformOs": "macos"
+            }
+          },
+          {
+            "request": "repeat initialize",
+            "result": {
+              "errorCode": -32600,
+              "message": "Already initialized"
+            }
+          },
+          {
+            "request": "model/list",
+            "result": {
+              "dataCountFromLimitedPage": 3,
+              "sampleKeys": [
+                "additionalSpeedTiers",
+                "availabilityNux",
+                "defaultReasoningEffort",
+                "defaultServiceTier",
+                "description",
+                "displayName",
+                "hidden",
+                "id",
+                "inputModalities",
+                "isDefault",
+                "model",
+                "serviceTiers",
+                "supportedReasoningEfforts",
+                "supportsPersonality",
+                "upgrade",
+                "upgradeInfo"
+              ],
+              "nextCursorPresent": true
+            }
+          },
+          {
+            "request": "permissionProfile/list",
+            "result": {
+              "dataCount": 3,
+              "sampleKeys": [
+                "description",
+                "id"
+              ],
+              "nextCursor": null
+            }
+          }
+        ]
+      },
+      {
+        "name": "thread start, turn start, stale interrupt, and active interrupt",
+        "authOrNetworkRequiredForCI": true,
+        "observations": [
+          {
+            "request": "thread/start ephemeral",
+            "result": {
+              "threadIdShape": "opaque uuid",
+              "notification": "thread/started"
+            }
+          },
+          {
+            "request": "turn/start minimal prompt",
+            "result": {
+              "turnStartStatus": "inProgress",
+              "notifications": [
+                "thread/status/changed active",
+                "turn/started",
+                "item/started",
+                "item/completed",
+                "item/agentMessage/delta",
+                "thread/tokenUsage/updated",
+                "account/rateLimits/updated",
+                "thread/status/changed idle",
+                "turn/completed completed"
+              ]
+            }
+          },
+          {
+            "request": "turn/interrupt after fast turn already completed",
+            "result": {
+              "errorCode": -32600,
+              "message": "no active turn to interrupt"
+            }
+          },
+          {
+            "request": "turn/interrupt during active turn",
+            "result": {
+              "responseResultKeys": [],
+              "turnCompletedStatus": "interrupted",
+              "threadStatusAfterCompletion": "idle"
+            }
+          }
+        ]
+      },
+      {
+        "name": "approval response semantics",
+        "authOrNetworkRequiredForCI": true,
+        "observations": [
+          {
+            "request": "command approval decline",
+            "serverRequest": "item/commandExecution/requestApproval",
+            "response": {
+              "decision": "decline"
+            },
+            "result": {
+              "serverRequestResolved": true,
+              "turnCompletedStatus": "completed",
+              "waitingFlagObserved": "waitingOnApproval"
+            }
+          },
+          {
+            "request": "command approval cancel",
+            "serverRequest": "item/commandExecution/requestApproval",
+            "response": {
+              "decision": "cancel"
+            },
+            "result": {
+              "serverRequestResolved": true,
+              "turnCompletedStatus": "interrupted",
+              "waitingFlagObserved": "waitingOnApproval"
+            }
+          },
+          {
+            "request": "file-change approval decline",
+            "serverRequest": "item/fileChange/requestApproval",
+            "response": {
+              "decision": "decline"
+            },
+            "result": {
+              "serverRequestResolved": true,
+              "turnCompletedStatus": "completed",
+              "waitingFlagObserved": "waitingOnApproval"
+            }
+          },
+          {
+            "request": "file-change approval cancel",
+            "serverRequest": "item/fileChange/requestApproval",
+            "response": {
+              "decision": "cancel"
+            },
+            "result": {
+              "serverRequestResolved": true,
+              "turnCompletedStatus": "interrupted",
+              "waitingFlagObserved": "waitingOnApproval"
+            }
+          },
+          {
+            "request": "permission-profile approval denial",
+            "serverRequest": "item/permissions/requestApproval",
+            "result": {
+              "triggered": false,
+              "notes": "Prompting the model to request permissions did not produce a permission-profile server request during Phase 3 live validation."
+            }
+          }
+        ]
+      },
+      {
+        "name": "thread hydration and resume",
+        "authOrNetworkRequiredForCI": true,
+        "observations": [
+          {
+            "request": "thread/read includeTurns on ephemeral thread",
+            "result": {
+              "errorCode": -32600,
+              "message": "ephemeral threads do not support includeTurns"
+            }
+          },
+          {
+            "request": "thread/resume before first user message",
+            "result": {
+              "errorCode": -32600,
+              "message": "no rollout found"
+            }
+          },
+          {
+            "request": "thread/read includeTurns after completed persistent turn",
+            "result": {
+              "turnCount": 1,
+              "turnItemCounts": [
+                2
+              ]
+            }
+          },
+          {
+            "request": "thread/resume after completed persistent turn",
+            "result": {
+              "resultKeysInclude": [
+                "initialTurnsPage",
+                "thread"
+              ],
+              "turnCount": 1
+            }
+          },
+          {
+            "request": "thread/archive after completed persistent turn",
+            "result": {
+              "responseResultKeys": []
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "ciPolicy": {
+    "fixturesRequireLiveCodexAuth": false,
+    "fixturesRequireNetwork": false,
+    "liveProbesAreDocumentationOnly": true
+  }
+}
