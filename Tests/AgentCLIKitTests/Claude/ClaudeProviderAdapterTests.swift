@@ -156,7 +156,8 @@ final class ClaudeProviderAdapterTests: XCTestCase {
     }
 
     func testDefaultLaunchUsesEnvClaudeFallback() async throws {
-        let adapter = ClaudeProviderAdapter()
+        let resolver = RecordingExecutableResolver(path: nil)
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(executableResolver: resolver))
 
         let launch = try await adapter.makeLaunchConfiguration(
             spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp")),
@@ -175,6 +176,48 @@ final class ClaudeProviderAdapterTests: XCTestCase {
             "--include-partial-messages"
         ])
         XCTAssertEqual(launch.sessionContinuity, .fresh)
+    }
+
+    func testDefaultLaunchUsesResolvedClaudeExecutable() async throws {
+        let resolver = RecordingExecutableResolver(path: "/Users/test/.local/bin/claude")
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(executableResolver: resolver))
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp")),
+            resumedSession: nil
+        )
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(requestedDefinitions.map(\.id), [.claude])
+        XCTAssertEqual(launch.executable, "/Users/test/.local/bin/claude")
+        XCTAssertEqual(Array(launch.arguments.prefix(7)), [
+            "-p",
+            "--output-format",
+            "stream-json",
+            "--input-format",
+            "stream-json",
+            "--verbose",
+            "--include-partial-messages"
+        ])
+        XCTAssertFalse(launch.arguments.contains("claude"))
+    }
+
+    func testExactClaudeExecutableBypassesResolver() async throws {
+        let resolver = RecordingExecutableResolver(path: "/Users/test/.local/bin/claude")
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(
+            executablePath: "/opt/homebrew/bin/claude",
+            executableResolver: resolver
+        ))
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp")),
+            resumedSession: nil
+        )
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(requestedDefinitions.map(\.id), [])
+        XCTAssertEqual(launch.executable, "/opt/homebrew/bin/claude")
+        XCTAssertFalse(launch.arguments.contains("claude"))
     }
 
     func testPrepareLaunchKeepsCompactHooksWhenPermissionModeDisablesApprovalHooks() async throws {

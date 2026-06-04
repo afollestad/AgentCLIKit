@@ -306,6 +306,28 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertEqual(availability.versionDescription, "Agent 1.0")
     }
 
+    func testDefaultExecutableResolverUsesDetectorAvailability() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let executableURL = try makeTemporaryExecutable(directory: directory)
+        let versionCommand = ShellCommand(executable: executableURL.path, arguments: ["--version"])
+        let shell = FakeShellRunner(results: [
+            versionCommand: .success(ShellCommandResult(exitCode: 0, stdout: "Agent 1.0\n", stderr: ""))
+        ])
+        let detector = AgentProviderDetector(
+            shellRunner: shell,
+            fallbackExecutableDirectories: [directory.path],
+            loginShellExecutablePaths: []
+        )
+        let resolver = DefaultAgentProviderExecutableResolver(detector: detector)
+
+        let path = await resolver.resolvedExecutablePath(
+            for: AgentProviderDefinition(id: .claude, displayName: "Agent", executableNames: ["agent"])
+        )
+
+        XCTAssertEqual(path, executableURL.path)
+    }
+
     private func makeTemporaryExecutable(
         directory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     ) throws -> URL {

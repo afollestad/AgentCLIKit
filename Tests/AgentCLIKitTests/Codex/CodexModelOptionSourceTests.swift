@@ -49,6 +49,70 @@ final class CodexModelOptionSourceTests: XCTestCase {
         XCTAssertEqual(shutdownCount, 1)
     }
 
+    func testAppServerModelOptionSourceUsesResolvedCodexExecutable() async {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: [],
+            modelListResponses: Self.singleModelListResponse(id: "resolved")
+        )
+        let resolver = RecordingExecutableResolver(path: "/Users/test/.local/bin/codex")
+        let recorder = CodexTransportConfigurationRecorder()
+        let source = CodexAppServerModelOptionSource(configuration: configuration(
+            transport: transport,
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        let options = await source.modelOptions(for: .codex)
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(options.map(\.id), ["resolved"])
+        XCTAssertEqual(requestedDefinitions.map(\.id), [.codex])
+        XCTAssertEqual(recorder.executablePaths, ["/Users/test/.local/bin/codex"])
+    }
+
+    func testAppServerModelOptionSourceKeepsEnvFallbackWhenResolverMisses() async {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: [],
+            modelListResponses: Self.singleModelListResponse(id: "fallback-env")
+        )
+        let resolver = RecordingExecutableResolver(path: nil)
+        let recorder = CodexTransportConfigurationRecorder()
+        let source = CodexAppServerModelOptionSource(configuration: configuration(
+            transport: transport,
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        let options = await source.modelOptions(for: .codex)
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(options.map(\.id), ["fallback-env"])
+        XCTAssertEqual(requestedDefinitions.map(\.id), [.codex])
+        XCTAssertEqual(recorder.executablePaths, ["/usr/bin/env"])
+    }
+
+    func testAppServerModelOptionSourceExactExecutableBypassesResolver() async {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: [],
+            modelListResponses: Self.singleModelListResponse(id: "exact")
+        )
+        let resolver = RecordingExecutableResolver(path: "/Users/test/.local/bin/codex")
+        let recorder = CodexTransportConfigurationRecorder()
+        let source = CodexAppServerModelOptionSource(configuration: configuration(
+            transport: transport,
+            executablePath: "/opt/homebrew/bin/codex",
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        let options = await source.modelOptions(for: .codex)
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(options.map(\.id), ["exact"])
+        XCTAssertEqual(requestedDefinitions.map(\.id), [])
+        XCTAssertEqual(recorder.executablePaths, ["/opt/homebrew/bin/codex"])
+    }
+
     func testAppServerModelOptionSourceUsesFreshCacheWithoutRestartingTransport() async {
         let clock = ModelOptionTestClock(now: Date(timeIntervalSince1970: 100))
         let transport = FakeCodexAppServerTransport(
@@ -104,10 +168,19 @@ final class CodexModelOptionSourceTests: XCTestCase {
         XCTAssertEqual(shutdownCount, 2)
     }
 
-    private func configuration(transport: FakeCodexAppServerTransport) -> CodexProviderAdapter.Configuration {
+    private func configuration(
+        transport: FakeCodexAppServerTransport,
+        executablePath: String = "/usr/bin/env",
+        executableResolver: any AgentProviderExecutableResolving = RecordingExecutableResolver(path: nil),
+        recorder: CodexTransportConfigurationRecorder? = nil
+    ) -> CodexProviderAdapter.Configuration {
         CodexProviderAdapter.Configuration(
-            executablePath: "/usr/bin/env",
-            makeTransport: { _ in transport }
+            executablePath: executablePath,
+            makeTransport: { configuration in
+                recorder?.record(configuration)
+                return transport
+            },
+            executableResolver: executableResolver
         )
     }
 

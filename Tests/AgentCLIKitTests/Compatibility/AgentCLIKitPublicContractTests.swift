@@ -27,6 +27,7 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentModelOption.self)
         assertSendable(AgentProviderStatus.self)
         assertSendable(StaticAgentProviderEnablementSource.self)
+        assertSendable(DefaultAgentProviderExecutableResolver.self)
         assertSendable(StaticAgentModelOptionSource.self)
         assertSendable(DefaultAgentModelOptionSource.self)
         assertSendable(DefaultAgentProviderDiscoveryService.self)

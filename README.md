@@ -22,8 +22,9 @@ Then add the library product to your macOS target:
 ```
 
 Host apps also need the relevant local provider CLI installed and discoverable, or a provider adapter configured with an
-explicit executable path. Provider discovery can resolve executables through `PATH`, common shell init files, and standard
-install locations.
+explicit executable path. Built-in provider adapters resolve default `/usr/bin/env` launches through the shared
+`DefaultAgentProviderExecutableResolver`, which checks `PATH`, common shell init files, and standard install locations
+before falling back to the existing `/usr/bin/env <provider>` launch shape.
 
 ## Architecture
 
@@ -384,7 +385,8 @@ explicitly wants live `model/list` model and effort options.
 
 `AgentProviderDefinition` exposes executable candidates, version arguments, supported permission modes, and capability
 metadata for host settings. Model-scoped effort controls come from `AgentModelOption`. `AgentProviderDetector` resolves
-executables through absolute paths, `PATH`, common shell init files, and standard install locations.
+executables through absolute paths, `PATH`, common shell init files, and standard install locations, and
+`DefaultAgentProviderExecutableResolver` uses the same detection path for built-in Claude and Codex runtime launches.
 
 Use `AgentProviderDiscoveryService` when UI needs installed/available providers, enablement, setup readiness, scoped
 project trust, diagnostics, and selectable models in one provider-keyed snapshot:
@@ -411,7 +413,9 @@ let codexModels = await discovery.modelOptions(for: .codex)
 surface them. `DefaultAgentModelOptionSource` uses `ClaudeModelOptionSource` for hardcoded Claude model/effort metadata
 and provider-default Codex options unless the host injects `CodexAppServerModelOptionSource`. The Codex source can query
 `model/list`, caches results briefly, and starts a temporary App Server transport only when called with a missing or
-expired cache. Live Codex model options can include `AgentModelOption.contextWindowSize`,
+expired cache. Its transport also uses the Codex adapter configuration's executable resolver, so GUI hosts do not need to
+manually patch `PATH` when Codex is installed in a standard provider location. Live Codex model options can include
+`AgentModelOption.contextWindowSize`,
 `AgentModelOption.supportedEffortOptions`, and `AgentModelOption.defaultEffortOption`; usage events can update model
 context-window caches when providers report limits.
 

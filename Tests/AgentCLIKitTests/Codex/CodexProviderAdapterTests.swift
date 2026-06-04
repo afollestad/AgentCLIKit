@@ -88,6 +88,67 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(notificationMethods, ["initialized"])
     }
 
+    func testRuntimeTransportUsesResolvedCodexExecutable() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let resolver = RecordingExecutableResolver(path: "/Users/test/.local/bin/codex")
+        let recorder = CodexTransportConfigurationRecorder()
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: nil
+        )
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(requestedDefinitions.map(\.id), [.codex])
+        XCTAssertEqual(recorder.executablePaths, ["/Users/test/.local/bin/codex"])
+    }
+
+    func testRuntimeTransportKeepsEnvFallbackWhenResolverMisses() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let resolver = RecordingExecutableResolver(path: nil)
+        let recorder = CodexTransportConfigurationRecorder()
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: nil
+        )
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(requestedDefinitions.map(\.id), [.codex])
+        XCTAssertEqual(recorder.executablePaths, ["/usr/bin/env"])
+    }
+
+    func testExactCodexExecutableBypassesResolver() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let resolver = RecordingExecutableResolver(path: "/Users/test/.local/bin/codex")
+        let recorder = CodexTransportConfigurationRecorder()
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            executablePath: "/opt/homebrew/bin/codex",
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: nil
+        )
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(requestedDefinitions.map(\.id), [])
+        XCTAssertEqual(recorder.executablePaths, ["/opt/homebrew/bin/codex"])
+    }
+
     func testShutdownStopsSharedTransport() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
@@ -212,11 +273,21 @@ final class CodexProviderAdapterTests: XCTestCase {
         )
     }
 
-    private func configuration(transport: FakeCodexAppServerTransport) -> CodexProviderAdapter.Configuration {
+    private func configuration(
+        transport: FakeCodexAppServerTransport,
+        executablePath: String = "/usr/bin/env",
+        executableResolver: any AgentProviderExecutableResolving = RecordingExecutableResolver(path: nil),
+        recorder: CodexTransportConfigurationRecorder? = nil
+    ) -> CodexProviderAdapter.Configuration {
         CodexProviderAdapter.Configuration(
+            executablePath: executablePath,
             requestTimeout: 0.1,
             probeTimeout: 0.1,
-            makeTransport: { _ in transport }
+            makeTransport: { configuration in
+                recorder?.record(configuration)
+                return transport
+            },
+            executableResolver: executableResolver
         )
     }
 

@@ -354,7 +354,8 @@ actor CodexAppServerClient {
         if let transport {
             return transport
         }
-        let transport = configuration.makeTransport(configuration)
+        let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(for: CodexProviderDefinition.definition)
+        let transport = resolvedConfiguration.makeTransport(resolvedConfiguration)
         try await transport.start()
         self.transport = transport
         return transport

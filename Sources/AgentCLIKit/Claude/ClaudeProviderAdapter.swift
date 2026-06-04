@@ -9,6 +9,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     public struct Configuration: Sendable {
         /// Claude executable path, or `/usr/bin/env` to resolve `claude` through PATH.
         public let executablePath: String
+        /// Resolver used when `executablePath` is `/usr/bin/env`.
+        public let executableResolver: any AgentProviderExecutableResolving
         /// Stream JSON decoder.
         public let decoder: ClaudeStreamDecoder
         /// Stream JSON input encoder.
@@ -31,6 +33,19 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         public let hookDecisionTimeout: TimeInterval?
 
         /// Creates a Claude adapter configuration.
+        /// - Parameters:
+        ///   - executablePath: Claude executable path, or `/usr/bin/env` to resolve `claude` through PATH.
+        ///   - decoder: Stream JSON decoder.
+        ///   - inputEncoder: Stream JSON input encoder.
+        ///   - homeDirectory: Home directory containing `.claude/projects`.
+        ///   - sessionFileExists: Predicate used to decide whether a saved Claude session can be resumed.
+        ///   - enableHooks: Whether this adapter should manage a Claude hook listener and generated hook settings.
+        ///   - interactionStore: Store used for hook-originated pending interactions.
+        ///   - approvalPolicyStore: Store used for session and transient hook approvals.
+        ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
+        ///   - hookDecisionProvider: Optional provider that can answer Claude hook decisions while the hook request is still live.
+        ///   - hookDecisionTimeout: Maximum live hook decision wait before Claude receives a deferred response.
+        ///   - executableResolver: Resolver used when `executablePath` is `/usr/bin/env`.
         public init(
             executablePath: String = "/usr/bin/env",
             decoder: ClaudeStreamDecoder = ClaudeStreamDecoder(),
@@ -45,9 +60,11 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
                 isDirectory: true
             ),
             hookDecisionProvider: (any ClaudeHookDecisionProviding)? = nil,
-            hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout
+            hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout,
+            executableResolver: any AgentProviderExecutableResolving = DefaultAgentProviderExecutableResolver()
         ) {
             self.executablePath = executablePath
+            self.executableResolver = executableResolver
             self.decoder = decoder
             self.inputEncoder = inputEncoder
             self.homeDirectory = homeDirectory
@@ -65,6 +82,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     public let definition = ClaudeProviderDefinition.definition
 
     private let executablePath: String
+    private let executableResolver: any AgentProviderExecutableResolving
     private let decoder: ClaudeStreamDecoder
     private let inputEncoder: ClaudeInputEncoder
     private let homeDirectory: URL
@@ -86,6 +104,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
     ///   - hookDecisionProvider: Optional provider that can answer Claude hook decisions while the hook request is still live.
     ///   - hookDecisionTimeout: Maximum live hook decision wait before Claude receives a deferred response.
+    ///   - executableResolver: Resolver used when `executablePath` is `/usr/bin/env`.
     public init(
         executablePath: String = "/usr/bin/env",
         decoder: ClaudeStreamDecoder = ClaudeStreamDecoder(),
@@ -100,7 +119,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             isDirectory: true
         ),
         hookDecisionProvider: (any ClaudeHookDecisionProviding)? = nil,
-        hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout
+        hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout,
+        executableResolver: any AgentProviderExecutableResolving = DefaultAgentProviderExecutableResolver()
     ) {
         self.init(configuration: Configuration(
             executablePath: executablePath,
@@ -113,13 +133,15 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             approvalPolicyStore: approvalPolicyStore,
             hookSupportDirectory: hookSupportDirectory,
             hookDecisionProvider: hookDecisionProvider,
-            hookDecisionTimeout: hookDecisionTimeout
+            hookDecisionTimeout: hookDecisionTimeout,
+            executableResolver: executableResolver
         ))
     }
 
     /// Creates a Claude provider adapter with a reusable configuration value.
     public init(configuration: Configuration) {
         self.executablePath = configuration.executablePath
+        self.executableResolver = configuration.executableResolver
         self.decoder = configuration.decoder
         self.inputEncoder = configuration.inputEncoder
         self.homeDirectory = configuration.homeDirectory
@@ -150,7 +172,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         spawnConfig: AgentSpawnConfig,
         resumedSession: AgentSessionRecord?
     ) async throws -> AgentLaunchConfiguration {
-        var arguments: [String] = executablePath == "/usr/bin/env" ? ["claude"] : []
+        let launchExecutable = await resolvedLaunchExecutable()
+        var arguments = launchExecutable.arguments
         arguments.append(contentsOf: [
             "-p",
             "--output-format",
@@ -189,13 +212,23 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             arguments.append(initialPrompt)
         }
         return AgentLaunchConfiguration(
-            executable: executablePath,
+            executable: launchExecutable.executable,
             arguments: arguments,
             environment: spawnConfig.environment,
             workingDirectory: spawnConfig.workingDirectory,
             sessionContinuity: sessionContinuity,
             includesSpawnArguments: true
         )
+    }
+
+    private func resolvedLaunchExecutable() async -> (executable: String, arguments: [String]) {
+        guard executablePath == "/usr/bin/env" else {
+            return (executablePath, [])
+        }
+        if let resolvedPath = await executableResolver.resolvedExecutablePath(for: definition) {
+            return (resolvedPath, [])
+        }
+        return (executablePath, ["claude"])
     }
 
     /// Decodes one Claude stream JSON stdout line.

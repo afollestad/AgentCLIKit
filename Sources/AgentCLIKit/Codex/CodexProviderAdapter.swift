@@ -9,6 +9,8 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
     public struct Configuration: Sendable {
         /// Codex executable path, or `/usr/bin/env` to resolve `codex` through `PATH`.
         public let executablePath: String
+        /// Resolver used when `executablePath` is `/usr/bin/env`.
+        public let executableResolver: any AgentProviderExecutableResolving
         /// Optional Codex home directory override, primarily for tests.
         public let codexHomeDirectory: URL?
         /// Additional environment values used for the App Server process.
@@ -27,6 +29,17 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         public let makeTransport: @Sendable (Configuration) -> any CodexAppServerTransport
 
         /// Creates a Codex adapter configuration.
+        /// - Parameters:
+        ///   - executablePath: Codex executable path, or `/usr/bin/env` to resolve `codex` through `PATH`.
+        ///   - codexHomeDirectory: Optional Codex home directory override, primarily for tests.
+        ///   - environment: Additional environment values used for the App Server process.
+        ///   - experimentalAPIEnabled: Whether App Server experimental APIs are enabled during initialization.
+        ///   - requestTimeout: Maximum time to wait for App Server requests.
+        ///   - probeTimeout: Maximum time to wait for App Server startup or probe requests.
+        ///   - shutdownTimeout: Maximum time to wait for App Server shutdown.
+        ///   - transportKind: Transport family used by this adapter.
+        ///   - makeTransport: Factory used to create the transport lazily.
+        ///   - executableResolver: Resolver used when `executablePath` is `/usr/bin/env`.
         public init(
             executablePath: String = "/usr/bin/env",
             codexHomeDirectory: URL? = nil,
@@ -36,9 +49,11 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
             probeTimeout: TimeInterval = 10,
             shutdownTimeout: TimeInterval = 5,
             transportKind: CodexAppServerTransportKind = .stdio,
-            makeTransport: (@Sendable (Configuration) -> any CodexAppServerTransport)? = nil
+            makeTransport: (@Sendable (Configuration) -> any CodexAppServerTransport)? = nil,
+            executableResolver: any AgentProviderExecutableResolving = DefaultAgentProviderExecutableResolver()
         ) {
             self.executablePath = executablePath
+            self.executableResolver = executableResolver
             self.codexHomeDirectory = codexHomeDirectory
             self.environment = environment
             self.experimentalAPIEnabled = experimentalAPIEnabled
@@ -160,4 +175,25 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
 private struct CodexBootstrapPayload: Codable {
     let codexAppServerBootstrap: Bool
     let threadId: String
+}
+
+extension CodexProviderAdapter.Configuration {
+    func resolvingExecutableIfNeeded(for definition: AgentProviderDefinition) async -> Self {
+        guard executablePath == "/usr/bin/env",
+              let resolvedPath = await executableResolver.resolvedExecutablePath(for: definition) else {
+            return self
+        }
+        return Self(
+            executablePath: resolvedPath,
+            codexHomeDirectory: codexHomeDirectory,
+            environment: environment,
+            experimentalAPIEnabled: experimentalAPIEnabled,
+            requestTimeout: requestTimeout,
+            probeTimeout: probeTimeout,
+            shutdownTimeout: shutdownTimeout,
+            transportKind: transportKind,
+            makeTransport: makeTransport,
+            executableResolver: executableResolver
+        )
+    }
 }

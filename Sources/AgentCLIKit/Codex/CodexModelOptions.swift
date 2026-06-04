@@ -48,10 +48,11 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
     }
 
     private func liveModelOptions() async throws -> [AgentModelOption] {
-        let transport = configuration.makeTransport(configuration)
+        let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(for: CodexProviderDefinition.definition)
+        let transport = resolvedConfiguration.makeTransport(resolvedConfiguration)
         try await transport.start()
         do {
-            _ = try await transport.sendRequest(method: "initialize", params: initializeParams())
+            _ = try await transport.sendRequest(method: "initialize", params: initializeParams(configuration: resolvedConfiguration))
             try await transport.sendNotification(method: "initialized", params: nil)
 
             var options: [AgentModelOption] = []
@@ -82,7 +83,7 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
             : fallback
     }
 
-    private func initializeParams() -> JSONValue {
+    private func initializeParams(configuration: CodexProviderAdapter.Configuration) -> JSONValue {
         .object([
             "clientInfo": .object([
                 "name": .string("AgentCLIKit"),

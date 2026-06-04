@@ -29,6 +29,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Public APIs must use generic names and avoid host-app concepts such as SwiftData, view models, drafts, notifications, and keep-awake services.
 - Additive public `Codable` changes should decode older persisted values with defaults.
 - Compatibility tests live under `Tests/AgentCLIKitTests/Compatibility/` and should prove host-mappable behavior without importing host app code.
+- Keep provider executable lookup in the shared resolver/detector layer; provider adapters should consume resolved paths instead of duplicating `PATH`, login-shell, or fallback-directory logic.
 
 ## Build And Test
 
