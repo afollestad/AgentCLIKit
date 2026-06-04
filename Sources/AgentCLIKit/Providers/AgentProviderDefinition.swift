@@ -83,6 +83,10 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsPermissionPrompts: Bool
     /// Whether the provider can list selectable model options.
     public let supportsModelListing: Bool
+    /// Whether the provider can archive a native provider session.
+    public let supportsSessionArchiving: Bool
+    /// Whether the provider can unarchive a native provider session.
+    public let supportsSessionUnarchiving: Bool
 
     /// Creates provider capability metadata.
     public init(
@@ -101,7 +105,9 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         supportsContextWindow: Bool = false,
         supportsNativeThreadFork: Bool = false,
         supportsPermissionPrompts: Bool = false,
-        supportsModelListing: Bool = false
+        supportsModelListing: Bool = false,
+        supportsSessionArchiving: Bool = false,
+        supportsSessionUnarchiving: Bool = false
     ) {
         self.supportsSessionResume = supportsSessionResume
         self.supportsHooks = supportsHooks
@@ -119,6 +125,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsNativeThreadFork = supportsNativeThreadFork
         self.supportsPermissionPrompts = supportsPermissionPrompts
         self.supportsModelListing = supportsModelListing
+        self.supportsSessionArchiving = supportsSessionArchiving
+        self.supportsSessionUnarchiving = supportsSessionUnarchiving
     }
 
     /// Decodes capability metadata, defaulting additive fields for older persisted values.
@@ -140,6 +148,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsNativeThreadFork = try container.decodeIfPresent(Bool.self, forKey: .supportsNativeThreadFork) ?? false
         self.supportsPermissionPrompts = try container.decodeIfPresent(Bool.self, forKey: .supportsPermissionPrompts) ?? false
         self.supportsModelListing = try container.decodeIfPresent(Bool.self, forKey: .supportsModelListing) ?? false
+        self.supportsSessionArchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionArchiving) ?? false
+        self.supportsSessionUnarchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionUnarchiving) ?? false
     }
 }
 

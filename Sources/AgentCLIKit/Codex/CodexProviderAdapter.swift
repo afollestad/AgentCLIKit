@@ -130,6 +130,18 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         try await client.interrupt(context: context)
     }
 
+    /// Archives a Codex App Server thread without starting or resuming a runtime session.
+    public func archiveSession(_ record: AgentSessionRecord) async throws {
+        try validateSessionActionRecord(record)
+        try await client.archiveThread(record.providerSessionId)
+    }
+
+    /// Unarchives a Codex App Server thread without starting or resuming a runtime session.
+    public func unarchiveSession(_ record: AgentSessionRecord) async throws {
+        try validateSessionActionRecord(record)
+        try await client.unarchiveThread(record.providerSessionId)
+    }
+
     /// Stops the shared App Server transport.
     public func shutdownProviderResources() async {
         await client.shutdown()

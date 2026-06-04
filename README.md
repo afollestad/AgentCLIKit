@@ -207,6 +207,20 @@ let refreshed = await trustService.status(providerId: .claude, projectURL: proje
 
 For host persistence, implement the provider-neutral store protocols instead of storing runtime internals. `AgentSessionStore`, `AgentInteractionStore`, and `AgentApprovalPolicyStore` are durable async boundaries that can be backed by SwiftData, SQLite, files, or another store. Session stores support reverse lookup and cleanup by provider session, provider, and canonical working directory. Live hook continuations, launch tokens, listener ports, and in-flight decision races remain internal to the runtime.
 
+Use `AgentProviderSessionActionRouter` when a host wants to pair local archive state with a provider-native action:
+
+```swift
+let router = AgentProviderSessionActionRouter {
+    AgentProviderAdapterSet.default(claude: claudeConfig, codex: codexConfig)
+}
+try await router.archiveSession(record)
+try await router.unarchiveSession(record)
+```
+
+The router builds fresh owned adapters for each action and shuts provider resources down afterward. Codex archive/unarchive
+uses App Server `thread/archive` and `thread/unarchive`; Claude validates matching session records and no-ops because the
+Claude CLI does not expose native archive actions.
+
 Thrown `AgentCLIError` values expose stable `code` and structured `metadata` so hosts can map failures without parsing
 provider strings. Diagnostic events similarly include optional `AgentDiagnosticCode` values.
 

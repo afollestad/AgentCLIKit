@@ -25,7 +25,9 @@ public enum CodexProviderDefinition {
             supportsContextWindow: true,
             supportsNativeThreadFork: true,
             supportsPermissionPrompts: true,
-            supportsModelListing: true
+            supportsModelListing: true,
+            supportsSessionArchiving: true,
+            supportsSessionUnarchiving: true
         ),
         supportedPermissionModes: [
             AgentProviderOption(

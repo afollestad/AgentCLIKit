@@ -23,6 +23,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private var threadIds: [String]
     private var modelListResponses: [JSONValue]
     private let failModelListRequests: Bool
+    private let failingMethods: Set<String>
     private var turnIndex = 0
     private var incomingContinuations: [UUID: AsyncStream<CodexAppServerIncomingMessage>.Continuation] = [:]
     private(set) var startCount = 0
@@ -35,10 +36,16 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private(set) var errorResponseLog: [ErrorResponse] = []
     private(set) var incomingStreamCount = 0
 
-    init(threadIds: [String], modelListResponses: [JSONValue] = [], failModelListRequests: Bool = false) {
+    init(
+        threadIds: [String],
+        modelListResponses: [JSONValue] = [],
+        failModelListRequests: Bool = false,
+        failingMethods: Set<String> = []
+    ) {
         self.threadIds = threadIds
         self.modelListResponses = modelListResponses
         self.failModelListRequests = failModelListRequests
+        self.failingMethods = failingMethods
     }
 
     func start() async throws {
@@ -63,6 +70,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         requestMethods.append(method)
         requestParams[method] = params
         requestLog.append(Request(method: method, params: params))
+        try failIfNeeded(method)
         switch method {
         case "initialize":
             return .object(["server": .string("fake")])
@@ -85,6 +93,8 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
             return .object(["turnId": .string("turn-\(turnIndex)")])
         case "turn/interrupt":
             return .object([:])
+        case "thread/archive", "thread/unarchive":
+            return .object([:])
         case "model/list":
             if failModelListRequests {
                 throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "Model list failed.")
@@ -100,6 +110,12 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
 
     func sendNotification(method: String, params: JSONValue?) async throws {
         notificationMethods.append(method)
+    }
+
+    private func failIfNeeded(_ method: String) throws {
+        if failingMethods.contains(method) {
+            throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "\(method) failed.")
+        }
     }
 
     func sendResponse(id: JSONValue, result: JSONValue?) async throws {

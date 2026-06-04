@@ -47,6 +47,22 @@ actor CodexAppServerClient {
         )
     }
 
+    func archiveThread(_ threadId: AgentSessionID) async throws {
+        let transport = try await initializedTransport()
+        _ = try await transport.sendRequest(
+            method: "thread/archive",
+            params: threadActionParams(threadId)
+        )
+    }
+
+    func unarchiveThread(_ threadId: AgentSessionID) async throws {
+        let transport = try await initializedTransport()
+        _ = try await transport.sendRequest(
+            method: "thread/unarchive",
+            params: threadActionParams(threadId)
+        )
+    }
+
     func shutdown() async {
         incomingTask?.cancel()
         incomingTask = nil
@@ -377,6 +393,10 @@ actor CodexAppServerClient {
             params["config"] = .object(["model_reasoning_effort": .string(effort)])
         }
         return .object(params)
+    }
+
+    private func threadActionParams(_ threadId: AgentSessionID) -> JSONValue {
+        .object(["threadId": .string(threadId.rawValue)])
     }
 
     private func turnStartParams(message: AgentMessageInput, binding: ConversationBinding, includeSettings: Bool) -> JSONValue {

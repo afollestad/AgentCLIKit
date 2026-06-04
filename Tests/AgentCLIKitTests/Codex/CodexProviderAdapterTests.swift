@@ -102,6 +102,87 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(shutdownCount, 1)
     }
 
+    func testArchivesThreadWithoutRuntimeBootstrap() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        try await adapter.archiveSession(sessionRecord(providerId: .codex, workingDirectory: nil))
+
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/archive"])
+        XCTAssertEqual(requestParams["thread/archive"]?.objectValue?["threadId"], .string("thread-123"))
+        XCTAssertFalse(requestMethods.contains("thread/start"))
+        XCTAssertFalse(requestMethods.contains("thread/resume"))
+    }
+
+    func testUnarchivesThreadWithoutRuntimeBootstrap() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        try await adapter.unarchiveSession(sessionRecord(providerId: .codex, workingDirectory: nil))
+
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/unarchive"])
+        XCTAssertEqual(requestParams["thread/unarchive"]?.objectValue?["threadId"], .string("thread-123"))
+        XCTAssertFalse(requestMethods.contains("thread/start"))
+        XCTAssertFalse(requestMethods.contains("thread/resume"))
+    }
+
+    func testArchiveThrowsForMismatchedProviderRecord() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        do {
+            try await adapter.archiveSession(sessionRecord(providerId: .claude))
+            XCTFail("Expected mismatched provider record to throw.")
+        } catch let error as AgentCLIError {
+            guard case let .invalidInput(message) = error else {
+                XCTFail("Expected invalidInput, got \(error).")
+                return
+            }
+            XCTAssertTrue(message.contains("claude"))
+            XCTAssertTrue(message.contains("codex"))
+        }
+
+        let requestMethods = await transport.requestMethods
+
+        XCTAssertEqual(requestMethods, [])
+    }
+
+    func testArchiveSurfacesJSONRPCFailure() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [], failingMethods: ["thread/archive"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        do {
+            try await adapter.archiveSession(sessionRecord(providerId: .codex))
+            XCTFail("Expected JSON-RPC failure.")
+        } catch let error as CodexAppServerError {
+            guard case let .jsonRPCError(method, code, message) = error else {
+                XCTFail("Expected JSON-RPC error, got \(error).")
+                return
+            }
+            XCTAssertEqual(method, "thread/archive")
+            XCTAssertEqual(code, -32000)
+            XCTAssertEqual(message, "thread/archive failed.")
+        }
+    }
+
+    func testProviderResourcesCanShutdownAfterOneShotArchive() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        try await adapter.archiveSession(sessionRecord(providerId: .codex))
+        await adapter.shutdownProviderResources()
+
+        let shutdownCount = await transport.shutdownCount
+
+        XCTAssertEqual(shutdownCount, 1)
+    }
+
     func testAppServerErrorsMapToDiagnosticCodes() {
         XCTAssertEqual(
             CodexAppServerError.requestTimeout(method: "thread/start", seconds: 1).diagnosticCode,
@@ -118,6 +199,16 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(
             CodexAppServerError.shutdownTimeout(seconds: 1).diagnosticCode,
             .codexAppServerShutdownTimeout
+        )
+    }
+
+    private func sessionRecord(providerId: AgentProviderID, workingDirectory: URL? = URL(fileURLWithPath: "/tmp/project")) -> AgentSessionRecord {
+        AgentSessionRecord(
+            conversationId: "conversation",
+            providerId: providerId,
+            providerSessionId: "thread-123",
+            workingDirectory: workingDirectory,
+            generation: 0
         )
     }
 

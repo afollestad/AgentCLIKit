@@ -24,8 +24,12 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertEqual(definitions.map(\.id), [.claude, .codex])
         XCTAssertEqual(definitions.map(\.displayName), ["Claude", "Codex"])
         XCTAssertTrue(definitions[0].capabilities.supportsHooks)
+        XCTAssertFalse(definitions[0].capabilities.supportsSessionArchiving)
+        XCTAssertFalse(definitions[0].capabilities.supportsSessionUnarchiving)
         XCTAssertFalse(definitions[1].capabilities.supportsHooks)
         XCTAssertTrue(definitions[1].capabilities.supportsModelListing)
+        XCTAssertTrue(definitions[1].capabilities.supportsSessionArchiving)
+        XCTAssertTrue(definitions[1].capabilities.supportsSessionUnarchiving)
         XCTAssertEqual(definitions[1].supportedPermissionModes?.map(\.value), ["untrusted", "on-request", "never"])
     }
 
@@ -91,7 +95,9 @@ final class AgentProviderTests: XCTestCase {
                 supportsContextWindow: true,
                 supportsNativeThreadFork: true,
                 supportsPermissionPrompts: true,
-                supportsModelListing: true
+                supportsModelListing: true,
+                supportsSessionArchiving: true,
+                supportsSessionUnarchiving: true
             ),
             supportedPermissionModes: [
                 AgentProviderOption(value: "plan", label: "Plan", description: "Read-only planning.")
@@ -113,20 +119,9 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertTrue(decoded.capabilities.supportsToolEvents)
         XCTAssertTrue(decoded.capabilities.supportsPromptRequests)
         XCTAssertTrue(decoded.capabilities.supportsModelListing)
-        XCTAssertEqual(legacy.versionArguments, ["--version"])
-        XCTAssertFalse(legacy.capabilities.supportsMidTurnSteering)
-        XCTAssertFalse(legacy.capabilities.supportsToolEvents)
-        XCTAssertFalse(legacy.capabilities.supportsGroupedToolOutput)
-        XCTAssertFalse(legacy.capabilities.supportsPlanMode)
-        XCTAssertFalse(legacy.capabilities.supportsTaskLists)
-        XCTAssertFalse(legacy.capabilities.supportsSubagents)
-        XCTAssertFalse(legacy.capabilities.supportsPromptRequests)
-        XCTAssertFalse(legacy.capabilities.supportsContextWindow)
-        XCTAssertFalse(legacy.capabilities.supportsNativeThreadFork)
-        XCTAssertFalse(legacy.capabilities.supportsPermissionPrompts)
-        XCTAssertFalse(legacy.capabilities.supportsModelListing)
-        XCTAssertNil(legacy.supportedPermissionModes)
-        XCTAssertNil(legacy.supportedEffortLevels)
+        XCTAssertTrue(decoded.capabilities.supportsSessionArchiving)
+        XCTAssertTrue(decoded.capabilities.supportsSessionUnarchiving)
+        assertLegacyProviderDefinitionDefaults(legacy)
     }
 
     func testLaunchConfigurationRoundTripsProviderSessionIdAndDefaultsLegacyFields() throws {
@@ -278,5 +273,24 @@ final class AgentProviderTests: XCTestCase {
         try "#!/bin/sh\n".write(to: executableURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
         return executableURL
+    }
+
+    private func assertLegacyProviderDefinitionDefaults(_ legacy: AgentProviderDefinition) {
+        XCTAssertEqual(legacy.versionArguments, ["--version"])
+        XCTAssertFalse(legacy.capabilities.supportsMidTurnSteering)
+        XCTAssertFalse(legacy.capabilities.supportsToolEvents)
+        XCTAssertFalse(legacy.capabilities.supportsGroupedToolOutput)
+        XCTAssertFalse(legacy.capabilities.supportsPlanMode)
+        XCTAssertFalse(legacy.capabilities.supportsTaskLists)
+        XCTAssertFalse(legacy.capabilities.supportsSubagents)
+        XCTAssertFalse(legacy.capabilities.supportsPromptRequests)
+        XCTAssertFalse(legacy.capabilities.supportsContextWindow)
+        XCTAssertFalse(legacy.capabilities.supportsNativeThreadFork)
+        XCTAssertFalse(legacy.capabilities.supportsPermissionPrompts)
+        XCTAssertFalse(legacy.capabilities.supportsModelListing)
+        XCTAssertFalse(legacy.capabilities.supportsSessionArchiving)
+        XCTAssertFalse(legacy.capabilities.supportsSessionUnarchiving)
+        XCTAssertNil(legacy.supportedPermissionModes)
+        XCTAssertNil(legacy.supportedEffortLevels)
     }
 }

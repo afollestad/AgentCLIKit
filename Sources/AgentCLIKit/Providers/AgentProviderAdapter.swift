@@ -42,6 +42,12 @@ public protocol AgentProviderAdapter: Sendable {
     /// Sends a provider-native interruption request for the active turn, if supported.
     func interrupt(context: AgentProviderInterruptContext) async throws
 
+    /// Archives a provider-native session when the provider supports it.
+    func archiveSession(_ record: AgentSessionRecord) async throws
+
+    /// Unarchives a provider-native session when the provider supports it.
+    func unarchiveSession(_ record: AgentSessionRecord) async throws
+
     /// Notifies the provider that runtime-observed permission mode changed for a conversation.
     func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async
 
@@ -84,6 +90,16 @@ public extension AgentProviderAdapter {
     /// Performs no provider-native interruption for process-only providers.
     func interrupt(context: AgentProviderInterruptContext) async throws {}
 
+    /// Validates the provider record and otherwise no-ops for providers without native archiving.
+    func archiveSession(_ record: AgentSessionRecord) async throws {
+        try validateSessionActionRecord(record)
+    }
+
+    /// Validates the provider record and otherwise no-ops for providers without native unarchiving.
+    func unarchiveSession(_ record: AgentSessionRecord) async throws {
+        try validateSessionActionRecord(record)
+    }
+
     /// Does nothing for providers without permission-mode-sensitive runtime resources.
     func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async {}
 
@@ -92,6 +108,15 @@ public extension AgentProviderAdapter {
 
     /// Does nothing for providers that do not retain shared runtime resources.
     func shutdownProviderResources() async {}
+
+    /// Validates that a provider session record belongs to this provider adapter.
+    func validateSessionActionRecord(_ record: AgentSessionRecord) throws {
+        guard record.providerId == definition.id else {
+            throw AgentCLIError.invalidInput(
+                "Provider session record for '\(record.providerId.rawValue)' cannot be handled by '\(definition.id.rawValue)'."
+            )
+        }
+    }
 }
 
 /// Runtime context supplied while a provider encodes host input.
