@@ -1,8 +1,11 @@
 # AgentCLIKit
 
-AgentCLIKit is a Swift package for macOS apps that run local agent CLIs through a reusable, provider-neutral API.
+AgentCLIKit is a Swift package for macOS apps that run local agent CLIs through a reusable, provider-neutral API. Built-in
+provider adapters cover Claude Code and Codex App Server.
 
-The runtime owns process launch, stdin/stdout coordination, event replay, provider sessions, and interaction resolution. Provider-specific code lives in folders such as `Claude/`, so future providers can add adapters, decoders, config, and hook support without changing the runtime core.
+The runtime owns process launch, stdin/stdout coordination, event replay, provider sessions, and interaction resolution.
+Provider-specific code lives in folders such as `Claude/` and `Codex/`, and additional providers can add sibling adapters,
+decoders, config, and interaction support without changing the runtime core.
 
 ## Installation
 
@@ -17,6 +20,10 @@ Then add the library product to your macOS target:
 ```swift
 .product(name: "AgentCLIKit", package: "AgentCLIKit")
 ```
+
+Host apps also need the relevant local provider CLI installed and discoverable, or a provider adapter configured with an
+explicit executable path. Provider discovery can resolve executables through `PATH`, common shell init files, and standard
+install locations.
 
 ## Architecture
 
@@ -36,6 +43,22 @@ AgentCLIKit is split into provider-neutral subsystems and provider implementatio
 
 Host apps own UI state, persistence, drafts, notifications, and queueing policy. AgentCLIKit owns runtime mechanics and emits provider-neutral events that hosts can persist or render however they want.
 
+## Provider Capabilities
+
+Hosts should inspect `AgentProviderDefinition.capabilities` before enabling provider-specific UI. Claude and Codex both
+support provider-neutral runtime events, session resume, mid-turn steering, usage/context reporting, tool event grouping,
+plan and task-list events, sub-agent/collaboration events, interactions, approvals, permission prompts, and MCP.
+
+Provider-specific behavior remains explicit:
+
+| Area | Claude | Codex |
+| --- | --- | --- |
+| Transport | Claude CLI stream JSON over stdin/stdout | Codex App Server JSON-RPC |
+| Hooks | Local hook listener, generated hook settings, and hook decisions | Not used |
+| Model options | Static built-in options | Static fallback plus opt-in App Server `model/list` |
+| Config and trust | User `.claude.json` | User `~/.codex/config.toml` and trusted project `.codex/config.toml` |
+| Native archive | No provider-native action; validated no-op | App Server `thread/archive` and `thread/unarchive` |
+
 ## Create A Runtime
 
 Use one runtime actor per app-level runtime service:
@@ -46,8 +69,8 @@ let runtime = DefaultAgentRuntime(
 )
 ```
 
-The default adapter set includes Claude and Codex runtime adapters. Codex starts its App Server lazily only when a `.codex`
-conversation is spawned; static provider metadata and discovery do not launch it.
+The default adapter set includes Claude and Codex runtime adapters. Codex starts its App Server lazily only when Codex work
+starts; static provider metadata and default discovery do not launch it.
 
 Hosts that need custom Claude hook stores, Codex App Server configuration, or test adapters can provide an adapter set:
 
@@ -64,7 +87,7 @@ let runtime = DefaultAgentRuntime(adapterSet: adapterSet, sessionStore: sessionS
 Explicit adapters can still override built-ins for tests or custom hosts:
 
 ```swift
-let adapterSet = AgentProviderAdapterSet(overriding: [customClaudeAdapter])
+let adapterSet = AgentProviderAdapterSet(overriding: [customAdapter])
 let runtime = DefaultAgentRuntime(adapterSet: adapterSet, sessionStore: sessionStore)
 ```
 
@@ -82,10 +105,11 @@ try await runtime.spawn(
 )
 ```
 
-`AgentSpawnConfig` also supports provider arguments, environment overrides, model, effort, permission mode, and an initial prompt:
+`AgentSpawnConfig` also supports provider arguments, environment overrides, model, permission mode, session forking, and an
+initial prompt:
 
 ```swift
-let config = AgentSpawnConfig(
+let claudeConfig = AgentSpawnConfig(
     providerId: .claude,
     workingDirectory: projectPath,
     arguments: ["--add-dir", supportPath.path],
@@ -96,8 +120,23 @@ let config = AgentSpawnConfig(
 )
 ```
 
-Provider adapters own native launch ordering. For Claude, AgentCLIKit emits stream JSON flags, then permission mode, model,
-effort, session continuity, extra arguments, and optional initial prompt.
+Codex uses the same host-facing config shape:
+
+```swift
+let codexConfig = AgentSpawnConfig(
+    providerId: .codex,
+    workingDirectory: projectPath,
+    model: "gpt-5.4",
+    permissionMode: "on-request",
+    initialPrompt: "Summarize the current repository"
+)
+```
+
+Provider adapters own native launch ordering. Claude emits stream JSON flags, permission mode, model, effort, session
+continuity, extra arguments, and optional initial prompt. Codex bootstraps or resumes an App Server thread, then sends
+turn input through `turn/start` or `turn/steer`. Hosts should read `AgentProviderDefinition.supportedEffortLevels` before
+showing effort controls; the built-in adapters currently advertise effort metadata for Claude. `AgentMessageInput` has an
+attachments field for host metadata, but the built-in providers currently send text input.
 
 ## Subscribe And Persist Events
 
@@ -170,6 +209,36 @@ try await runtime.resolveInteraction(
 
 Resolution is idempotent for a runtime conversation, so duplicate UI actions do not send duplicate provider input.
 
+## Inbox, Approvals, And Prompts
+
+Pending approvals and prompts can be surfaced through `AgentInteractionInbox`:
+
+```swift
+let inbox = InMemoryAgentInteractionInbox(store: interactionStore)
+
+for await actions in await inbox.subscribe(conversationId: conversationId) {
+    render(actions)
+}
+```
+
+Interactions use provider-neutral outcomes: approve, deny, defer to provider fallback behavior, answer with text, or
+cancel. Provider-specific resolution details can still travel through `AgentInteractionResolution.metadata` when an
+adapter needs native fields.
+
+Prompt questions support fixed options, optional descriptions, and custom responses. Hosts can render
+`AgentPromptOption.description` as helper text or a tooltip:
+
+```swift
+let answer = AgentPromptAnswer(
+    interactionId: interactionId,
+    responseText: "Use the public API",
+    source: .customResponse
+)
+try await runtime.resolveInteraction(answer.resolution(), conversationId: conversationId)
+```
+
+Claude `AskUserQuestion` and Codex `item/tool/requestUserInput` both surface as provider-neutral prompt requests.
+
 ## Provider Setup
 
 Claude-specific config, setup, MCP bridging, hook approval, and stream decoding live under `Claude/`. Codex-specific App
@@ -177,15 +246,16 @@ Server transport, `.codex` config, setup, MCP bridging, approval mapping, and pr
 Generic host code should depend on `AgentRuntime`, `AgentProviderAdapter`, `AgentProviderSetup`, `AgentEventEnvelope`,
 `AgentInput`, and provider-neutral store/service protocols.
 
-Provider setup services prepare local provider config before launch. Claude setup can trust a project while preserving unrelated Claude config such as MCP servers:
+Provider setup services prepare local provider config before launch. Claude setup can trust a project while preserving
+unrelated Claude config such as MCP servers:
 
 ```swift
-let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: claudeConfigURL)
-try await setup.trustProject(at: projectPath)
+let claudeSetup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: claudeConfigURL)
+try await claudeSetup.trustProject(at: projectPath)
 ```
 
 Codex setup writes Codex's documented user-level project trust table, separate from auth readiness. AgentCLIKit can report
-inspectable credential material, but it does not trigger `codex login`:
+credential-source presence for Codex, but it never exposes token contents and does not trigger `codex login`:
 
 ```swift
 let codexSetup = CodexProviderSetup(codexHomeDirectoryURL: codexHomeURL)
@@ -200,14 +270,15 @@ project `.codex/` layers until the user-level config marks that project trusted.
 Use `AgentProjectTrustService` when host UI needs provider-neutral project readiness. Cached status is synchronous and does not touch disk, while refreshed status can perform provider-specific config reads:
 
 ```swift
-let trustService = DefaultAgentProjectTrustService(setups: [setup])
+let trustService = DefaultAgentProjectTrustService(setups: [claudeSetup, codexSetup])
 let cached = trustService.cachedStatus(providerId: .claude, projectURL: projectPath)
 let refreshed = await trustService.status(providerId: .claude, projectURL: projectPath)
 ```
 
 For host persistence, implement the provider-neutral store protocols instead of storing runtime internals. `AgentSessionStore`, `AgentInteractionStore`, and `AgentApprovalPolicyStore` are durable async boundaries that can be backed by SwiftData, SQLite, files, or another store. Session stores support reverse lookup and cleanup by provider session, provider, and canonical working directory. Live hook continuations, launch tokens, listener ports, and in-flight decision races remain internal to the runtime.
 
-Use `AgentProviderSessionActionRouter` when a host wants to pair local archive state with a provider-native action:
+Hosts can list provider sessions through `AgentSessionStore.records(providerId:workingDirectory:)`. Use
+`AgentProviderSessionActionRouter` when a host wants to pair local archive state with a provider-native action:
 
 ```swift
 let router = AgentProviderSessionActionRouter {
@@ -225,6 +296,9 @@ Thrown `AgentCLIError` values expose stable `code` and structured `metadata` so 
 provider strings. Diagnostic events similarly include optional `AgentDiagnosticCode` values.
 
 ## Claude Hooks
+
+Claude hooks are Claude-specific. Codex does not use the Claude hook listener or hook settings; it uses App Server server
+requests and notifications.
 
 `ClaudeProviderAdapter` can own Claude's local hook listener. `DefaultAgentRuntime` starts the loopback listener lazily, generates per-launch settings files and bearer tokens, invalidates launch tokens on teardown, and stops the listener from `shutdown()`:
 
@@ -271,38 +345,26 @@ let decision = ClaudeHookDecision.allow(updatedInput: .object([
 ]))
 ```
 
-## Inbox And Prompts
+## Codex App Server
 
-Pending approvals and prompts can be surfaced through `AgentInteractionInbox`:
+`CodexProviderAdapter` starts a Codex App Server process lazily for Codex runtime work. The adapter initializes the App
+Server, starts or resumes a Codex thread, persists the Codex thread ID as the provider session ID, and sends user turns
+through App Server `turn/start`. Mid-turn user input uses `turn/steer`, and runtime cancellation maps to `turn/interrupt`
+when Codex reports an active turn.
 
-```swift
-let inbox = InMemoryAgentInteractionInbox(store: interactionStore)
+Codex App Server requests are mapped into the same provider-neutral interaction model as Claude hooks. Command execution
+approvals, file-change approvals, permission-profile prompts, MCP elicitation, and user-input requests surface as
+`AgentInteractionEvent` values and can be resolved with `AgentInteractionResolution`.
 
-for await actions in await inbox.subscribe(conversationId: conversationId) {
-    render(actions)
-}
-```
+Codex emits messages, reasoning, tool calls/results, diffs, usage, context-window metadata, task/todo events, sub-agent
+activity, permission-mode changes, and diagnostics through provider-neutral `AgentEvent` values. AgentCLIKit maps built-in
+Codex provider activity, but host-defined Codex custom tool execution is not a v1 host API.
 
-Prompt questions support fixed options and custom responses:
-
-```swift
-let answer = AgentPromptAnswer(
-    interactionId: interactionId,
-    responseText: "Use the public API",
-    source: .customResponse
-)
-try await runtime.resolveInteraction(answer.resolution(), conversationId: conversationId)
-```
+Use `CodexConfigStore` for Codex TOML config, `CodexProviderSetup` for project trust, `CodexAuthProbe` or
+`CodexProviderSetup.authReadiness()` for credential-source readiness, and `CodexAppServerModelOptionSource` when a host
+explicitly wants live `model/list` options.
 
 ## Provider UI Helpers
-
-Provider readiness and selection UI can observe the registry for definition-level changes:
-
-```swift
-for await readiness in await providerRegistry.readinessUpdates() {
-    updateProviderPicker(readiness)
-}
-```
 
 `AgentProviderDefinition` exposes executable candidates, version arguments, supported permission modes, effort levels, and
 capability metadata for host settings. `AgentProviderDetector` resolves executables through absolute paths, `PATH`, common
@@ -327,6 +389,16 @@ let codexModels = await discovery.modelOptions(for: .codex)
 `availableProviderStatuses(projectURL:)` keeps enabled providers with unknown installation state so optimistic UI can still
 surface them. `CodexAppServerModelOptionSource` can query Codex `model/list`, but it starts a temporary App Server
 transport when called; the default discovery service uses static/cache-safe options and does not launch Codex.
+Static model options are available for Claude and provider defaults. Live Codex model options can include
+`AgentModelOption.contextWindowSize`, and usage events can update model context-window caches when providers report limits.
+
+Lower-level registry consumers can still observe definition/readiness updates directly:
+
+```swift
+for await readiness in await providerRegistry.readinessUpdates() {
+    updateProviderPicker(readiness)
+}
+```
 
 Transcript and metrics helpers provide renderable host projections:
 
@@ -368,13 +440,16 @@ Repo-local agent workflows live under `.agents`: capability skills in `.agents/s
 
 ## Demo App
 
-Run the live Claude-backed macOS demo with:
+Run the live macOS demo with:
 
 ```sh
 ./scripts/run-demo.sh
 ```
 
-The demo builds and launches `AgentCLIKitDemo`. It lists persisted session records, lets you add sessions, renders live runtime output from Claude, observes runtime status snapshots, exposes cancellation while the provider process is active, and answers `AskUserQuestion` prompts through the live hook decision provider.
+The demo builds and launches `AgentCLIKitDemo`. It shows provider readiness, lets you choose providers and models, lists
+persisted session records, renders live provider output, observes runtime status snapshots, exposes cancellation while the
+provider process is active, answers Claude `AskUserQuestion` prompts through the live hook decision provider, and can load
+Codex model options through Codex App Server.
 
 ## License
 
