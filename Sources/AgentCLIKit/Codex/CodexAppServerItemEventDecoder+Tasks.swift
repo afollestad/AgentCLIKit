@@ -26,14 +26,23 @@ extension CodexAppServerItemEventDecoder {
         )
     }
 
-    func contextCompactionTask(_ payload: ItemPayload, phase: AgentTaskPhase) -> AgentTaskEvent {
-        AgentTaskEvent(
-            id: payload.id,
-            phase: phase,
-            description: phase == .completed ? "Context compacted" : "Compacting context",
-            taskType: "contextCompaction",
-            status: itemStatus(payload.item),
-            metadata: payload.metadata
+    func contextCompactionEvent(_ payload: ItemPayload, phase: AgentContextCompactionPhase) -> AgentContextCompactionEvent {
+        let status = itemStatus(payload.item)
+        let resolvedPhase: AgentContextCompactionPhase = status == "failed" ? .failed : phase
+        let turnId = payload.metadata.stringValue("codex_turn_id")
+        let error = payload.item["error"]?.codexObjectValue?["message"]?.codexStringValue
+        return AgentContextCompactionEvent(
+            id: "codex-context-compaction-\(turnId ?? payload.id)",
+            phase: resolvedPhase,
+            trigger: payload.item["trigger"]?.codexStringValue,
+            summary: payload.item["summary"]?.codexStringValue,
+            errorMessage: error,
+            preTokens: payload.item["preTokens"]?.codexIntValue ?? payload.item["pre_tokens"]?.codexIntValue,
+            postTokens: payload.item["postTokens"]?.codexIntValue ?? payload.item["post_tokens"]?.codexIntValue,
+            durationMs: payload.item["durationMs"]?.codexIntValue ?? payload.item["duration_ms"]?.codexIntValue,
+            metadata: toolMetadata(payload, values: [
+                "codex_status": status.map(JSONValue.string)
+            ])
         )
     }
 
@@ -75,8 +84,24 @@ private extension JSONValue {
         return value
     }
 
+    var codexIntValue: Int? {
+        guard case let .number(value) = self else {
+            return nil
+        }
+        return Int(value)
+    }
+
     var codexStringValue: String? {
         guard case let .string(value) = self else {
+            return nil
+        }
+        return value
+    }
+}
+
+private extension [String: JSONValue] {
+    func stringValue(_ key: String) -> String? {
+        guard case let .string(value)? = self[key], !value.isEmpty else {
             return nil
         }
         return value

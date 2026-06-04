@@ -164,12 +164,9 @@ extension CodexAppServerNotificationDecoder {
         }
 
         let metadata = codexNotificationMetadata(method: notification.method, threadId: threadId, turnId: turnId)
-        return [codexRuntimeEvent(.task(AgentTaskEvent(
+        return [codexRuntimeEvent(.contextCompaction(AgentContextCompactionEvent(
             id: "codex-context-compaction-\(turnId)",
             phase: .completed,
-            description: "Context compacted",
-            taskType: "contextCompaction",
-            status: "completed",
             metadata: metadata
         )))]
     }

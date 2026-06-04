@@ -1,125 +1,5 @@
 import Foundation
 
-/// Claude hook request after transport parsing.
-public struct ClaudeHookRequest: Codable, Equatable, Sendable {
-    /// Bearer token supplied by Claude hook configuration.
-    public let bearerToken: String?
-    /// Claude hook name, such as `PreToolUse`.
-    public let hookName: String
-    /// Host conversation identifier when known.
-    public let conversationId: AgentConversationID
-    /// Hook payload.
-    public let payload: JSONValue
-
-    /// Creates a Claude hook request.
-    public init(bearerToken: String?, hookName: String, conversationId: AgentConversationID, payload: JSONValue) {
-        self.bearerToken = bearerToken
-        self.hookName = hookName
-        self.conversationId = conversationId
-        self.payload = payload
-    }
-}
-
-/// Live hook decision provider used by Claude hook handling.
-///
-/// Implementations may run on any actor. Host UI should use `MainActorClaudeHookDecisionProvider` when collecting decisions
-/// from SwiftUI or AppKit state.
-public protocol ClaudeHookDecisionProviding: Sendable {
-    /// Returns a decision for a Claude hook request.
-    func decision(for request: ClaudeHookRequest, interactionId: AgentInteractionID) async -> ClaudeHookDecision
-}
-
-/// Main-actor bridge for host UI objects that collect live Claude hook decisions.
-public struct MainActorClaudeHookDecisionProvider: ClaudeHookDecisionProviding {
-    private let handler: @MainActor @Sendable (ClaudeHookRequest, AgentInteractionID) async -> ClaudeHookDecision
-
-    /// Creates a provider that always evaluates decisions on the main actor.
-    public init(_ handler: @escaping @MainActor @Sendable (ClaudeHookRequest, AgentInteractionID) async -> ClaudeHookDecision) {
-        self.handler = handler
-    }
-
-    /// Returns a decision by hopping to the main actor before invoking the host handler.
-    public func decision(for request: ClaudeHookRequest, interactionId: AgentInteractionID) async -> ClaudeHookDecision {
-        await handler(request, interactionId)
-    }
-}
-
-public extension ClaudeHookDecisionProviding where Self == MainActorClaudeHookDecisionProvider {
-    /// Creates a main-actor provider for app-owned approval UI.
-    static func mainActor(
-        _ handler: @escaping @MainActor @Sendable (ClaudeHookRequest, AgentInteractionID) async -> ClaudeHookDecision
-    ) -> MainActorClaudeHookDecisionProvider {
-        MainActorClaudeHookDecisionProvider(handler)
-    }
-}
-
-/// Claude hook policy values shared by settings generation and host integrations.
-public enum ClaudeHookPolicy {
-    private static let directlyApprovalControlledTools = [
-        "Bash",
-        "Write",
-        "Edit",
-        "MultiEdit",
-        "NotebookEdit"
-    ]
-    /// Matcher used for the Claude `PreToolUse` hook registration.
-    public static let preToolUseMatcher = "AskUserQuestion|Bash|Write|Edit|MultiEdit|NotebookEdit|EnterPlanMode|ExitPlanMode|mcp__.*"
-    /// Claude hook transport timeout registered in generated settings.
-    public static let defaultHookTimeoutSeconds = 600
-    /// Default maximum wait for app-owned decisions before returning a deferred response.
-    public static let defaultDecisionTimeout: TimeInterval = 115
-
-    /// Returns whether generated hooks should be enabled for a launch permission mode.
-    public static func shouldEnableHooks(permissionMode: String?) -> Bool {
-        switch permissionMode {
-        case "auto", "bypassPermissions", "dontAsk":
-            false
-        default:
-            true
-        }
-    }
-
-    /// Returns whether a tool should be deferred to the host for the active permission mode.
-    public static func shouldDefer(toolName: String, permissionMode: String?) -> Bool {
-        if toolName == "AskUserQuestion" {
-            return true
-        }
-        if toolName == "ExitPlanMode" {
-            return permissionMode == "plan"
-        }
-
-        switch permissionMode {
-        case "auto", "bypassPermissions", "dontAsk":
-            return false
-        case "acceptEdits":
-            return toolName == "Bash" || isMutatingMCPTool(toolName)
-        default:
-            return isPotentiallyApprovalControlledTool(toolName)
-        }
-    }
-
-    /// Returns whether a tool can become a host-controlled approval.
-    public static func isPotentiallyApprovalControlledTool(_ toolName: String) -> Bool {
-        switch toolName {
-        case "AskUserQuestion", "ExitPlanMode":
-            return true
-        default:
-            return directlyApprovalControlledTools.contains(toolName) || isMutatingMCPTool(toolName)
-        }
-    }
-
-    /// Returns whether an MCP tool name appears mutating.
-    public static func isMutatingMCPTool(_ toolName: String) -> Bool {
-        guard toolName.hasPrefix("mcp__"),
-              let lastComponent = toolName.split(separator: "__").last?.lowercased() else {
-            return false
-        }
-        return ["write", "create", "update", "delete", "remove", "send", "post"].contains {
-            lastComponent.hasPrefix($0)
-        }
-    }
-}
-
 /// Claude hook handler with bearer-token validation and approval fallback behavior.
 public actor ClaudeHookServer {
     private let tokenStore: AgentHookTokenStore
@@ -127,8 +7,12 @@ public actor ClaudeHookServer {
     private let approvalPolicyStore: any ClaudeApprovalPolicyStoring
     private let decisionProvider: (any ClaudeHookDecisionProviding)?
     private let decisionTimeout: TimeInterval?
+    private let compactionTracker: ClaudeContextCompactionTracker
     private var pendingDecisionRaces: [String: [UUID: ClaudeHookDecisionRace]] = [:]
     private var permissionModes: [AgentConversationID: String] = [:]
+    private var compactHookTokensByProcess: [UUID: String] = [:]
+    private var compactHookContinuations: [UUID: AsyncStream<AgentProviderRuntimeEvent>.Continuation] = [:]
+    private var pendingCompactHookEvents: [UUID: [AgentProviderRuntimeEvent]] = [:]
 
     /// Creates a Claude hook server.
     /// - Parameters:
@@ -145,15 +29,37 @@ public actor ClaudeHookServer {
         decisionProvider: (any ClaudeHookDecisionProviding)? = nil,
         decisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout
     ) {
+        self.init(
+            tokenStore: tokenStore,
+            interactionStore: interactionStore,
+            approvalPolicyStore: approvalPolicyStore,
+            decisionProvider: decisionProvider,
+            decisionTimeout: decisionTimeout,
+            compactionTracker: ClaudeContextCompactionTracker()
+        )
+    }
+
+    init(
+        tokenStore: AgentHookTokenStore,
+        interactionStore: any AgentInteractionStore,
+        approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
+        decisionProvider: (any ClaudeHookDecisionProviding)? = nil,
+        decisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout,
+        compactionTracker: ClaudeContextCompactionTracker
+    ) {
         self.tokenStore = tokenStore
         self.interactionStore = interactionStore
         self.approvalPolicyStore = approvalPolicyStore
         self.decisionProvider = decisionProvider
         self.decisionTimeout = decisionTimeout
+        self.compactionTracker = compactionTracker
     }
 
     /// Handles a Claude hook request.
     public func handle(_ request: ClaudeHookRequest) async -> AgentHookResponse {
+        if Self.isCompactHook(request.hookName) {
+            return await handleCompact(request)
+        }
         guard let token = request.bearerToken, await tokenStore.validate(token) else {
             return response(for: .deny(reason: "invalid_token"))
         }
@@ -173,6 +79,37 @@ public actor ClaudeHookServer {
     public func invalidateToken(_ token: String) async {
         await tokenStore.invalidate(token)
         releasePendingDecisionRaces(for: token)
+        let invalidatedProcessTokens = compactHookTokensByProcess.compactMap { processToken, launchToken in
+            launchToken == token ? processToken : nil
+        }
+        for processToken in invalidatedProcessTokens {
+            compactHookTokensByProcess[processToken] = nil
+            compactHookContinuations[processToken]?.finish()
+            compactHookContinuations[processToken] = nil
+            pendingCompactHookEvents[processToken] = nil
+            await compactionTracker.reset(processToken: processToken)
+        }
+    }
+
+    /// Registers a compact hook token for one process generation.
+    public func registerCompactHooks(processToken: UUID, token: String) {
+        compactHookTokensByProcess[processToken] = token
+    }
+
+    /// Attaches a runtime event continuation for compact hook events.
+    public func registerCompactRuntimeEvents(
+        processToken: UUID,
+        continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation
+    ) {
+        compactHookContinuations[processToken] = continuation
+        let pending = pendingCompactHookEvents.removeValue(forKey: processToken) ?? []
+        pending.forEach { continuation.yield($0) }
+    }
+
+    /// Detaches the runtime event continuation for one process generation.
+    public func unregisterCompactRuntimeEvents(processToken: UUID) {
+        compactHookContinuations[processToken] = nil
+        pendingCompactHookEvents[processToken] = nil
     }
 
     /// Updates the cached permission mode for a conversation from provider status output.
@@ -224,6 +161,29 @@ public actor ClaudeHookServer {
         let decision = await liveDecision(for: request, interactionId: interactionId)
         await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .approved, deniedOutcome: .denied)
         return response(for: decision)
+    }
+
+    private func handleCompact(_ request: ClaudeHookRequest) async -> AgentHookResponse {
+        guard let token = request.bearerToken,
+              await tokenStore.validate(token),
+              let processToken = request.processToken,
+              compactHookTokensByProcess[processToken] == token else {
+            return .continueProcessing
+        }
+        let events = await compactionTracker.hookEvents(
+            hookName: request.hookName,
+            conversationId: request.conversationId,
+            processToken: processToken,
+            payload: request.payload
+        )
+        for event in events {
+            if let continuation = compactHookContinuations[processToken] {
+                continuation.yield(event)
+            } else {
+                pendingCompactHookEvents[processToken, default: []].append(event)
+            }
+        }
+        return .continueProcessing
     }
 
     private func handlePrompt(_ request: ClaudeHookRequest) async -> AgentHookResponse {
@@ -335,6 +295,10 @@ public actor ClaudeHookServer {
     private static func timeoutNanoseconds(from interval: TimeInterval) -> UInt64 {
         let maximumSeconds = Double(UInt64.max) / 1_000_000_000
         return UInt64(min(max(interval, 0), maximumSeconds) * 1_000_000_000)
+    }
+
+    private static func isCompactHook(_ hookName: String) -> Bool {
+        hookName == "PreCompact" || hookName == "PostCompact"
     }
 
     private func policyDecision(

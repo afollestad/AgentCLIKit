@@ -73,7 +73,13 @@ extension DefaultAgentRuntime {
             return
         }
         do {
-            let events = try await state.adapter.decodeStdoutLine(line)
+            let context = AgentProviderOutputContext(
+                conversationId: conversationId,
+                processToken: processToken,
+                providerSessionId: state.providerSessionId,
+                spawnConfig: state.spawnConfig
+            )
+            let events = try await state.adapter.decodeStdoutLine(line, context: context)
             await appendDecodedProviderEvents(events, conversationId: conversationId, processToken: processToken)
         } catch {
             await appendProviderDecodeFailure(error, line: line, conversationId: conversationId, processToken: processToken)
@@ -90,16 +96,22 @@ extension DefaultAgentRuntime {
             return
         }
         var hasDeferredToolStop = false
-        for event in events {
-            await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
+        for decodedEvent in events {
+            let eventsToAppend = contextCompactionGuardedEvents(from: decodedEvent, conversationId: conversationId)
+            for event in eventsToAppend {
+                await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
+                guard states[conversationId]?.processToken == processToken else {
+                    return
+                }
+                guard shouldAppendProviderEvent(event, conversationId: conversationId) else {
+                    continue
+                }
+                hasDeferredToolStop = hasDeferredToolStop || isDeferredToolStop(event)
+                append(event, source: .stdout, conversationId: conversationId)
+            }
             guard states[conversationId]?.processToken == processToken else {
                 return
             }
-            guard shouldAppendProviderEvent(event, conversationId: conversationId) else {
-                continue
-            }
-            hasDeferredToolStop = hasDeferredToolStop || isDeferredToolStop(event)
-            append(event, source: .stdout, conversationId: conversationId)
         }
         if hasDeferredToolStop {
             stopProcessAfterDeferredToolStop(conversationId: conversationId)
@@ -288,6 +300,11 @@ extension DefaultAgentRuntime {
             return
         }
         let state: AgentLifecycleState = latest.hasDeferredToolStop || exitCode == 0 ? .exited : .failed
+        emitFailedContextCompactionsForTerminalProcess(
+            conversationId: conversationId,
+            reason: state.rawValue,
+            message: "Context compaction did not finish before the provider process ended."
+        )
         emitLifecycle(state, conversationId: conversationId, exitCode: exitCode)
         states[conversationId]?.stdin = nil
         states[conversationId]?.stdinWriter = nil

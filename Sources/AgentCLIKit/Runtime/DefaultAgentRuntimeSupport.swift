@@ -34,6 +34,10 @@ struct ConversationState {
     var persistedIndex: Int
     var hasDeferredToolStop: Bool
     var providerResumeReplayGate: ProviderResumeReplayGate?
+    var contextCompactionStartedIds: Set<String>
+    var contextCompactionOpenIds: Set<String>
+    var contextCompactionTerminalIds: Set<String>
+    var contextCompactionPhaseKeys: Set<String>
     var outputPumps: [OutputLinePump]
     var providerEventTasks: [Task<Void, Never>]
 
@@ -60,6 +64,12 @@ struct ConversationState {
             isProcessRunning: process?.isRunning == true,
             canCancel: lifecycleState == .starting || lifecycleState == .running
         )
+    }
+}
+
+extension DefaultAgentRuntime {
+    static func contextCompactionPhaseKey(_ compaction: AgentContextCompactionEvent) -> String {
+        "\(compaction.id)\u{1F}\(compaction.phase.rawValue)"
     }
 }
 
@@ -162,7 +172,7 @@ extension AgentEvent {
     var isProviderResumeReplayCandidate: Bool {
         switch self {
         case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode, .task,
-             .interaction, .rawOutput:
+             .contextCompaction, .interaction, .rawOutput:
             true
         case .activity, .sessionContinuity, .lifecycle, .diagnostic:
             false

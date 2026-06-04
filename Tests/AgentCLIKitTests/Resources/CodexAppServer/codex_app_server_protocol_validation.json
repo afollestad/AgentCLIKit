@@ -81,7 +81,6 @@
       "turn/diff/updated",
       "turn/plan/updated",
       "thread/tokenUsage/updated",
-      "thread/compact/start",
       "thread/compacted",
       "item/started",
       "item/completed",

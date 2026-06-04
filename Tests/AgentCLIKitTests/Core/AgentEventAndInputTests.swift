@@ -74,6 +74,29 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(legacyActivity.metadata, [:])
     }
 
+    func testContextCompactionEventRoundTripsThroughJSONAndDefaultsMetadata() throws {
+        let event = AgentEvent.contextCompaction(AgentContextCompactionEvent(
+            id: "compact-1",
+            phase: .completed,
+            trigger: "auto",
+            summary: "Retained recent context.",
+            preTokens: 190_000,
+            postTokens: 40_000,
+            durationMs: 1_250,
+            metadata: ["provider": .string("claude")]
+        ))
+
+        let data = try JSONEncoder().encode(event)
+        let decoded = try JSONDecoder().decode(AgentEvent.self, from: data)
+        let legacyCompaction = try JSONDecoder().decode(
+            AgentContextCompactionEvent.self,
+            from: Data(#"{"id":"compact-1","phase":"started"}"#.utf8)
+        )
+
+        XCTAssertEqual(decoded, event)
+        XCTAssertEqual(legacyCompaction.metadata, [:])
+    }
+
     func testInteractionEventRoundTripsPromptOptionsAndDefaultsLegacyFields() throws {
         let event = AgentInteractionEvent(
             id: "prompt",

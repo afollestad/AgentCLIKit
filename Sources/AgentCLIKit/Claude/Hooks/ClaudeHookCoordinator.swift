@@ -59,17 +59,34 @@ public actor ClaudeHookCoordinator {
         let port = try await ensureListenerPort()
         let token = await tokenStore.issueProcessScoped()
         let settingsURL = settingsURL(processToken: processToken)
-        var components = URLComponents()
-        components.scheme = "http"
-        components.host = "127.0.0.1"
-        components.port = port
-        components.path = "/claude/hooks/pre-tool-use"
-        components.queryItems = [URLQueryItem(name: "conversation_id", value: conversationId.rawValue)]
-        guard let endpoint = components.url else {
+        guard let endpoint = endpointURL(
+            path: "/claude/hooks/pre-tool-use",
+            port: port,
+            conversationId: conversationId,
+            processToken: processToken
+        ),
+        let preCompactEndpoint = endpointURL(
+            path: "/claude/hooks/pre-compact",
+            port: port,
+            conversationId: conversationId,
+            processToken: processToken
+        ),
+        let postCompactEndpoint = endpointURL(
+            path: "/claude/hooks/post-compact",
+            port: port,
+            conversationId: conversationId,
+            processToken: processToken
+        ) else {
             await server.invalidateToken(token.value)
             throw AgentCLIError.invalidInput("Could not build Claude hook endpoint URL.")
         }
-        let settings = ClaudeHookSettings(endpointURL: endpoint, timeoutSeconds: timeoutSeconds)
+        let settings = ClaudeHookSettings(
+            endpointURL: endpoint,
+            includePreToolUse: ClaudeHookPolicy.shouldEnableHooks(permissionMode: permissionMode),
+            preCompactEndpointURL: preCompactEndpoint,
+            postCompactEndpointURL: postCompactEndpoint,
+            timeoutSeconds: timeoutSeconds
+        )
         do {
             try fileManager.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
             try settings.encodedData().write(to: settingsURL, options: [.atomic])
@@ -79,6 +96,7 @@ public actor ClaudeHookCoordinator {
             throw error
         }
         await server.updatePermissionMode(permissionMode, for: conversationId)
+        await server.registerCompactHooks(processToken: processToken, token: token.value)
         launchTokens[processToken] = token.value
         launchSettingsFiles[processToken] = settingsURL
         return ClaudeHookLaunchConfiguration(
@@ -102,6 +120,20 @@ public actor ClaudeHookCoordinator {
     /// Updates cached permission mode used for hook decisions when Claude reports in-session mode changes.
     public func updatePermissionMode(_ permissionMode: String?, for conversationId: AgentConversationID) async {
         await server.updatePermissionMode(permissionMode, for: conversationId)
+    }
+
+    /// Returns compact hook runtime events for one launch.
+    public func runtimeEvents(context: AgentProviderRuntimeContext) -> AsyncStream<AgentProviderRuntimeEvent> {
+        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+        Task {
+            await server.registerCompactRuntimeEvents(processToken: context.processToken, continuation: stream.continuation)
+        }
+        stream.continuation.onTermination = { _ in
+            Task {
+                await self.server.unregisterCompactRuntimeEvents(processToken: context.processToken)
+            }
+        }
+        return stream.stream
     }
 
     /// Stops the listener and invalidates active launch tokens.
@@ -133,6 +165,19 @@ public actor ClaudeHookCoordinator {
 
     private func settingsURL(processToken: UUID) -> URL {
         supportDirectory.appendingPathComponent("claude-hooks-\(processToken.uuidString).json")
+    }
+
+    private func endpointURL(path: String, port: Int, conversationId: AgentConversationID, processToken: UUID) -> URL? {
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = "127.0.0.1"
+        components.port = port
+        components.path = path
+        components.queryItems = [
+            URLQueryItem(name: "conversation_id", value: conversationId.rawValue),
+            URLQueryItem(name: "process_token", value: processToken.uuidString)
+        ]
+        return components.url
     }
 
     private func removeSettingsFile(at url: URL?) {

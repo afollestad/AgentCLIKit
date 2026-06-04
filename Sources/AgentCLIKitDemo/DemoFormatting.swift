@@ -116,6 +116,8 @@ extension DemoModel {
             return "permission_mode mode=\(permissionMode.mode)"
         case .task(let task):
             return "task phase=\(task.phase.rawValue) id=\(task.id)"
+        case .contextCompaction(let compaction):
+            return "context_compaction phase=\(compaction.phase.rawValue) id=\(compaction.id)"
         case .sessionContinuity(let continuity):
             return "session_continuity continuity=\(continuity.continuity.rawValue)"
         case .interaction(let interaction):
@@ -150,6 +152,17 @@ extension DemoModel {
             return nil
         }
         return string
+    }
+
+    static func contextCompactionSummary(_ compaction: AgentContextCompactionEvent) -> String {
+        switch compaction.phase {
+        case .started:
+            return "Compacting context"
+        case .completed:
+            return compaction.summary ?? "Context compacted"
+        case .failed:
+            return compaction.errorMessage ?? "Context compaction failed"
+        }
     }
 
     private static func isUserMessage(_ row: DemoChatRow) -> Bool {

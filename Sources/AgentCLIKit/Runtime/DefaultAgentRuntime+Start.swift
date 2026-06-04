@@ -294,9 +294,62 @@ private extension DefaultAgentRuntime {
             persistedIndex: persistedIndex,
             hasDeferredToolStop: false,
             providerResumeReplayGate: providerResumeReplayGate,
+            contextCompactionStartedIds: Self.contextCompactionStartedIds(from: previous, generation: input.generation),
+            contextCompactionOpenIds: Self.contextCompactionOpenIds(from: previous, generation: input.generation),
+            contextCompactionTerminalIds: Self.contextCompactionTerminalIds(from: previous, generation: input.generation),
+            contextCompactionPhaseKeys: Self.contextCompactionPhaseKeys(from: previous, generation: input.generation),
             outputPumps: [],
             providerEventTasks: []
         )
+    }
+
+    private static func contextCompactionStartedIds(from previous: ConversationState?, generation: Int) -> Set<String> {
+        Set(previous?.events.compactMap { envelope -> String? in
+            guard envelope.generation == generation,
+                  case let .contextCompaction(compaction) = envelope.event,
+                  compaction.phase == .started else {
+                return nil
+            }
+            return compaction.id
+        } ?? [])
+    }
+
+    private static func contextCompactionOpenIds(from previous: ConversationState?, generation: Int) -> Set<String> {
+        var openIds = Set<String>()
+        for envelope in previous?.events ?? [] {
+            guard envelope.generation == generation,
+                  case let .contextCompaction(compaction) = envelope.event else {
+                continue
+            }
+            switch compaction.phase {
+            case .started:
+                openIds.insert(compaction.id)
+            case .completed, .failed:
+                openIds.remove(compaction.id)
+            }
+        }
+        return openIds
+    }
+
+    private static func contextCompactionTerminalIds(from previous: ConversationState?, generation: Int) -> Set<String> {
+        Set(previous?.events.compactMap { envelope -> String? in
+            guard envelope.generation == generation,
+                  case let .contextCompaction(compaction) = envelope.event,
+                  compaction.phase.isTerminal else {
+                return nil
+            }
+            return compaction.id
+        } ?? [])
+    }
+
+    private static func contextCompactionPhaseKeys(from previous: ConversationState?, generation: Int) -> Set<String> {
+        Set(previous?.events.compactMap { envelope -> String? in
+            guard envelope.generation == generation,
+                  case let .contextCompaction(compaction) = envelope.event else {
+                return nil
+            }
+            return Self.contextCompactionPhaseKey(compaction)
+        } ?? [])
     }
 
     func providerResumeReplayGate(input: StateInput, previous: ConversationState?) -> ProviderResumeReplayGate? {

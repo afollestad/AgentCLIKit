@@ -24,6 +24,7 @@ public enum ClaudeProviderDefinition {
             supportsSubagents: true,
             supportsPromptRequests: true,
             supportsContextWindow: true,
+            supportsContextCompaction: true,
             supportsNativeThreadFork: true,
             supportsPermissionPrompts: true
         ),

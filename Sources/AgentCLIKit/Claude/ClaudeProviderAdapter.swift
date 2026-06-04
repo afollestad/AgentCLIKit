@@ -70,6 +70,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     private let homeDirectory: URL
     private let sessionFileExists: @Sendable (URL) -> Bool
     private let taskOutputReader = ClaudeTaskOutputReader()
+    private let compactionTracker: ClaudeContextCompactionTracker
     private let hookCoordinator: ClaudeHookCoordinator?
 
     /// Creates a Claude provider adapter.
@@ -123,6 +124,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         self.inputEncoder = configuration.inputEncoder
         self.homeDirectory = configuration.homeDirectory
         self.sessionFileExists = configuration.sessionFileExists
+        self.compactionTracker = ClaudeContextCompactionTracker()
         if configuration.enableHooks {
             let tokenStore = AgentHookTokenStore()
             let hookServer = ClaudeHookServer(
@@ -130,7 +132,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
                 interactionStore: configuration.interactionStore,
                 approvalPolicyStore: configuration.approvalPolicyStore,
                 decisionProvider: configuration.hookDecisionProvider,
-                decisionTimeout: configuration.hookDecisionTimeout
+                decisionTimeout: configuration.hookDecisionTimeout,
+                compactionTracker: compactionTracker
             )
             self.hookCoordinator = ClaudeHookCoordinator(
                 tokenStore: tokenStore,
@@ -200,16 +203,30 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         try decoder.decodeLine(line).map(enrichCompletedTaskOutput)
     }
 
-    /// Extracts Claude's resumable session identifier from system events.
+    /// Decodes one Claude stream JSON stdout line with process context.
+    public func decodeStdoutLine(_ line: String, context: AgentProviderOutputContext) async throws -> [AgentEvent] {
+        let events = try decoder.decodeLine(line).map(enrichCompletedTaskOutput)
+        return await compactionTracker.normalize(events, context: context)
+    }
+
+    /// Extracts Claude's resumable session identifier from provider events.
     public func sessionID(from event: AgentEvent) -> AgentSessionID? {
-        guard
-            case let .diagnostic(diagnostic) = event,
-            case let .string(sessionId)? = diagnostic.metadata["session_id"],
-            !sessionId.isEmpty
-        else {
+        switch event {
+        case let .diagnostic(diagnostic):
+            guard case let .string(sessionId)? = diagnostic.metadata["session_id"],
+                  !sessionId.isEmpty else {
+                return nil
+            }
+            return AgentSessionID(rawValue: sessionId)
+        case let .contextCompaction(compaction):
+            guard let sessionId = compaction.metadata.stringValue("session_id") ?? compaction.metadata.stringValue("sessionId"),
+                  !sessionId.isEmpty else {
+                return nil
+            }
+            return AgentSessionID(rawValue: sessionId)
+        default:
             return nil
         }
-        return AgentSessionID(rawValue: sessionId)
     }
 
     private func enrichCompletedTaskOutput(_ event: AgentEvent) -> AgentEvent {
@@ -243,6 +260,16 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         try inputEncoder.encode(input)
     }
 
+    /// Returns Claude hook runtime events for the active launch.
+    public func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
+        guard let hookCoordinator else {
+            return AsyncStream { continuation in
+                continuation.finish()
+            }
+        }
+        return await hookCoordinator.runtimeEvents(context: context)
+    }
+
     /// Adds generated Claude hook settings and bearer token environment for this launch when hook setup succeeds.
     public func prepareLaunchConfiguration(
         _ launch: AgentLaunchConfiguration,
@@ -250,8 +277,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         conversationId: AgentConversationID,
         processToken: UUID
     ) async throws -> AgentLaunchConfiguration {
-        guard let hookCoordinator,
-              ClaudeHookPolicy.shouldEnableHooks(permissionMode: spawnConfig.permissionMode) else {
+        guard let hookCoordinator else {
             return launch
         }
         do {
@@ -286,6 +312,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     /// Invalidates the hook token associated with a finished or superseded Claude process.
     public func processDidTerminate(processToken: UUID) async {
         await hookCoordinator?.invalidate(processToken: processToken)
+        await compactionTracker.reset(processToken: processToken)
     }
 
     /// Updates provider-owned hook state from streamed permission-mode status.

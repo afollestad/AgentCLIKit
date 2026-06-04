@@ -23,6 +23,12 @@ struct FakeProviderAdapter: AgentProviderAdapter {
         if line == "interaction:prompt" {
             return [.interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?"))]
         }
+        if line == "compact:started" {
+            return [.contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .started, trigger: "auto"))]
+        }
+        if line == "compact:completed" {
+            return [.contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .completed, summary: "Retained recent context."))]
+        }
         return [.rawOutput(AgentRawOutputEvent(text: line, isComplete: true))]
     }
 

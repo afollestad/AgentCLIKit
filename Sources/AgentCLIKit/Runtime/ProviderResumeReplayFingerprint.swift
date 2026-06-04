@@ -10,6 +10,7 @@ enum ProviderResumeReplayFingerprint: Equatable {
     case rateLimit(ProviderResumeRateLimitFingerprint)
     case permissionMode(String)
     case task(ProviderResumeTaskFingerprint)
+    case contextCompaction(ProviderResumeCompactionFingerprint)
     case interaction(id: AgentInteractionID, kind: AgentInteractionKind, prompt: String, metadata: [ProviderResumeMetadataEntry])
     case rawOutput(text: String, isComplete: Bool)
 
@@ -84,6 +85,8 @@ enum ProviderResumeReplayFingerprint: Equatable {
             self = .permissionMode(permissionMode.mode)
         case .task(let task):
             self = .task(ProviderResumeTaskFingerprint(task))
+        case .contextCompaction(let compaction):
+            self = .contextCompaction(ProviderResumeCompactionFingerprint(compaction))
         case .interaction(let interaction):
             self = .interaction(
                 id: interaction.id,
@@ -99,6 +102,28 @@ enum ProviderResumeReplayFingerprint: Equatable {
         case .activity, .sessionContinuity, .lifecycle, .diagnostic:
             return nil
         }
+    }
+}
+
+struct ProviderResumeCompactionFingerprint: Equatable {
+    let id: String
+    let phase: AgentContextCompactionPhase
+    let trigger: String?
+    let summary: String?
+    let errorMessage: String?
+    let preTokens: Int?
+    let postTokens: Int?
+    let durationMs: Int?
+
+    init(_ compaction: AgentContextCompactionEvent) {
+        id = compaction.id
+        phase = compaction.phase
+        trigger = compaction.trigger
+        summary = compaction.summary
+        errorMessage = compaction.errorMessage
+        preTokens = compaction.preTokens
+        postTokens = compaction.postTokens
+        durationMs = compaction.durationMs
     }
 }
 

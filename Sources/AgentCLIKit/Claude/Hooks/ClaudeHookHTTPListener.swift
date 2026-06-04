@@ -74,7 +74,7 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
                 return
             }
             if error != nil {
-                self.sendDeny(on: connection)
+                self.sendMalformed(on: connection, buffer: buffer)
                 return
             }
             var nextBuffer = buffer
@@ -82,7 +82,7 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
                 nextBuffer.append(data)
             }
             if nextBuffer.count > self.maxBodyBytes {
-                self.sendDeny(on: connection)
+                self.sendMalformed(on: connection, buffer: nextBuffer)
                 return
             }
             if let request = HTTPHookRequest(buffer: nextBuffer, maxBodyBytes: self.maxBodyBytes) {
@@ -93,7 +93,7 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
                 return
             }
             if isComplete {
-                self.sendDeny(on: connection)
+                self.sendMalformed(on: connection, buffer: nextBuffer)
                 return
             }
             self.receive(on: connection, buffer: nextBuffer)
@@ -101,6 +101,9 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
     }
 
     private func handle(_ request: HTTPHookRequest) async -> AgentHookResponse {
+        guard !Self.isCompactPath(request.path) else {
+            return await handleCompact(request)
+        }
         guard request.path == "/claude/hooks/pre-tool-use",
               let conversationId = request.query["conversation_id"],
               let payload = try? JSONDecoder().decode(JSONValue.self, from: request.body) else {
@@ -110,12 +113,36 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
             bearerToken: request.bearerToken,
             hookName: "PreToolUse",
             conversationId: AgentConversationID(rawValue: conversationId),
-            payload: payload
+            payload: payload,
+            processToken: request.query["process_token"].flatMap(UUID.init(uuidString:))
+        ))
+    }
+
+    private func handleCompact(_ request: HTTPHookRequest) async -> AgentHookResponse {
+        guard let hookName = Self.compactHookName(path: request.path),
+              let conversationId = request.query["conversation_id"],
+              let payload = try? JSONDecoder().decode(JSONValue.self, from: request.body) else {
+            return .continueProcessing
+        }
+        return await server.handle(ClaudeHookRequest(
+            bearerToken: request.bearerToken,
+            hookName: hookName,
+            conversationId: AgentConversationID(rawValue: conversationId),
+            payload: payload,
+            processToken: request.query["process_token"].flatMap(UUID.init(uuidString:))
         ))
     }
 
     private func sendDeny(on connection: NWConnection) {
         send(Self.denyResponse(reason: "malformed_request"), on: connection)
+    }
+
+    private func sendMalformed(on connection: NWConnection, buffer: Data) {
+        if Self.isCompactRequest(buffer: buffer) {
+            send(.continueProcessing, on: connection)
+        } else {
+            sendDeny(on: connection)
+        }
     }
 
     private func send(_ response: AgentHookResponse, on connection: NWConnection) {
@@ -140,6 +167,34 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
                 "permissionDecisionReason": .string(reason)
             ])
         ]))
+    }
+
+    private static func isCompactPath(_ path: String) -> Bool {
+        compactHookName(path: path) != nil
+    }
+
+    private static func compactHookName(path: String) -> String? {
+        switch path {
+        case "/claude/hooks/pre-compact":
+            "PreCompact"
+        case "/claude/hooks/post-compact":
+            "PostCompact"
+        default:
+            nil
+        }
+    }
+
+    private static func isCompactRequest(buffer: Data) -> Bool {
+        let lineEnd = buffer.range(of: Data("\r\n".utf8))?.lowerBound ?? buffer.endIndex
+        guard lineEnd > buffer.startIndex,
+              let requestLine = String(data: buffer[buffer.startIndex..<lineEnd], encoding: .utf8) else {
+            return false
+        }
+        let parts = requestLine.split(separator: " ", maxSplits: 2).map(String.init)
+        guard parts.count >= 2 else {
+            return false
+        }
+        return compactHookName(path: URLComponents(string: parts[1])?.path ?? parts[1]) != nil
     }
 }
 

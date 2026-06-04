@@ -177,9 +177,16 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(launch.sessionContinuity, .fresh)
     }
 
-    func testPrepareLaunchSkipsHooksWhenPermissionModeDisablesHooks() async throws {
-        let adapter = ClaudeProviderAdapter()
+    func testPrepareLaunchKeepsCompactHooksWhenPermissionModeDisablesApprovalHooks() async throws {
+        let hookSupportDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: hookSupportDirectory) }
+        let adapter = ClaudeProviderAdapter(hookSupportDirectory: hookSupportDirectory)
+        addTeardownBlock {
+            await adapter.shutdownProviderResources()
+        }
         let launch = AgentLaunchConfiguration(executable: "/usr/bin/env", arguments: ["claude"])
+        let processToken = UUID()
+
         let prepared = try await adapter.prepareLaunchConfiguration(
             launch,
             spawnConfig: AgentSpawnConfig(
@@ -188,10 +195,18 @@ final class ClaudeProviderAdapterTests: XCTestCase {
                 permissionMode: "auto"
             ),
             conversationId: "conversation",
-            processToken: UUID()
+            processToken: processToken
         )
+        let settingsIndex = try XCTUnwrap(prepared.arguments.firstIndex(of: "--settings"))
+        let settingsPath = prepared.arguments[settingsIndex + 1]
+        let settingsData = try Data(contentsOf: URL(fileURLWithPath: settingsPath))
+        let settings = try XCTUnwrap(JSONSerialization.jsonObject(with: settingsData) as? [String: Any])
+        let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
 
-        XCTAssertEqual(prepared, launch)
+        XCTAssertNotEqual(prepared, launch)
+        XCTAssertNil(hooks["PreToolUse"])
+        XCTAssertNotNil(hooks["PreCompact"])
+        XCTAssertNotNil(hooks["PostCompact"])
     }
 
     func testPrepareLaunchFallsBackWithoutHookSettingsWhenHookPrepFails() async throws {

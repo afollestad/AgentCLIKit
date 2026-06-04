@@ -23,6 +23,7 @@ public enum CodexProviderDefinition {
             supportsSubagents: true,
             supportsPromptRequests: true,
             supportsContextWindow: true,
+            supportsContextCompaction: true,
             supportsNativeThreadFork: true,
             supportsPermissionPrompts: true,
             supportsModelListing: true,

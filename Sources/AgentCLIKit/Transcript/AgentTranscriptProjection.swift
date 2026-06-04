@@ -81,6 +81,8 @@ public struct AgentTranscriptProjector: Sendable {
             projectInteraction(interaction, envelope: envelope)
         case let .task(task):
             projectTask(task, envelope: envelope)
+        case let .contextCompaction(compaction):
+            projectContextCompaction(compaction, envelope: envelope)
         case let .lifecycle(lifecycle):
             projection(envelope, kind: .centeredNote, title: lifecycle.message ?? lifecycle.state.rawValue)
         case let .sessionContinuity(continuity):
@@ -110,6 +112,21 @@ public struct AgentTranscriptProjector: Sendable {
             title: task.description ?? task.taskType ?? task.id,
             detail: task.status
         )
+    }
+
+    private func projectContextCompaction(
+        _ compaction: AgentContextCompactionEvent,
+        envelope: AgentEventEnvelope
+    ) -> AgentTranscriptProjection {
+        let title: String = switch compaction.phase {
+        case .started:
+            "Compacting context"
+        case .completed:
+            "Context compacted"
+        case .failed:
+            "Context compaction failed"
+        }
+        return projection(envelope, kind: .centeredNote, title: title, detail: compaction.errorMessage ?? compaction.summary)
     }
 
     private func projection(

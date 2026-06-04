@@ -238,12 +238,9 @@ final class CodexNotificationPhase8Tests: XCTestCase {
         )).map(\.event)
 
         XCTAssertEqual(compactedEvents, [
-            .task(AgentTaskEvent(
+            .contextCompaction(AgentContextCompactionEvent(
                 id: "codex-context-compaction-turn-1",
                 phase: .completed,
-                description: "Context compacted",
-                taskType: "contextCompaction",
-                status: "completed",
                 metadata: itemMetadata(method: "thread/compacted", itemId: nil)
             ))
         ])

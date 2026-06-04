@@ -26,10 +26,12 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertTrue(definitions[0].capabilities.supportsHooks)
         XCTAssertFalse(definitions[0].capabilities.supportsSessionArchiving)
         XCTAssertFalse(definitions[0].capabilities.supportsSessionUnarchiving)
+        XCTAssertTrue(definitions[0].capabilities.supportsContextCompaction)
         XCTAssertFalse(definitions[1].capabilities.supportsHooks)
         XCTAssertTrue(definitions[1].capabilities.supportsModelListing)
         XCTAssertTrue(definitions[1].capabilities.supportsSessionArchiving)
         XCTAssertTrue(definitions[1].capabilities.supportsSessionUnarchiving)
+        XCTAssertTrue(definitions[1].capabilities.supportsContextCompaction)
         XCTAssertEqual(definitions[1].supportedPermissionModes?.map(\.value), ["untrusted", "on-request", "never"])
     }
 
@@ -93,6 +95,7 @@ final class AgentProviderTests: XCTestCase {
                 supportsSubagents: true,
                 supportsPromptRequests: true,
                 supportsContextWindow: true,
+                supportsContextCompaction: true,
                 supportsNativeThreadFork: true,
                 supportsPermissionPrompts: true,
                 supportsModelListing: true,
@@ -118,6 +121,7 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertEqual(decoded.supportedEffortLevels, ["low", "high"])
         XCTAssertTrue(decoded.capabilities.supportsToolEvents)
         XCTAssertTrue(decoded.capabilities.supportsPromptRequests)
+        XCTAssertTrue(decoded.capabilities.supportsContextCompaction)
         XCTAssertTrue(decoded.capabilities.supportsModelListing)
         XCTAssertTrue(decoded.capabilities.supportsSessionArchiving)
         XCTAssertTrue(decoded.capabilities.supportsSessionUnarchiving)
@@ -285,6 +289,7 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertFalse(legacy.capabilities.supportsSubagents)
         XCTAssertFalse(legacy.capabilities.supportsPromptRequests)
         XCTAssertFalse(legacy.capabilities.supportsContextWindow)
+        XCTAssertFalse(legacy.capabilities.supportsContextCompaction)
         XCTAssertFalse(legacy.capabilities.supportsNativeThreadFork)
         XCTAssertFalse(legacy.capabilities.supportsPermissionPrompts)
         XCTAssertFalse(legacy.capabilities.supportsModelListing)

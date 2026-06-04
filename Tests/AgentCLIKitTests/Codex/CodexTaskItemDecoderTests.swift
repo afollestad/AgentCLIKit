@@ -28,18 +28,67 @@ final class CodexTaskItemDecoderTests: XCTestCase {
     }
 
     func testDecodesContextCompactionItem() {
-        let events = decoder.decode(itemStarted(item: [
+        let startedEvents = decoder.decode(itemStarted(item: [
             "id": .string("compact-1"),
-            "type": .string("contextCompaction")
+            "type": .string("contextCompaction"),
+            "trigger": .string("auto"),
+            "preTokens": .number(120_000)
+        ])).map(\.event)
+        let completedEvents = decoder.decode(itemCompleted(item: [
+            "id": .string("compact-1"),
+            "type": .string("contextCompaction"),
+            "status": .string("completed"),
+            "summary": .string("Retained recent context."),
+            "postTokens": .number(30_000),
+            "durationMs": .number(750)
         ])).map(\.event)
 
-        XCTAssertEqual(events, [
-            .task(AgentTaskEvent(
-                id: "compact-1",
+        XCTAssertEqual(startedEvents, [
+            .contextCompaction(AgentContextCompactionEvent(
+                id: "codex-context-compaction-turn-1",
                 phase: .started,
-                description: "Compacting context",
-                taskType: "contextCompaction",
+                trigger: "auto",
+                preTokens: 120_000,
                 metadata: itemMetadata(phase: "started", itemId: "compact-1", type: "contextCompaction")
+            ))
+        ])
+        XCTAssertEqual(completedEvents, [
+            .contextCompaction(AgentContextCompactionEvent(
+                id: "codex-context-compaction-turn-1",
+                phase: .completed,
+                summary: "Retained recent context.",
+                postTokens: 30_000,
+                durationMs: 750,
+                metadata: itemMetadata(phase: "completed", itemId: "compact-1", type: "contextCompaction", status: "completed")
+            ))
+        ])
+    }
+
+    func testDecodesRawResponseCompactionAliases() {
+        let triggerEvents = decoder.decode(rawResponseItemCompleted(item: [
+            "id": .string("raw-1"),
+            "type": .string("compaction_trigger"),
+            "trigger": .string("manual")
+        ])).map(\.event)
+        let completedEvents = decoder.decode(rawResponseItemCompleted(item: [
+            "id": .string("raw-2"),
+            "type": .string("context_compaction"),
+            "encrypted_content": .string("provider-internal")
+        ])).map(\.event)
+
+        XCTAssertEqual(triggerEvents, [
+            .contextCompaction(AgentContextCompactionEvent(
+                id: "codex-context-compaction-turn-1",
+                phase: .started,
+                trigger: "manual",
+                metadata: itemMetadata(method: "rawResponseItem/completed", phase: "completed", itemId: "raw-1", type: "compaction_trigger")
+            ))
+        ])
+        XCTAssertEqual(completedEvents, [
+            .contextCompaction(AgentContextCompactionEvent(
+                id: "codex-context-compaction-turn-1",
+                phase: .completed,
+                metadata: itemMetadata(method: "rawResponseItem/completed", phase: "completed", itemId: "raw-2", type: "context_compaction")
             ))
         ])
     }
@@ -99,11 +148,21 @@ final class CodexTaskItemDecoderTests: XCTestCase {
         ])
     }
 
+    private func rawResponseItemCompleted(item: [String: JSONValue]) -> CodexAppServerNotification {
+        notification(method: "rawResponseItem/completed", params: [
+            "threadId": .string("thread-1"),
+            "turnId": .string("turn-1"),
+            "completedAtMs": .number(2),
+            "item": .object(item)
+        ])
+    }
+
     private func notification(method: String, params: [String: JSONValue]) -> CodexAppServerNotification {
         CodexAppServerNotification(method: method, params: .object(params))
     }
 
     private func itemMetadata(
+        method: String? = nil,
         phase: String,
         itemId: String,
         type: String,
@@ -111,7 +170,7 @@ final class CodexTaskItemDecoderTests: XCTestCase {
         values: [String: JSONValue] = [:]
     ) -> [String: JSONValue] {
         var metadata: [String: JSONValue] = [
-            "codex_method": .string("item/\(phase)"),
+            "codex_method": .string(method ?? "item/\(phase)"),
             "codex_thread_id": .string("thread-1"),
             "codex_turn_id": .string("turn-1"),
             "codex_item_id": .string(itemId),

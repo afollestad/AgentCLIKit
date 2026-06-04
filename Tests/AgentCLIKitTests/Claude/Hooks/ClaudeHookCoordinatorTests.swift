@@ -28,7 +28,10 @@ final class ClaudeHookCoordinatorTests: XCTestCase {
         XCTAssertEqual(issuedToken?.expiresAt, .distantFuture)
         let isValid = await tokenStore.validate(launch.token)
         XCTAssertTrue(isValid)
-        XCTAssertNotNil(settings["hooks"])
+        let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
+        XCTAssertNotNil(hooks["PreToolUse"])
+        XCTAssertNotNil(hooks["PreCompact"])
+        XCTAssertNotNil(hooks["PostCompact"])
 
         await coordinator.invalidate(processToken: processToken)
 
@@ -119,6 +122,47 @@ final class ClaudeHookCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(response, .noDecision)
         XCTAssertEqual(pending, [])
+    }
+
+    func testCoordinatorRegistersCompactHooksWhenApprovalHooksAreDisabled() async throws {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+        let supportDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: supportDirectory) }
+        let coordinator = ClaudeHookCoordinator(
+            tokenStore: tokenStore,
+            server: server,
+            supportDirectory: supportDirectory,
+            makeListener: { _, _ in StubHookTransport(port: 4567) }
+        )
+        let processToken = UUID()
+
+        let launch = try await coordinator.prepareLaunch(
+            conversationId: "conversation",
+            processToken: processToken,
+            permissionMode: "auto"
+        )
+        let settingsData = try Data(contentsOf: launch.settingsFileURL)
+        let settings = try XCTUnwrap(JSONSerialization.jsonObject(with: settingsData) as? [String: Any])
+        let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
+        let preCompact = try XCTUnwrap((hooks["PreCompact"] as? [[String: Any]])?.first)
+        let preCompactTransport = try XCTUnwrap((preCompact["hooks"] as? [[String: Any]])?.first)
+        let preCompactURLString = try XCTUnwrap(preCompactTransport["url"] as? String)
+        let preCompactURL = try XCTUnwrap(URLComponents(string: preCompactURLString))
+        let query = Dictionary(uniqueKeysWithValues: (preCompactURL.queryItems ?? []).compactMap { item -> (String, String)? in
+            guard let value = item.value else {
+                return nil
+            }
+            return (item.name, value)
+        })
+
+        XCTAssertNil(hooks["PreToolUse"])
+        XCTAssertNotNil(hooks["PostCompact"])
+        XCTAssertEqual(preCompact["matcher"] as? String, ClaudeHookPolicy.compactMatcher)
+        XCTAssertEqual(preCompactURL.path, "/claude/hooks/pre-compact")
+        XCTAssertEqual(query["conversation_id"], "conversation")
+        XCTAssertEqual(query["process_token"], processToken.uuidString)
     }
 }
 

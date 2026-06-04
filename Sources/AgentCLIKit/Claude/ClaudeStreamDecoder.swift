@@ -54,34 +54,14 @@ public struct ClaudeStreamDecoder: Sendable {
         if let permissionMode = envelope.permissionMode {
             events.append(.permissionMode(AgentPermissionModeEvent(mode: permissionMode, metadata: metadata)))
         }
-        if let taskEvent = taskEvent(from: envelope, metadata: metadata) {
+        if let compactionEvent = contextCompactionEvent(from: envelope, metadata: metadata) {
+            events.append(compactionEvent)
+        } else if let taskEvent = taskEvent(from: envelope, metadata: metadata) {
             events.append(taskEvent)
         } else {
             events.append(.diagnostic(AgentDiagnosticEvent(severity: .info, message: envelope.subtype ?? "system", metadata: metadata)))
         }
         return events
-    }
-
-    private func systemMetadata(from envelope: ClaudeStreamEnvelope) -> [String: JSONValue] {
-        let stringFields: [(String, String?)] = [
-            ("session_id", envelope.sessionId),
-            ("model", envelope.model),
-            ("tool_use_id", envelope.toolUseId),
-            ("description", envelope.description),
-            ("summary", envelope.summary),
-            ("task_type", envelope.taskType),
-            ("last_tool_name", envelope.lastToolName),
-            ("status", envelope.status),
-            ("output_file", envelope.outputFile)
-        ]
-        var metadata = Dictionary(uniqueKeysWithValues: stringFields.compactMap { key, value -> (String, JSONValue)? in
-            guard let value else {
-                return nil
-            }
-            return (key, .string(value))
-        })
-        metadata.merge(envelope.usage?.taskMetadata ?? [:]) { _, new in new }
-        return metadata
     }
 
     private func messageEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {

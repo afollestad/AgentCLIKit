@@ -21,6 +21,31 @@ final class AgentTranscriptProjectionTests: XCTestCase {
         XCTAssertEqual(projections.map(\.title), ["Approve Edit?", "Tasks", "Interrupted"])
     }
 
+    func testProjectorMapsContextCompactionToCenteredNotes() {
+        let envelopes = [
+            envelope(index: 0, event: .contextCompaction(AgentContextCompactionEvent(
+                id: "compact-1",
+                phase: .started
+            ))),
+            envelope(index: 1, event: .contextCompaction(AgentContextCompactionEvent(
+                id: "compact-1",
+                phase: .completed,
+                summary: "Retained recent context."
+            ))),
+            envelope(index: 2, event: .contextCompaction(AgentContextCompactionEvent(
+                id: "compact-2",
+                phase: .failed,
+                errorMessage: "Compaction failed."
+            )))
+        ]
+
+        let projections = AgentTranscriptProjector().project(envelopes)
+
+        XCTAssertEqual(projections.map(\.kind), [.centeredNote, .centeredNote, .centeredNote])
+        XCTAssertEqual(projections.map(\.title), ["Compacting context", "Context compacted", "Context compaction failed"])
+        XCTAssertEqual(projections.map(\.detail), [nil, "Retained recent context.", "Compaction failed."])
+    }
+
     func testMetricsBuilderUsesLatestUsageAndRateLimit() {
         let usage = AgentUsageEvent(
             model: "claude",

@@ -16,6 +16,8 @@ struct CodexAppServerItemEventDecoder {
             decodeItemStarted(notification)
         case "item/completed":
             decodeItemCompleted(notification)
+        case "rawResponseItem/completed":
+            decodeRawResponseItemCompleted(notification)
         case "turn/diff/updated":
             decodeTurnDiffUpdated(notification)
         case "item/fileChange/patchUpdated", "fileChange/patch/updated":
@@ -71,7 +73,7 @@ struct CodexAppServerItemEventDecoder {
         case "collabAgentToolCall":
             return [runtimeEvent(.task(collabAgentTask(payload, phase: .started)))]
         case "contextCompaction":
-            return [runtimeEvent(.task(contextCompactionTask(payload, phase: .started)))]
+            return [runtimeEvent(.contextCompaction(contextCompactionEvent(payload, phase: .started)))]
         default:
             return []
         }
@@ -102,7 +104,21 @@ struct CodexAppServerItemEventDecoder {
         case "collabAgentToolCall":
             return [runtimeEvent(.task(collabAgentTask(payload, phase: .completed)))]
         case "contextCompaction":
-            return [runtimeEvent(.task(contextCompactionTask(payload, phase: .completed)))]
+            return [runtimeEvent(.contextCompaction(contextCompactionEvent(payload, phase: .completed)))]
+        default:
+            return []
+        }
+    }
+
+    func decodeRawResponseItemCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+        guard let payload = itemPayload(notification, phase: "completed") else {
+            return []
+        }
+        switch payload.type {
+        case "compaction_trigger":
+            return [runtimeEvent(.contextCompaction(contextCompactionEvent(payload, phase: .started)))]
+        case "context_compaction", "compaction":
+            return [runtimeEvent(.contextCompaction(contextCompactionEvent(payload, phase: .completed)))]
         default:
             return []
         }

@@ -66,6 +66,8 @@ extension DemoModel {
             appendAgentEvent(.status("Permission: \(permissionMode.mode)"), envelope: envelope, sessionID: sessionID)
         case .task(let task):
             appendAgentEvent(.status(Self.taskSummary(task)), envelope: envelope, sessionID: sessionID)
+        case .contextCompaction(let compaction):
+            appendAgentEvent(.status(Self.contextCompactionSummary(compaction)), envelope: envelope, sessionID: sessionID)
         case .sessionContinuity(let continuity):
             appendAgentEvent(
                 .status(continuity.message ?? continuity.continuity.rawValue.capitalized),

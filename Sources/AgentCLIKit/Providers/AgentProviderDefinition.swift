@@ -77,6 +77,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsPromptRequests: Bool
     /// Whether the provider reports context-window usage or limits.
     public let supportsContextWindow: Bool
+    /// Whether the provider emits context compaction lifecycle events.
+    public let supportsContextCompaction: Bool
     /// Whether the provider can fork a native provider thread or session.
     public let supportsNativeThreadFork: Bool
     /// Whether the provider can ask the host to grant permission profiles or modes.
@@ -103,6 +105,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         supportsSubagents: Bool = false,
         supportsPromptRequests: Bool = false,
         supportsContextWindow: Bool = false,
+        supportsContextCompaction: Bool = false,
         supportsNativeThreadFork: Bool = false,
         supportsPermissionPrompts: Bool = false,
         supportsModelListing: Bool = false,
@@ -122,6 +125,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsSubagents = supportsSubagents
         self.supportsPromptRequests = supportsPromptRequests
         self.supportsContextWindow = supportsContextWindow
+        self.supportsContextCompaction = supportsContextCompaction
         self.supportsNativeThreadFork = supportsNativeThreadFork
         self.supportsPermissionPrompts = supportsPermissionPrompts
         self.supportsModelListing = supportsModelListing
@@ -145,6 +149,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsSubagents = try container.decodeIfPresent(Bool.self, forKey: .supportsSubagents) ?? false
         self.supportsPromptRequests = try container.decodeIfPresent(Bool.self, forKey: .supportsPromptRequests) ?? false
         self.supportsContextWindow = try container.decodeIfPresent(Bool.self, forKey: .supportsContextWindow) ?? false
+        self.supportsContextCompaction = try container.decodeIfPresent(Bool.self, forKey: .supportsContextCompaction) ?? false
         self.supportsNativeThreadFork = try container.decodeIfPresent(Bool.self, forKey: .supportsNativeThreadFork) ?? false
         self.supportsPermissionPrompts = try container.decodeIfPresent(Bool.self, forKey: .supportsPermissionPrompts) ?? false
         self.supportsModelListing = try container.decodeIfPresent(Bool.self, forKey: .supportsModelListing) ?? false

@@ -74,14 +74,39 @@ final class ClaudeHookHTTPListenerTests: XCTestCase {
         XCTAssertEqual(pending, [])
     }
 
+    func testCompactHookListenerContinuesMalformedRequests() async throws {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+        let listener = ClaudeHookHTTPListener(server: server)
+        let port = try await listener.start()
+        defer { Task { await listener.stop() } }
+
+        let result = try await postRawHook(
+            port: port,
+            token: "bad",
+            body: "{not-json",
+            pathAndQuery: "/claude/hooks/pre-compact?conversation_id=conversation"
+        )
+        let json = try JSONDecoder().decode(JSONValue.self, from: result.data)
+
+        XCTAssertEqual(result.response.statusCode, 200)
+        XCTAssertEqual(json, .object(["continue": .bool(true)]))
+    }
+
     private func postHook(port: Int, token: String, body: String) async throws -> AgentHookResponse {
         let result = try await postRawHook(port: port, token: token, body: body)
         let json = try JSONDecoder().decode(JSONValue.self, from: result.data)
         return AgentHookResponse(statusCode: result.response.statusCode, body: json)
     }
 
-    private func postRawHook(port: Int, token: String, body: String) async throws -> (data: Data, response: HTTPURLResponse) {
-        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)/claude/hooks/pre-tool-use?conversation_id=conversation"))
+    private func postRawHook(
+        port: Int,
+        token: String,
+        body: String,
+        pathAndQuery: String = "/claude/hooks/pre-tool-use?conversation_id=conversation"
+    ) async throws -> (data: Data, response: HTTPURLResponse) {
+        let url = try XCTUnwrap(URL(string: "http://127.0.0.1:\(port)\(pathAndQuery)"))
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

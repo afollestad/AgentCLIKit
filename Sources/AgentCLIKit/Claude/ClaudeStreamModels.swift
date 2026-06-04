@@ -25,6 +25,9 @@ struct ClaudeStreamEnvelope: Decodable {
     let taskType: String?
     let lastToolName: String?
     let status: String?
+    let compactResult: String?
+    let compactError: String?
+    let compactMetadata: ClaudeCompactMetadata?
     let outputFile: String?
     let deferredToolUse: ClaudeDeferredToolUse?
     let permissionMode: String?
@@ -102,6 +105,12 @@ struct ClaudeStreamEnvelope: Decodable {
         case taskType = "task_type"
         case lastToolName = "last_tool_name"
         case status
+        case compactResult = "compact_result"
+        case compactResultCamel = "compactResult"
+        case compactError = "compact_error"
+        case compactErrorCamel = "compactError"
+        case compactMetadata = "compact_metadata"
+        case compactMetadataCamel = "compactMetadata"
         case outputFile = "output_file"
         case deferredToolUse = "deferred_tool_use"
         case permissionMode
@@ -139,6 +148,12 @@ struct ClaudeStreamEnvelope: Decodable {
         self.taskType = container.decodeLenientIfPresent(String.self, forKey: .taskType)
         self.lastToolName = container.decodeLenientIfPresent(String.self, forKey: .lastToolName)
         self.status = container.decodeLenientIfPresent(String.self, forKey: .status)
+        self.compactResult = container.decodeLenientIfPresent(String.self, forKey: .compactResult)
+            ?? container.decodeLenientIfPresent(String.self, forKey: .compactResultCamel)
+        self.compactError = container.decodeLenientIfPresent(String.self, forKey: .compactError)
+            ?? container.decodeLenientIfPresent(String.self, forKey: .compactErrorCamel)
+        self.compactMetadata = container.decodeLenientIfPresent(ClaudeCompactMetadata.self, forKey: .compactMetadata)
+            ?? container.decodeLenientIfPresent(ClaudeCompactMetadata.self, forKey: .compactMetadataCamel)
         self.outputFile = container.decodeLenientIfPresent(String.self, forKey: .outputFile)
         self.deferredToolUse = container.decodeLenientIfPresent(ClaudeDeferredToolUse.self, forKey: .deferredToolUse)
         self.permissionMode = container.decodeLenientIfPresent(String.self, forKey: .permissionMode)
@@ -146,6 +161,51 @@ struct ClaudeStreamEnvelope: Decodable {
         self.rateLimitInfo = container.decodeLenientIfPresent(ClaudeRateLimitInfo.self, forKey: .rateLimitInfo)
         self.operation = container.decodeLenientIfPresent(String.self, forKey: .operation)
         self.content = container.decodeLenientIfPresent(String.self, forKey: .content)
+    }
+}
+
+struct ClaudeCompactMetadata: Decodable {
+    let trigger: String?
+    let preTokens: Int?
+    let postTokens: Int?
+    let durationMs: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case trigger
+        case preTokens = "pre_tokens"
+        case preTokensCamel = "preTokens"
+        case postTokens = "post_tokens"
+        case postTokensCamel = "postTokens"
+        case durationMs = "duration_ms"
+        case durationMsCamel = "durationMs"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.trigger = container.decodeLenientIfPresent(String.self, forKey: .trigger)
+        self.preTokens = container.decodeLenientIntIfPresent(forKey: .preTokens)
+            ?? container.decodeLenientIntIfPresent(forKey: .preTokensCamel)
+        self.postTokens = container.decodeLenientIntIfPresent(forKey: .postTokens)
+            ?? container.decodeLenientIntIfPresent(forKey: .postTokensCamel)
+        self.durationMs = container.decodeLenientIntIfPresent(forKey: .durationMs)
+            ?? container.decodeLenientIntIfPresent(forKey: .durationMsCamel)
+    }
+
+    var metadata: [String: JSONValue] {
+        var metadata: [String: JSONValue] = [:]
+        if let trigger {
+            metadata["trigger"] = .string(trigger)
+        }
+        if let preTokens {
+            metadata["pre_tokens"] = .number(Double(preTokens))
+        }
+        if let postTokens {
+            metadata["post_tokens"] = .number(Double(postTokens))
+        }
+        if let durationMs {
+            metadata["duration_ms"] = .number(Double(durationMs))
+        }
+        return metadata
     }
 }
 

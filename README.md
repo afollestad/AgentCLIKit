@@ -48,6 +48,8 @@ Host apps own UI state, persistence, drafts, notifications, and queueing policy.
 Hosts should inspect `AgentProviderDefinition.capabilities` before enabling provider-specific UI. Claude and Codex both
 support provider-neutral runtime events, session resume, mid-turn steering, usage/context reporting, tool event grouping,
 plan and task-list events, sub-agent/collaboration events, interactions, approvals, permission prompts, and MCP.
+Both built-in providers advertise context compaction lifecycle events through
+`AgentProviderCapabilities.supportsContextCompaction`.
 
 Provider-specific behavior remains explicit:
 
@@ -158,7 +160,12 @@ for await envelope in subscription.events {
 }
 ```
 
-Output arrives as provider-neutral `AgentEvent` values. Events cover messages, streaming deltas, reasoning, tool calls and results, usage, rate limits, permission mode, task state, session continuity, diagnostics, lifecycle, and interaction requests. Message and tool events include metadata dictionaries for provider details.
+Output arrives as provider-neutral `AgentEvent` values. Events cover messages, streaming deltas, reasoning, tool calls and results, usage, rate limits, permission mode, task state, context compaction, session continuity, diagnostics, lifecycle, and interaction requests. Message and tool events include metadata dictionaries for provider details.
+Context compaction is emitted as `AgentEvent.contextCompaction` with `started`, `completed`, or `failed` phases. The
+runtime deduplicates repeated `id` plus phase pairs and emits a synthetic `started` before a terminal event when the
+provider only reports completion or failure. If a provider process is cancelled or exits after reporting compaction start
+without a terminal phase, the runtime emits a synthetic failed compaction so hosts can replace in-progress UI. The
+authoritative provider session identity remains `AgentEventEnvelope.providerSessionId`.
 
 ## Send Input
 
@@ -320,6 +327,9 @@ await approvalPolicyStore.approveForSession(operation: "Edit")
 ```
 
 Hook policy handles `AskUserQuestion`, Bash/edit tools, MCP tools, `EnterPlanMode`, and `ExitPlanMode`. `EnterPlanMode` is allowed without creating a host interaction; `ExitPlanMode` is surfaced as a plan-mode approval.
+Claude context compaction uses `PreCompact` and `PostCompact` hooks plus stdout status/result frames. Compact hooks are
+registered independently from approval-hook gating, and compact hook responses always return HTTP 200 with
+`{"continue": true}` so AgentCLIKit never blocks Claude compaction.
 
 Hosts can generate Claude hook settings for a local listener:
 
@@ -356,9 +366,11 @@ Codex App Server requests are mapped into the same provider-neutral interaction 
 approvals, file-change approvals, permission-profile prompts, MCP elicitation, and user-input requests surface as
 `AgentInteractionEvent` values and can be resolved with `AgentInteractionResolution`.
 
-Codex emits messages, reasoning, tool calls/results, diffs, usage, context-window metadata, task/todo events, sub-agent
-activity, permission-mode changes, and diagnostics through provider-neutral `AgentEvent` values. AgentCLIKit maps built-in
-Codex provider activity, but host-defined Codex custom tool execution is not a v1 host API.
+Codex emits messages, reasoning, tool calls/results, diffs, usage, context-window metadata, context compaction,
+task/todo events, sub-agent activity, permission-mode changes, and diagnostics through provider-neutral `AgentEvent`
+values. Codex `thread/compacted`, `contextCompaction` items, and raw response compaction aliases map to
+`AgentEvent.contextCompaction`; `thread/compact/start` is treated as a client request, not a server notification.
+AgentCLIKit maps built-in Codex provider activity, but host-defined Codex custom tool execution is not a v1 host API.
 
 Use `CodexConfigStore` for Codex TOML config, `CodexProviderSetup` for project trust, `CodexAuthProbe` or
 `CodexProviderSetup.authReadiness()` for credential-source readiness, and `CodexAppServerModelOptionSource` when a host

@@ -27,6 +27,9 @@ public protocol AgentProviderAdapter: Sendable {
     /// Decodes one complete stdout line into provider-neutral events.
     func decodeStdoutLine(_ line: String) async throws -> [AgentEvent]
 
+    /// Decodes one complete stdout line with runtime context into provider-neutral events.
+    func decodeStdoutLine(_ line: String, context: AgentProviderOutputContext) async throws -> [AgentEvent]
+
     /// Extracts a provider session identifier from a decoded event when the provider reports one.
     func sessionID(from event: AgentEvent) -> AgentSessionID?
 
@@ -75,6 +78,11 @@ public extension AgentProviderAdapter {
         nil
     }
 
+    /// Decodes stdout using the legacy provider stdout decoder.
+    func decodeStdoutLine(_ line: String, context: AgentProviderOutputContext) async throws -> [AgentEvent] {
+        try await decodeStdoutLine(line)
+    }
+
     /// Encodes input using the legacy provider stdin encoder.
     func encodeInput(_ input: AgentInput, context: AgentProviderInputContext) async throws -> Data {
         try await encodeInput(input)
@@ -116,6 +124,31 @@ public extension AgentProviderAdapter {
                 "Provider session record for '\(record.providerId.rawValue)' cannot be handled by '\(definition.id.rawValue)'."
             )
         }
+    }
+}
+
+/// Runtime context supplied while a provider decodes process stdout.
+public struct AgentProviderOutputContext: Sendable {
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Runtime process generation token.
+    public let processToken: UUID
+    /// Provider session identifier known to the runtime.
+    public let providerSessionId: AgentSessionID?
+    /// Spawn configuration for the active process generation.
+    public let spawnConfig: AgentSpawnConfig
+
+    /// Creates provider output context.
+    public init(
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        providerSessionId: AgentSessionID?,
+        spawnConfig: AgentSpawnConfig
+    ) {
+        self.conversationId = conversationId
+        self.processToken = processToken
+        self.providerSessionId = providerSessionId
+        self.spawnConfig = spawnConfig
     }
 }
 
