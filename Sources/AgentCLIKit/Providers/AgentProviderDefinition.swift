@@ -14,8 +14,6 @@ public struct AgentProviderDefinition: Codable, Equatable, Sendable {
     public let capabilities: AgentProviderCapabilities
     /// Permission modes supported by the provider, when the provider exposes named modes.
     public let supportedPermissionModes: [AgentProviderOption]?
-    /// Effort levels supported by the provider, when the provider exposes effort selection.
-    public let supportedEffortLevels: [String]?
 
     /// Creates a provider definition.
     public init(
@@ -24,8 +22,7 @@ public struct AgentProviderDefinition: Codable, Equatable, Sendable {
         executableNames: [String],
         versionArguments: [String] = ["--version"],
         capabilities: AgentProviderCapabilities = AgentProviderCapabilities(),
-        supportedPermissionModes: [AgentProviderOption]? = nil,
-        supportedEffortLevels: [String]? = nil
+        supportedPermissionModes: [AgentProviderOption]? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -33,7 +30,6 @@ public struct AgentProviderDefinition: Codable, Equatable, Sendable {
         self.versionArguments = versionArguments
         self.capabilities = capabilities
         self.supportedPermissionModes = supportedPermissionModes
-        self.supportedEffortLevels = supportedEffortLevels
     }
 
     /// Decodes provider metadata, defaulting additive fields for older persisted values.
@@ -45,7 +41,6 @@ public struct AgentProviderDefinition: Codable, Equatable, Sendable {
         self.versionArguments = try container.decodeIfPresent([String].self, forKey: .versionArguments) ?? ["--version"]
         self.capabilities = try container.decodeIfPresent(AgentProviderCapabilities.self, forKey: .capabilities) ?? AgentProviderCapabilities()
         self.supportedPermissionModes = try container.decodeIfPresent([AgentProviderOption].self, forKey: .supportedPermissionModes)
-        self.supportedEffortLevels = try container.decodeIfPresent([String].self, forKey: .supportedEffortLevels)
     }
 }
 
@@ -83,8 +78,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsNativeThreadFork: Bool
     /// Whether the provider can ask the host to grant permission profiles or modes.
     public let supportsPermissionPrompts: Bool
-    /// Whether the provider can list selectable model options.
-    public let supportsModelListing: Bool
+    /// Whether the provider exposes selectable model options.
+    public let supportsModelOptions: Bool
     /// Whether the provider can archive a native provider session.
     public let supportsSessionArchiving: Bool
     /// Whether the provider can unarchive a native provider session.
@@ -108,7 +103,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         supportsContextCompaction: Bool = false,
         supportsNativeThreadFork: Bool = false,
         supportsPermissionPrompts: Bool = false,
-        supportsModelListing: Bool = false,
+        supportsModelOptions: Bool = false,
         supportsSessionArchiving: Bool = false,
         supportsSessionUnarchiving: Bool = false
     ) {
@@ -128,7 +123,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsContextCompaction = supportsContextCompaction
         self.supportsNativeThreadFork = supportsNativeThreadFork
         self.supportsPermissionPrompts = supportsPermissionPrompts
-        self.supportsModelListing = supportsModelListing
+        self.supportsModelOptions = supportsModelOptions
         self.supportsSessionArchiving = supportsSessionArchiving
         self.supportsSessionUnarchiving = supportsSessionUnarchiving
     }
@@ -152,9 +147,57 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsContextCompaction = try container.decodeIfPresent(Bool.self, forKey: .supportsContextCompaction) ?? false
         self.supportsNativeThreadFork = try container.decodeIfPresent(Bool.self, forKey: .supportsNativeThreadFork) ?? false
         self.supportsPermissionPrompts = try container.decodeIfPresent(Bool.self, forKey: .supportsPermissionPrompts) ?? false
-        self.supportsModelListing = try container.decodeIfPresent(Bool.self, forKey: .supportsModelListing) ?? false
+        self.supportsModelOptions = try container.decodeIfPresent(Bool.self, forKey: .supportsModelOptions)
+            ?? (try container.decodeIfPresent(Bool.self, forKey: .supportsModelListing) ?? false)
         self.supportsSessionArchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionArchiving) ?? false
         self.supportsSessionUnarchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionUnarchiving) ?? false
+    }
+
+    /// Encodes capability metadata using current public keys.
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(supportsSessionResume, forKey: .supportsSessionResume)
+        try container.encode(supportsHooks, forKey: .supportsHooks)
+        try container.encode(supportsMCP, forKey: .supportsMCP)
+        try container.encode(supportsApprovals, forKey: .supportsApprovals)
+        try container.encode(supportsUsage, forKey: .supportsUsage)
+        try container.encode(supportsMidTurnSteering, forKey: .supportsMidTurnSteering)
+        try container.encode(supportsToolEvents, forKey: .supportsToolEvents)
+        try container.encode(supportsGroupedToolOutput, forKey: .supportsGroupedToolOutput)
+        try container.encode(supportsPlanMode, forKey: .supportsPlanMode)
+        try container.encode(supportsTaskLists, forKey: .supportsTaskLists)
+        try container.encode(supportsSubagents, forKey: .supportsSubagents)
+        try container.encode(supportsPromptRequests, forKey: .supportsPromptRequests)
+        try container.encode(supportsContextWindow, forKey: .supportsContextWindow)
+        try container.encode(supportsContextCompaction, forKey: .supportsContextCompaction)
+        try container.encode(supportsNativeThreadFork, forKey: .supportsNativeThreadFork)
+        try container.encode(supportsPermissionPrompts, forKey: .supportsPermissionPrompts)
+        try container.encode(supportsModelOptions, forKey: .supportsModelOptions)
+        try container.encode(supportsSessionArchiving, forKey: .supportsSessionArchiving)
+        try container.encode(supportsSessionUnarchiving, forKey: .supportsSessionUnarchiving)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case supportsSessionResume
+        case supportsHooks
+        case supportsMCP
+        case supportsApprovals
+        case supportsUsage
+        case supportsMidTurnSteering
+        case supportsToolEvents
+        case supportsGroupedToolOutput
+        case supportsPlanMode
+        case supportsTaskLists
+        case supportsSubagents
+        case supportsPromptRequests
+        case supportsContextWindow
+        case supportsContextCompaction
+        case supportsNativeThreadFork
+        case supportsPermissionPrompts
+        case supportsModelOptions
+        case supportsModelListing
+        case supportsSessionArchiving
+        case supportsSessionUnarchiving
     }
 }
 

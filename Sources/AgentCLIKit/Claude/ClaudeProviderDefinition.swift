@@ -26,7 +26,8 @@ public enum ClaudeProviderDefinition {
             supportsContextWindow: true,
             supportsContextCompaction: true,
             supportsNativeThreadFork: true,
-            supportsPermissionPrompts: true
+            supportsPermissionPrompts: true,
+            supportsModelOptions: true
         ),
         supportedPermissionModes: [
             AgentProviderOption(
@@ -49,7 +50,6 @@ public enum ClaudeProviderDefinition {
                 label: "Automatic",
                 description: "Auto-approve most actions with safety checks."
             )
-        ],
-        supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"]
+        ]
     )
 }

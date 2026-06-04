@@ -23,8 +23,10 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private var threadIds: [String]
     private var modelListResponses: [JSONValue]
     private let failModelListRequests: Bool
+    private let failModelListRequestsAfterSuccessCount: Int?
     private let failingMethods: Set<String>
     private var turnIndex = 0
+    private var successfulModelListRequestCount = 0
     private var incomingContinuations: [UUID: AsyncStream<CodexAppServerIncomingMessage>.Continuation] = [:]
     private(set) var startCount = 0
     private(set) var shutdownCount = 0
@@ -40,11 +42,13 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         threadIds: [String],
         modelListResponses: [JSONValue] = [],
         failModelListRequests: Bool = false,
+        failModelListRequestsAfterSuccessCount: Int? = nil,
         failingMethods: Set<String> = []
     ) {
         self.threadIds = threadIds
         self.modelListResponses = modelListResponses
         self.failModelListRequests = failModelListRequests
+        self.failModelListRequestsAfterSuccessCount = failModelListRequestsAfterSuccessCount
         self.failingMethods = failingMethods
     }
 
@@ -96,9 +100,10 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         case "thread/archive", "thread/unarchive":
             return .object([:])
         case "model/list":
-            if failModelListRequests {
+            if failModelListRequests || shouldFailModelListRequestAfterSuccesses() {
                 throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "Model list failed.")
             }
+            successfulModelListRequestCount += 1
             guard !modelListResponses.isEmpty else {
                 return .object(["data": .array([])])
             }
@@ -116,6 +121,13 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         if failingMethods.contains(method) {
             throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "\(method) failed.")
         }
+    }
+
+    private func shouldFailModelListRequestAfterSuccesses() -> Bool {
+        guard let failModelListRequestsAfterSuccessCount else {
+            return false
+        }
+        return successfulModelListRequestCount >= failModelListRequestsAfterSuccessCount
     }
 
     func sendResponse(id: JSONValue, result: JSONValue?) async throws {

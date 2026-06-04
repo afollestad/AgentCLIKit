@@ -57,7 +57,7 @@ Provider-specific behavior remains explicit:
 | --- | --- | --- |
 | Transport | Claude CLI stream JSON over stdin/stdout | Codex App Server JSON-RPC |
 | Hooks | Local hook listener, generated hook settings, and hook decisions | Not used |
-| Model options | Static built-in options | Static fallback plus opt-in App Server `model/list` |
+| Model options | Hardcoded `ClaudeModelOptionSource` | Static fallback plus opt-in App Server `model/list` |
 | Config and trust | User `.claude.json` | User `~/.codex/config.toml` and trusted project `.codex/config.toml` |
 | Native archive | No provider-native action; validated no-op | App Server `thread/archive` and `thread/unarchive` |
 
@@ -136,9 +136,9 @@ let codexConfig = AgentSpawnConfig(
 
 Provider adapters own native launch ordering. Claude emits stream JSON flags, permission mode, model, effort, session
 continuity, extra arguments, and optional initial prompt. Codex bootstraps or resumes an App Server thread, then sends
-turn input through `turn/start` or `turn/steer`. Hosts should read `AgentProviderDefinition.supportedEffortLevels` before
-showing effort controls; the built-in adapters currently advertise effort metadata for Claude. `AgentMessageInput` has an
-attachments field for host metadata, but the built-in providers currently send text input.
+turn input through `turn/start` or `turn/steer`. Hosts should read `AgentModelOption.supportedEffortOptions` and
+`AgentModelOption.defaultEffortOption` before showing effort controls. `AgentMessageInput` has an attachments field for
+host metadata, but the built-in providers currently send text input.
 
 ## Subscribe And Persist Events
 
@@ -378,13 +378,13 @@ AgentCLIKit maps built-in Codex provider activity, but host-defined Codex custom
 
 Use `CodexConfigStore` for Codex TOML config, `CodexProviderSetup` for project trust, `CodexAuthProbe` or
 `CodexProviderSetup.authReadiness()` for credential-source readiness, and `CodexAppServerModelOptionSource` when a host
-explicitly wants live `model/list` options.
+explicitly wants live `model/list` model and effort options.
 
 ## Provider UI Helpers
 
-`AgentProviderDefinition` exposes executable candidates, version arguments, supported permission modes, effort levels, and
-capability metadata for host settings. `AgentProviderDetector` resolves executables through absolute paths, `PATH`, common
-shell init files, and standard install locations.
+`AgentProviderDefinition` exposes executable candidates, version arguments, supported permission modes, and capability
+metadata for host settings. Model-scoped effort controls come from `AgentModelOption`. `AgentProviderDetector` resolves
+executables through absolute paths, `PATH`, common shell init files, and standard install locations.
 
 Use `AgentProviderDiscoveryService` when UI needs installed/available providers, enablement, setup readiness, scoped
 project trust, diagnostics, and selectable models in one provider-keyed snapshot:
@@ -394,7 +394,12 @@ let setups: [any AgentProviderSetup] = [
     ClaudeProviderSetup(configStore: ClaudeConfigStore()),
     CodexProviderSetup()
 ]
-let discovery = DefaultAgentProviderDiscoveryService(providerSetups: setups)
+let discovery = DefaultAgentProviderDiscoveryService(
+    providerSetups: setups,
+    modelOptionSource: DefaultAgentModelOptionSource(
+        codexSource: CodexAppServerModelOptionSource()
+    )
+)
 let statuses = await discovery.providerStatuses(projectURL: projectURL)
 let ordering = await discovery.stableProviderOrdering()
 let codexModels = await discovery.modelOptions(for: .codex)
@@ -403,10 +408,12 @@ let codexModels = await discovery.modelOptions(for: .codex)
 `AgentProviderStatus` includes `isInstalled`, `isSetupReady`, and `isReadyInProject` conveniences for host filtering.
 `installedProviderStatuses(projectURL:)` returns only installed providers, while
 `availableProviderStatuses(projectURL:)` keeps enabled providers with unknown installation state so optimistic UI can still
-surface them. `CodexAppServerModelOptionSource` can query Codex `model/list`, but it starts a temporary App Server
-transport when called; the default discovery service uses static/cache-safe options and does not launch Codex.
-Static model options are available for Claude and provider defaults. Live Codex model options can include
-`AgentModelOption.contextWindowSize`, and usage events can update model context-window caches when providers report limits.
+surface them. `DefaultAgentModelOptionSource` uses `ClaudeModelOptionSource` for hardcoded Claude model/effort metadata
+and provider-default Codex options unless the host injects `CodexAppServerModelOptionSource`. The Codex source can query
+`model/list`, caches results briefly, and starts a temporary App Server transport only when called with a missing or
+expired cache. Live Codex model options can include `AgentModelOption.contextWindowSize`,
+`AgentModelOption.supportedEffortOptions`, and `AgentModelOption.defaultEffortOption`; usage events can update model
+context-window caches when providers report limits.
 
 Lower-level registry consumers can still observe definition/readiness updates directly:
 
@@ -462,10 +469,10 @@ Run the live macOS demo with:
 ./scripts/run-demo.sh
 ```
 
-The demo builds and launches `AgentCLIKitDemo`. It shows provider readiness, lets you choose providers and models, lists
-persisted session records, renders live provider output, observes runtime status snapshots, exposes cancellation while the
-provider process is active, answers Claude `AskUserQuestion` prompts through the live hook decision provider, and can load
-Codex model options through Codex App Server.
+The demo builds and launches `AgentCLIKitDemo`. It shows provider readiness, lets you choose providers, models, and
+model-scoped effort options, lists persisted session records, renders live provider output, observes runtime status
+snapshots, exposes cancellation while the provider process is active, answers Claude `AskUserQuestion` prompts through
+the live hook decision provider, and can load Codex model and effort options through Codex App Server.
 
 ## License
 

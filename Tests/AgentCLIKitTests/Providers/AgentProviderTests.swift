@@ -27,8 +27,9 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertFalse(definitions[0].capabilities.supportsSessionArchiving)
         XCTAssertFalse(definitions[0].capabilities.supportsSessionUnarchiving)
         XCTAssertTrue(definitions[0].capabilities.supportsContextCompaction)
+        XCTAssertTrue(definitions[0].capabilities.supportsModelOptions)
         XCTAssertFalse(definitions[1].capabilities.supportsHooks)
-        XCTAssertTrue(definitions[1].capabilities.supportsModelListing)
+        XCTAssertTrue(definitions[1].capabilities.supportsModelOptions)
         XCTAssertTrue(definitions[1].capabilities.supportsSessionArchiving)
         XCTAssertTrue(definitions[1].capabilities.supportsSessionUnarchiving)
         XCTAssertTrue(definitions[1].capabilities.supportsContextCompaction)
@@ -98,14 +99,13 @@ final class AgentProviderTests: XCTestCase {
                 supportsContextCompaction: true,
                 supportsNativeThreadFork: true,
                 supportsPermissionPrompts: true,
-                supportsModelListing: true,
+                supportsModelOptions: true,
                 supportsSessionArchiving: true,
                 supportsSessionUnarchiving: true
             ),
             supportedPermissionModes: [
                 AgentProviderOption(value: "plan", label: "Plan", description: "Read-only planning.")
-            ],
-            supportedEffortLevels: ["low", "high"]
+            ]
         )
 
         let data = try JSONEncoder().encode(definition)
@@ -118,14 +118,51 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertEqual(decoded, definition)
         XCTAssertEqual(decoded.versionArguments, ["version"])
         XCTAssertEqual(decoded.supportedPermissionModes?.map(\.value), ["plan"])
-        XCTAssertEqual(decoded.supportedEffortLevels, ["low", "high"])
         XCTAssertTrue(decoded.capabilities.supportsToolEvents)
         XCTAssertTrue(decoded.capabilities.supportsPromptRequests)
         XCTAssertTrue(decoded.capabilities.supportsContextCompaction)
-        XCTAssertTrue(decoded.capabilities.supportsModelListing)
+        XCTAssertTrue(decoded.capabilities.supportsModelOptions)
         XCTAssertTrue(decoded.capabilities.supportsSessionArchiving)
         XCTAssertTrue(decoded.capabilities.supportsSessionUnarchiving)
         assertLegacyProviderDefinitionDefaults(legacy)
+    }
+
+    func testProviderCapabilitiesDecodeLegacyModelListingKey() throws {
+        let data = Data(#"{"supportsModelListing":true}"#.utf8)
+
+        let capabilities = try JSONDecoder().decode(AgentProviderCapabilities.self, from: data)
+        let encoded = try JSONEncoder().encode(capabilities)
+        let encodedObject = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+
+        XCTAssertTrue(capabilities.supportsModelOptions)
+        XCTAssertEqual(encodedObject["supportsModelOptions"] as? Bool, true)
+        XCTAssertNil(encodedObject["supportsModelListing"])
+    }
+
+    func testModelOptionRoundTripsEffortMetadataAndDefaultsLegacyFields() throws {
+        let defaultEffort = AgentProviderOption(value: "medium", label: "Medium", description: "Balanced reasoning.")
+        let option = AgentModelOption(
+            providerId: .codex,
+            id: "gpt",
+            model: "gpt",
+            label: "GPT",
+            supportedEffortOptions: [
+                AgentProviderOption(value: "low", label: "Low", description: "Faster reasoning."),
+                defaultEffort
+            ],
+            defaultEffortOption: defaultEffort
+        )
+        let legacy = try JSONDecoder().decode(
+            AgentModelOption.self,
+            from: Data(#"{"providerId":"codex","id":"default","label":"Provider default","isDefault":true}"#.utf8)
+        )
+
+        let decoded = try JSONDecoder().decode(AgentModelOption.self, from: try JSONEncoder().encode(option))
+
+        XCTAssertEqual(decoded, option)
+        XCTAssertEqual(legacy.supportedEffortOptions, [])
+        XCTAssertNil(legacy.defaultEffortOption)
+        XCTAssertEqual(legacy.metadata, [:])
     }
 
     func testLaunchConfigurationRoundTripsProviderSessionIdAndDefaultsLegacyFields() throws {
@@ -292,10 +329,9 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertFalse(legacy.capabilities.supportsContextCompaction)
         XCTAssertFalse(legacy.capabilities.supportsNativeThreadFork)
         XCTAssertFalse(legacy.capabilities.supportsPermissionPrompts)
-        XCTAssertFalse(legacy.capabilities.supportsModelListing)
+        XCTAssertFalse(legacy.capabilities.supportsModelOptions)
         XCTAssertFalse(legacy.capabilities.supportsSessionArchiving)
         XCTAssertFalse(legacy.capabilities.supportsSessionUnarchiving)
         XCTAssertNil(legacy.supportedPermissionModes)
-        XCTAssertNil(legacy.supportedEffortLevels)
     }
 }

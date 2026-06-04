@@ -57,8 +57,8 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         let definition = ClaudeProviderAdapter().definition
 
         XCTAssertTrue(definition.capabilities.supportsMidTurnSteering)
+        XCTAssertTrue(definition.capabilities.supportsModelOptions)
         XCTAssertEqual(definition.supportedPermissionModes?.map(\.value), ["default", "plan", "acceptEdits", "auto"])
-        XCTAssertEqual(definition.supportedEffortLevels, ["low", "medium", "high", "xhigh", "max"])
     }
 
     func testInitializerAcceptsHostOwnedApprovalPolicyStore() {

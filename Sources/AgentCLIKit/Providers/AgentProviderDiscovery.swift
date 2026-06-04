@@ -26,6 +26,10 @@ public struct AgentModelOption: Codable, Equatable, Sendable {
     public let contextWindowSize: Int?
     /// Whether this option should be selected by default.
     public let isDefault: Bool
+    /// Effort options supported by this model, in provider-defined display order.
+    public let supportedEffortOptions: [AgentProviderOption]
+    /// Preferred effort option for this model.
+    public let defaultEffortOption: AgentProviderOption?
     /// Provider-specific metadata for hosts that need richer rendering.
     public let metadata: [String: JSONValue]
 
@@ -38,6 +42,8 @@ public struct AgentModelOption: Codable, Equatable, Sendable {
         description: String? = nil,
         contextWindowSize: Int? = nil,
         isDefault: Bool = false,
+        supportedEffortOptions: [AgentProviderOption] = [],
+        defaultEffortOption: AgentProviderOption? = nil,
         metadata: [String: JSONValue] = [:]
     ) {
         self.providerId = providerId
@@ -47,7 +53,24 @@ public struct AgentModelOption: Codable, Equatable, Sendable {
         self.description = description
         self.contextWindowSize = contextWindowSize
         self.isDefault = isDefault
+        self.supportedEffortOptions = supportedEffortOptions
+        self.defaultEffortOption = defaultEffortOption
         self.metadata = metadata
+    }
+
+    /// Decodes model metadata, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.model = try container.decodeIfPresent(String.self, forKey: .model)
+        self.label = try container.decode(String.self, forKey: .label)
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+        self.contextWindowSize = try container.decodeIfPresent(Int.self, forKey: .contextWindowSize)
+        self.isDefault = try container.decodeIfPresent(Bool.self, forKey: .isDefault) ?? false
+        self.supportedEffortOptions = try container.decodeIfPresent([AgentProviderOption].self, forKey: .supportedEffortOptions) ?? []
+        self.defaultEffortOption = try container.decodeIfPresent(AgentProviderOption.self, forKey: .defaultEffortOption)
+        self.metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
     }
 }
 
@@ -152,7 +175,7 @@ public struct StaticAgentModelOptionSource: AgentModelOptionSource {
     private let optionsByProvider: [AgentProviderID: [AgentModelOption]]
 
     /// Creates a static model option source.
-    public init(optionsByProvider: [AgentProviderID: [AgentModelOption]] = AgentDefaultModelOptions.optionsByProvider) {
+    public init(optionsByProvider: [AgentProviderID: [AgentModelOption]] = [:]) {
         self.optionsByProvider = optionsByProvider
     }
 
@@ -162,37 +185,42 @@ public struct StaticAgentModelOptionSource: AgentModelOptionSource {
     }
 }
 
+/// Built-in model option source that routes to provider-specific defaults.
+public struct DefaultAgentModelOptionSource: AgentModelOptionSource {
+    private let claudeSource: any AgentModelOptionSource
+    private let codexSource: (any AgentModelOptionSource)?
+
+    /// Creates the default model option source.
+    /// - Parameters:
+    ///   - claudeSource: Source for Claude model options.
+    ///   - codexSource: Optional live or host-provided source for Codex model options.
+    public init(
+        claudeSource: any AgentModelOptionSource = ClaudeModelOptionSource(),
+        codexSource: (any AgentModelOptionSource)? = nil
+    ) {
+        self.claudeSource = claudeSource
+        self.codexSource = codexSource
+    }
+
+    /// Returns model options from the matching provider-specific source.
+    public func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] {
+        switch providerId {
+        case .claude:
+            return await claudeSource.modelOptions(for: providerId)
+        case .codex:
+            guard let codexSource else {
+                return AgentDefaultModelOptions.providerDefault(
+                    for: providerId,
+                    description: "Use the Codex default model."
+                )
+            }
+            return await codexSource.modelOptions(for: providerId)
+        }
+    }
+}
+
 /// Built-in static model options used as safe discovery fallbacks.
 public enum AgentDefaultModelOptions {
-    /// Static options keyed by provider.
-    public static let optionsByProvider: [AgentProviderID: [AgentModelOption]] = [
-        .claude: [
-            AgentModelOption(
-                providerId: .claude,
-                id: "default",
-                model: nil,
-                label: "Provider default",
-                description: "Use the Claude CLI default model.",
-                isDefault: true
-            ),
-            AgentModelOption(
-                providerId: .claude,
-                id: "sonnet",
-                model: "sonnet",
-                label: "Sonnet",
-                description: "Use Claude's Sonnet model alias."
-            ),
-            AgentModelOption(
-                providerId: .claude,
-                id: "opus",
-                model: "opus",
-                label: "Opus",
-                description: "Use Claude's Opus model alias."
-            )
-        ],
-        .codex: providerDefault(for: .codex, label: "Provider default", description: "Use the Codex default model.")
-    ]
-
     /// Returns a provider-default model option.
     public static func providerDefault(
         for providerId: AgentProviderID,
@@ -246,7 +274,7 @@ public struct DefaultAgentProviderDiscoveryService: AgentProviderDiscoveryServic
         projectTrustService: (any AgentProjectTrustService)? = nil,
         providerSetups: [any AgentProviderSetup] = [],
         enablementSource: any AgentProviderEnablementSource = StaticAgentProviderEnablementSource(),
-        modelOptionSource: any AgentModelOptionSource = StaticAgentModelOptionSource()
+        modelOptionSource: any AgentModelOptionSource = DefaultAgentModelOptionSource()
     ) {
         self.providerRegistry = providerRegistry
         self.executableDetector = executableDetector

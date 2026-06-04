@@ -9,8 +9,9 @@ final class DemoModel: ObservableObject {
     @Published var turnStates: [AgentConversationID: DemoTurnState] = [:]
     @Published var providerStatuses: [AgentProviderID: AgentProviderStatus] = [:]
     @Published var providerOrdering: [AgentProviderID] = AgentProviderID.allCases
-    @Published private var providerSelectionBySession: [AgentConversationID: AgentProviderID] = [:]
-    @Published private var modelSelectionBySession: [AgentConversationID: String] = [:]
+    @Published var providerSelectionBySession: [AgentConversationID: AgentProviderID] = [:]
+    @Published var modelSelectionBySession: [AgentConversationID: String] = [:]
+    @Published var effortSelectionBySession: [AgentConversationID: String] = [:]
 
     private let sessionStore: JSONFileAgentSessionStore
     private let runtime: DefaultAgentRuntime
@@ -37,7 +38,7 @@ final class DemoModel: ObservableObject {
         self.providerDiscovery = DefaultAgentProviderDiscoveryService(
             projectTrustService: projectTrustService,
             providerSetups: providerSetups,
-            modelOptionSource: CodexAppServerModelOptionSource()
+            modelOptionSource: DefaultAgentModelOptionSource(codexSource: CodexAppServerModelOptionSource())
         )
         let adapterSet = AgentProviderAdapterSet.default(
             claude: ClaudeProviderAdapter.Configuration(
@@ -108,8 +109,11 @@ final class DemoModel: ObservableObject {
         sessions.append(session)
         rowsBySession[id] = []
         turnStates[id] = DemoTurnState()
-        providerSelectionBySession[id] = defaultProviderId()
-        modelSelectionBySession[id] = defaultModelOptionID(providerId: providerSelectionBySession[id] ?? .claude)
+        let providerId = defaultProviderId()
+        let modelOptionID = defaultModelOptionID(providerId: providerId)
+        providerSelectionBySession[id] = providerId
+        modelSelectionBySession[id] = modelOptionID
+        effortSelectionBySession[id] = defaultEffortOptionValue(providerId: providerId, modelOptionID: modelOptionID)
         selectedSessionID = id
     }
 
@@ -126,7 +130,11 @@ final class DemoModel: ObservableObject {
             let selectedProviderId = providerSelectionBySession[session.id]
             if selectedProviderId == nil || providerStatuses[selectedProviderId ?? fallbackProviderId]?.isReadyInProject != true {
                 providerSelectionBySession[session.id] = fallbackProviderId
-                modelSelectionBySession[session.id] = defaultModelOptionID(providerId: fallbackProviderId)
+                let modelOptionID = defaultModelOptionID(providerId: fallbackProviderId)
+                modelSelectionBySession[session.id] = modelOptionID
+                effortSelectionBySession[session.id] = defaultEffortOptionValue(providerId: fallbackProviderId, modelOptionID: modelOptionID)
+            } else {
+                normalizeModelAndEffortSelection(for: session.id, providerId: selectedProviderId ?? fallbackProviderId)
             }
         }
     }
@@ -148,19 +156,50 @@ final class DemoModel: ObservableObject {
         return defaultModelOptionID(providerId: providerId)
     }
 
+    func effortOptions(for sessionID: AgentConversationID) -> [AgentProviderOption] {
+        let providerId = providerId(for: sessionID)
+        return selectedModelOption(for: sessionID, providerId: providerId)?.supportedEffortOptions ?? []
+    }
+
+    func selectedEffortOptionValue(for sessionID: AgentConversationID) -> String {
+        let providerId = providerId(for: sessionID)
+        let current = effortSelectionBySession[sessionID]
+        return normalizedEffortOptionValue(
+            providerId: providerId,
+            modelOptionID: selectedModelOptionID(for: sessionID),
+            current: current
+        ) ?? ""
+    }
+
     func setProvider(_ providerId: AgentProviderID, for sessionID: AgentConversationID) {
         guard canEditProviderSelection(for: sessionID) else {
             return
         }
+        let modelOptionID = defaultModelOptionID(providerId: providerId)
         providerSelectionBySession[sessionID] = providerId
-        modelSelectionBySession[sessionID] = defaultModelOptionID(providerId: providerId)
+        modelSelectionBySession[sessionID] = modelOptionID
+        effortSelectionBySession[sessionID] = defaultEffortOptionValue(providerId: providerId, modelOptionID: modelOptionID)
     }
 
     func setModelOptionID(_ modelOptionID: String, for sessionID: AgentConversationID) {
         guard canEditProviderSelection(for: sessionID) else {
             return
         }
+        let providerId = providerId(for: sessionID)
         modelSelectionBySession[sessionID] = modelOptionID
+        effortSelectionBySession[sessionID] = normalizedEffortOptionValue(
+            providerId: providerId,
+            modelOptionID: modelOptionID,
+            current: effortSelectionBySession[sessionID]
+        )
+    }
+
+    func setEffortOptionValue(_ effortOptionValue: String, for sessionID: AgentConversationID) {
+        guard canEditProviderSelection(for: sessionID),
+              effortOptions(for: sessionID).contains(where: { $0.value == effortOptionValue }) else {
+            return
+        }
+        effortSelectionBySession[sessionID] = effortOptionValue
     }
 
     func trustProject(for sessionID: AgentConversationID) {
@@ -289,7 +328,8 @@ final class DemoModel: ObservableObject {
             config: AgentSpawnConfig(
                 providerId: providerId,
                 workingDirectory: workingDirectory,
-                model: selectedModelOption(for: sessionID, providerId: providerId)?.model
+                model: selectedModelOption(for: sessionID, providerId: providerId)?.model,
+                effort: selectedEffortOptionValueForSpawn(for: sessionID)
             )
         )
         spawnedSessionIDs.insert(sessionID)
@@ -373,38 +413,6 @@ final class DemoModel: ObservableObject {
         }
     }
 
-    private func defaultProviderId() -> AgentProviderID {
-        providerOrdering.first { providerStatuses[$0]?.isReadyInProject == true }
-            ?? providerOrdering.first
-            ?? .claude
-    }
-
-    private func defaultModelOptionID(providerId: AgentProviderID) -> String {
-        let options = modelOptions(for: providerId)
-        return options.first(where: \.isDefault)?.id ?? options.first?.id ?? "default"
-    }
-
-    private func modelOptions(for providerId: AgentProviderID) -> [AgentModelOption] {
-        let options = providerStatuses[providerId]?.modelOptions ?? []
-        return options.isEmpty ? AgentDefaultModelOptions.providerDefault(for: providerId) : options
-    }
-
-    private func selectedModelOption(for sessionID: AgentConversationID, providerId: AgentProviderID) -> AgentModelOption? {
-        let options = modelOptions(for: providerId)
-        let selectedID = modelSelectionBySession[sessionID] ?? defaultModelOptionID(providerId: providerId)
-        return options.first { $0.id == selectedID } ?? options.first(where: \.isDefault) ?? options.first
-    }
-
-    private func validateProviderReadiness(_ providerId: AgentProviderID, sessionID: AgentConversationID) throws {
-        guard let status = providerStatuses[providerId] else {
-            throw AgentCLIError.providerUnavailable(providerId)
-        }
-        guard status.isReadyInProject else {
-            let message = Self.providerStatusSummary(status)
-            appendStatus(message, to: sessionID)
-            throw AgentCLIError.invalidInput(message)
-        }
-    }
 }
 
 extension DemoModel {
@@ -427,6 +435,7 @@ extension DemoModel {
         spawnedSessionIDs.remove(sessionID)
         providerSelectionBySession[sessionID] = nil
         modelSelectionBySession[sessionID] = nil
+        effortSelectionBySession[sessionID] = nil
         rowsBySession[sessionID] = nil
         turnStates[sessionID] = nil
         sessions.remove(at: index)

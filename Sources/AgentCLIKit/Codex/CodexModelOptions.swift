@@ -2,23 +2,29 @@ import Foundation
 
 /// Model option source that queries Codex App Server `model/list` on demand.
 ///
-/// This source starts a temporary App Server transport when `modelOptions(for:)` is called for Codex. It is intentionally
-/// opt-in so provider discovery and settings screens can use static or cached model options without launching Codex.
+/// This source starts a temporary App Server transport for Codex when its cache is missing or expired. It is
+/// intentionally opt-in so default provider discovery can avoid launching Codex.
 public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
     private let configuration: CodexProviderAdapter.Configuration
     private let fallbackSource: any AgentModelOptionSource
     private let cache = AgentModelOptionMemoryCache()
     private let maximumPages: Int
+    private let cacheTimeToLive: TimeInterval
+    private let now: @Sendable () -> Date
 
     /// Creates a Codex App Server model option source.
     public init(
         configuration: CodexProviderAdapter.Configuration = CodexProviderAdapter.Configuration(),
         fallbackSource: any AgentModelOptionSource = StaticAgentModelOptionSource(),
-        maximumPages: Int = 10
+        maximumPages: Int = 10,
+        cacheTimeToLive: TimeInterval = 300,
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.configuration = configuration
         self.fallbackSource = fallbackSource
         self.maximumPages = maximumPages
+        self.cacheTimeToLive = cacheTimeToLive
+        self.now = now
     }
 
     /// Returns Codex model options from App Server when possible, falling back to cached or static options.
@@ -26,12 +32,15 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
         guard providerId == CodexProviderAdapter.providerId else {
             return await fallbackSource.modelOptions(for: providerId)
         }
+        if let cached = cache.freshOptions(providerId: providerId, now: now(), cacheTimeToLive: cacheTimeToLive), !cached.isEmpty {
+            return cached
+        }
         do {
             let liveOptions = try await liveModelOptions()
             guard !liveOptions.isEmpty else {
                 return await fallbackOptions(providerId: providerId)
             }
-            cache.save(liveOptions, providerId: providerId)
+            cache.save(liveOptions, providerId: providerId, fetchedAt: now())
             return liveOptions
         } catch {
             return await fallbackOptions(providerId: providerId)
@@ -64,11 +73,13 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
     }
 
     private func fallbackOptions(providerId: AgentProviderID) async -> [AgentModelOption] {
-        if let cached = cache.options(providerId: providerId), !cached.isEmpty {
+        if let cached = cache.staleOptions(providerId: providerId), !cached.isEmpty {
             return cached
         }
         let fallback = await fallbackSource.modelOptions(for: providerId)
-        return fallback.isEmpty ? AgentDefaultModelOptions.providerDefault(for: providerId) : fallback
+        return fallback.isEmpty
+            ? AgentDefaultModelOptions.providerDefault(for: providerId, description: "Use the Codex default model.")
+            : fallback
     }
 
     private func initializeParams() -> JSONValue {
@@ -115,6 +126,15 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
         let contextWindow = object["contextWindow"]?.codexIntValue
             ?? object["context_window"]?.codexIntValue
             ?? object["modelContextWindow"]?.codexIntValue
+        let supportedEfforts = reasoningEffortOptions(
+            from: object["supportedReasoningEfforts"] ?? object["supported_reasoning_efforts"]
+        )
+        let defaultEffortValue = object["defaultReasoningEffort"]?.codexNonEmptyString
+            ?? object["default_reasoning_effort"]?.codexNonEmptyString
+        let effortMetadata = completedEffortMetadata(
+            supportedEfforts: supportedEfforts,
+            defaultEffortValue: defaultEffortValue
+        )
         return AgentModelOption(
             providerId: CodexProviderAdapter.providerId,
             id: id,
@@ -123,6 +143,8 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
             description: object["description"]?.codexNonEmptyString,
             contextWindowSize: contextWindow,
             isDefault: object["isDefault"]?.codexBoolValue ?? false,
+            supportedEffortOptions: effortMetadata.supportedEfforts,
+            defaultEffortOption: effortMetadata.defaultEffort,
             metadata: [
                 "source": .string("codex_app_server")
             ]
@@ -136,30 +158,97 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
             seen.insert(option.id)
             normalized.append(option)
         }
-        return normalized.sorted { lhs, rhs in
-            if lhs.isDefault != rhs.isDefault {
-                return lhs.isDefault
-            }
-            return lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
+        return normalized
+    }
+
+    private static func reasoningEffortOptions(from value: JSONValue?) -> [AgentProviderOption] {
+        value?.codexArrayValue?.compactMap(reasoningEffortOption(from:)) ?? []
+    }
+
+    private static func reasoningEffortOption(from value: JSONValue) -> AgentProviderOption? {
+        if let rawValue = value.codexNonEmptyString {
+            return synthesizedEffortOption(rawValue)
         }
+        guard case let .object(object) = value,
+              let effort = object["reasoningEffort"]?.codexNonEmptyString ?? object["reasoning_effort"]?.codexNonEmptyString else {
+            return nil
+        }
+        return AgentProviderOption(
+            value: effort,
+            label: effortLabel(for: effort),
+            description: object["description"]?.codexNonEmptyString ?? effortDescription(for: effort)
+        )
+    }
+
+    private static func completedEffortMetadata(
+        supportedEfforts: [AgentProviderOption],
+        defaultEffortValue: String?
+    ) -> (supportedEfforts: [AgentProviderOption], defaultEffort: AgentProviderOption?) {
+        guard let defaultEffortValue else {
+            return (supportedEfforts, nil)
+        }
+        if let defaultEffort = supportedEfforts.first(where: { $0.value == defaultEffortValue }) {
+            return (supportedEfforts, defaultEffort)
+        }
+        let defaultEffort = synthesizedEffortOption(defaultEffortValue)
+        return (supportedEfforts + [defaultEffort], defaultEffort)
+    }
+
+    private static func synthesizedEffortOption(_ value: String) -> AgentProviderOption {
+        AgentProviderOption(
+            value: value,
+            label: effortLabel(for: value),
+            description: effortDescription(for: value)
+        )
+    }
+
+    private static func effortLabel(for value: String) -> String {
+        switch value {
+        case "xhigh":
+            return "XHigh"
+        default:
+            return value
+                .split { $0 == "-" || $0 == "_" }
+                .map { $0.capitalized }
+                .joined(separator: " ")
+        }
+    }
+
+    private static func effortDescription(for value: String) -> String {
+        "Use \(effortLabel(for: value).lowercased()) reasoning effort."
     }
 }
 
 private final class AgentModelOptionMemoryCache: @unchecked Sendable {
     private let lock = NSLock()
-    private var optionsByProvider: [AgentProviderID: [AgentModelOption]] = [:]
+    private var optionsByProvider: [AgentProviderID: CachedAgentModelOptions] = [:]
 
-    func save(_ options: [AgentModelOption], providerId: AgentProviderID) {
+    func save(_ options: [AgentModelOption], providerId: AgentProviderID, fetchedAt: Date) {
         lock.withLock {
-            optionsByProvider[providerId] = options
+            optionsByProvider[providerId] = CachedAgentModelOptions(options: options, fetchedAt: fetchedAt)
         }
     }
 
-    func options(providerId: AgentProviderID) -> [AgentModelOption]? {
+    func freshOptions(providerId: AgentProviderID, now: Date, cacheTimeToLive: TimeInterval) -> [AgentModelOption]? {
         lock.withLock {
-            optionsByProvider[providerId]
+            guard let cached = optionsByProvider[providerId],
+                  now.timeIntervalSince(cached.fetchedAt) <= cacheTimeToLive else {
+                return nil
+            }
+            return cached.options
         }
     }
+
+    func staleOptions(providerId: AgentProviderID) -> [AgentModelOption]? {
+        lock.withLock {
+            optionsByProvider[providerId]?.options
+        }
+    }
+}
+
+private struct CachedAgentModelOptions {
+    let options: [AgentModelOption]
+    let fetchedAt: Date
 }
 
 private extension JSONValue {

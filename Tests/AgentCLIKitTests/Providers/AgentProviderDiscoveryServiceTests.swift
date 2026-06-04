@@ -82,6 +82,31 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(options, AgentDefaultModelOptions.providerDefault(for: .codex))
     }
 
+    func testDefaultModelOptionSourceRoutesClaudeAndKeepsCodexStaticWithoutInjectedSource() async {
+        let source = DefaultAgentModelOptionSource()
+
+        let claudeOptions = await source.modelOptions(for: .claude)
+        let codexOptions = await source.modelOptions(for: .codex)
+
+        XCTAssertEqual(claudeOptions.map(\.id), ["default", "sonnet", "opus"])
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "default" })?.supportedEffortOptions.map(\.value), [
+            "low",
+            "medium",
+            "high",
+            "max"
+        ])
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "default" })?.defaultEffortOption?.value, "medium")
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.supportedEffortOptions.map(\.value), [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+        ])
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.defaultEffortOption?.value, "xhigh")
+        XCTAssertEqual(codexOptions, AgentDefaultModelOptions.providerDefault(for: .codex, description: "Use the Codex default model."))
+    }
+
     private var definitions: [AgentProviderDefinition] {
         [
             AgentProviderDefinition(id: .claude, displayName: "Claude", executableNames: ["claude"]),

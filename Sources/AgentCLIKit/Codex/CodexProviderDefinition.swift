@@ -26,7 +26,7 @@ public enum CodexProviderDefinition {
             supportsContextCompaction: true,
             supportsNativeThreadFork: true,
             supportsPermissionPrompts: true,
-            supportsModelListing: true,
+            supportsModelOptions: true,
             supportsSessionArchiving: true,
             supportsSessionUnarchiving: true
         ),
