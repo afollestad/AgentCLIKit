@@ -312,7 +312,8 @@ private extension CodexAppServerInteractionRequestTests {
         CodexProviderAdapter.Configuration(
             requestTimeout: 0.1,
             probeTimeout: 0.1,
-            makeTransport: { _ in transport }
+            makeTransport: { _ in transport },
+            executableResolver: RecordingExecutableResolver(path: nil)
         )
     }
 
