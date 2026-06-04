@@ -13,3 +13,4 @@
 - Keep live hook continuations, listener state, launch tokens, and decision races internal; persist only durable interaction/session/policy records through generic stores.
 - `EnterPlanMode` should not create a host approval; `ExitPlanMode` should remain a host-resolved plan-mode approval.
 - Hook approval interaction IDs must reuse Claude's `tool_use_id` / `toolUseId` / `toolUseID` when available; missing IDs need a stable fallback so retries can consume the same host decision.
+- Keep Claude transcript inspection helpers here. Host apps should use `ClaudeHookTranscriptReader` for restored hook approval state instead of parsing Claude JSONL session files themselves.

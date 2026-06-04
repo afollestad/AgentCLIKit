@@ -307,6 +307,10 @@ provider strings. Diagnostic events similarly include optional `AgentDiagnosticC
 Claude hooks are Claude-specific. Codex does not use the Claude hook listener or hook settings; it uses App Server server
 requests and notifications.
 
+Hosts that persist approval UI can restore unresolved Claude approval state through `ClaudeHookTranscriptReader`. The
+reader uses Claude's session path encoding and scans the session JSONL transcript for hook success or non-blocking hook
+error attachments, so hosts do not need to parse Claude transcript files directly.
+
 `ClaudeProviderAdapter` can own Claude's local hook listener. `DefaultAgentRuntime` starts the loopback listener lazily, generates per-launch settings files and bearer tokens, invalidates launch tokens on teardown, and stops the listener from `shutdown()`:
 
 ```swift
