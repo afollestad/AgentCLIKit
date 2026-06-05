@@ -35,10 +35,10 @@ final class CodexNotificationPhase8Tests: XCTestCase {
         XCTAssertEqual(events, [
             .usage(AgentUsageEvent(
                 model: nil,
-                inputTokens: 20,
-                outputTokens: 30,
-                cacheReadInputTokens: 5,
-                totalTokens: 62,
+                inputTokens: 2,
+                outputTokens: 3,
+                cacheReadInputTokens: 1,
+                totalTokens: 10,
                 contextWindow: 200_000,
                 stopReason: AgentUsageEvent.interimUsageStopReason,
                 metadata: [
@@ -46,11 +46,11 @@ final class CodexNotificationPhase8Tests: XCTestCase {
                     "codex_thread_id": .string("thread-1"),
                     "codex_turn_id": .string("turn-1"),
                     "stop_reason": .string(AgentUsageEvent.interimUsageStopReason),
-                    "input_tokens": .number(20),
-                    "output_tokens": .number(30),
-                    "cache_read_input_tokens": .number(5),
-                    "reasoning_output_tokens": .number(7),
-                    "total_tokens": .number(62),
+                    "input_tokens": .number(2),
+                    "output_tokens": .number(3),
+                    "cache_read_input_tokens": .number(1),
+                    "reasoning_output_tokens": .number(4),
+                    "total_tokens": .number(10),
                     "context_window": .number(200_000),
                     "codex_last_token_usage": .object([
                         "inputTokens": .number(2),
@@ -69,6 +69,69 @@ final class CodexNotificationPhase8Tests: XCTestCase {
                 ]
             ))
         ])
+    }
+
+    func testTokenUsageFallsBackToTotalUsageWhenLastUsageIsUnavailable() {
+        let events = decoder.decode(notification(
+            method: "thread/tokenUsage/updated",
+            params: [
+                "threadId": .string("thread-1"),
+                "turnId": .string("turn-1"),
+                "tokenUsage": .object([
+                    "total": .object([
+                        "inputTokens": .number(20),
+                        "cachedInputTokens": .number(5),
+                        "outputTokens": .number(30),
+                        "reasoningOutputTokens": .number(7),
+                        "totalTokens": .number(62)
+                    ]),
+                    "modelContextWindow": .number(200_000)
+                ])
+            ]
+        )).map(\.event)
+
+        XCTAssertEqual(events, [
+            .usage(AgentUsageEvent(
+                model: nil,
+                inputTokens: 20,
+                outputTokens: 30,
+                cacheReadInputTokens: 5,
+                totalTokens: 62,
+                contextWindow: 200_000,
+                stopReason: AgentUsageEvent.interimUsageStopReason,
+                metadata: [
+                    "codex_method": .string("thread/tokenUsage/updated"),
+                    "codex_thread_id": .string("thread-1"),
+                    "codex_turn_id": .string("turn-1"),
+                    "stop_reason": .string(AgentUsageEvent.interimUsageStopReason),
+                    "input_tokens": .number(20),
+                    "output_tokens": .number(30),
+                    "cache_read_input_tokens": .number(5),
+                    "reasoning_output_tokens": .number(7),
+                    "total_tokens": .number(62),
+                    "context_window": .number(200_000),
+                    "codex_total_token_usage": .object([
+                        "inputTokens": .number(20),
+                        "cachedInputTokens": .number(5),
+                        "outputTokens": .number(30),
+                        "reasoningOutputTokens": .number(7),
+                        "totalTokens": .number(62)
+                    ])
+                ]
+            ))
+        ])
+    }
+
+    func testThreadCompactStartIsNotAProviderCompactionEvent() {
+        let events = decoder.decode(notification(
+            method: "thread/compact/start",
+            params: [
+                "threadId": .string("thread-1"),
+                "turnId": .string("turn-1")
+            ]
+        )).map(\.event)
+
+        XCTAssertEqual(events, [])
     }
 
     // swiftlint:disable:next function_body_length

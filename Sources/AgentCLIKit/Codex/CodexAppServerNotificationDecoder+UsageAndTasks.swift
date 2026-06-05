@@ -12,10 +12,11 @@ extension CodexAppServerNotificationDecoder {
 
         let last = tokenUsage["last"]?.codexObjectValue
         let contextWindow = tokenUsage["modelContextWindow"]?.codexIntValue
-        let inputTokens = total["inputTokens"]?.codexIntValue
-        let outputTokens = total["outputTokens"]?.codexIntValue
-        let cacheReadInputTokens = total["cachedInputTokens"]?.codexIntValue
-        let totalTokens = total["totalTokens"]?.codexIntValue
+        let current = last ?? total
+        let inputTokens = current["inputTokens"]?.codexIntValue
+        let outputTokens = current["outputTokens"]?.codexIntValue
+        let cacheReadInputTokens = current["cachedInputTokens"]?.codexIntValue
+        let totalTokens = current["totalTokens"]?.codexIntValue
         var metadata = codexNotificationMetadata(
             method: notification.method,
             threadId: threadId,
@@ -25,7 +26,7 @@ extension CodexAppServerNotificationDecoder {
                 "input_tokens": inputTokens.map(JSONValue.numberValue),
                 "output_tokens": outputTokens.map(JSONValue.numberValue),
                 "cache_read_input_tokens": cacheReadInputTokens.map(JSONValue.numberValue),
-                "reasoning_output_tokens": total["reasoningOutputTokens"],
+                "reasoning_output_tokens": current["reasoningOutputTokens"],
                 "total_tokens": totalTokens.map(JSONValue.numberValue),
                 "context_window": contextWindow.map(JSONValue.numberValue),
                 "codex_last_token_usage": last.map(JSONValue.object)
