@@ -7,6 +7,12 @@
 - **Do not hide runtime events:** Lifecycle, session-continuity, diagnostics, and fresh-session output must remain visible.
 - **Do not reopen resolved interactions:** Late or replayed provider interaction frames whose IDs already resolved must not emit new pending interaction events or return the runtime to a waiting state.
 
+## Reconfigure And Collaboration Mode
+
+- **Keep `AgentSpawnConfig` authoritative:** Runtime reconfigure should pass the desired config to the provider hook first, then update `ConversationState.spawnConfig` only after in-place success or process replacement.
+- **Respect active turns:** Providers that cannot mutate the current turn should return `.nextTurnRequired`; host apps are expected to stage the new config for the next turn.
+- **Track collaboration separately:** Keep `collaborationMode` in runtime state/status and events separate from `permissionMode`, which is approval policy.
+
 ## Validation
 
 - Add or update focused runtime tests when changing process replacement, replay buffers, event cursors, deferred-tool stop handling, or interaction resolution.

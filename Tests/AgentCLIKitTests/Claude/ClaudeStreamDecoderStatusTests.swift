@@ -206,6 +206,7 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         let result = try decoder.decodeLine(Self.permissionDeniedResultLine)
 
         XCTAssertTrue(system.contains { $0 == .permissionMode(AgentPermissionModeEvent(mode: "plan")) })
+        XCTAssertTrue(system.contains { $0 == .collaborationMode(AgentCollaborationModeEvent(mode: .plan)) })
         XCTAssertTrue(result.contains { $0 == .usage(AgentUsageEvent(
             model: nil,
             inputTokens: 1,

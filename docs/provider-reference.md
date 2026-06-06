@@ -13,6 +13,7 @@ Host apps should generally depend on:
 
 - `AgentRuntime`
 - `AgentSpawnConfig`
+- `AgentCollaborationMode`
 - `AgentEventEnvelope`
 - `AgentEvent`
 - `AgentInput`
@@ -21,8 +22,14 @@ Host apps should generally depend on:
 - `AgentProviderSetup`
 - `AgentSessionStore`
 
-Provider adapters own native launch, input encoding, output decoding, session ID extraction, and interaction resolution
-encoding.
+Provider adapters own native launch, input encoding, output decoding, session ID extraction, interaction resolution
+encoding, and native in-place reconfiguration when a provider can apply an `AgentSpawnConfig` without replacement.
+
+`AgentSpawnConfig` is the host-facing settings source of truth. `permissionMode` represents approval policy only.
+Provider-neutral plan/default state lives in `collaborationMode`: `.plan` enters plan mode, `.default` leaves plan mode,
+and `nil` means the host is not overriding collaboration state. `runtime.reconfigure(conversationId:config:)` returns
+`.appliedInPlace`, `.restarted`, or `.nextTurnRequired`; active turns are never mutated in place and should receive staged
+settings before the next turn.
 
 ## Capability Summary
 
@@ -52,6 +59,12 @@ preserving unrelated config such as MCP servers.
 
 Claude hooks are Claude-specific. Codex does not use the Claude hook listener or hook settings.
 
+Plan mode is enabled through `AgentSpawnConfig.collaborationMode`, not by selecting `"plan"` as a host approval policy.
+When `collaborationMode == .plan`, Claude launches or resumes with effective `--permission-mode plan` even if a different
+approval `permissionMode` is selected. When collaboration mode is `.default` or `nil`, Claude uses the selected non-plan
+permission mode. Claude may still report internal `"plan"` permission status; AgentCLIKit translates that to
+`AgentEvent.collaborationMode` so hosts can clear plan UI after `ExitPlanMode` succeeds.
+
 The hook flow covers:
 
 - Tool approvals for Bash/edit tools and MCP tools.
@@ -71,6 +84,15 @@ Claude model options come from `ClaudeModelOptionSource`.
 Codex support uses Codex App Server JSON-RPC. `CodexProviderAdapter` starts the App Server lazily for Codex runtime work,
 initializes it, starts or resumes a thread, persists the Codex thread ID as the provider session ID, and sends user turns
 through `turn/start`.
+
+Codex uses the same `AgentSpawnConfig.collaborationMode` API. `turn/start` and idle-thread `thread/settings/update`
+share the same sticky settings payload for `cwd`, `model`, `approvalPolicy`, `effort`, and `collaborationMode`. If a
+started thread is idle, `runtime.reconfigure` applies those settings in place and updates future turns. If a turn is active,
+it returns `.nextTurnRequired` so the host can stage the config for the next turn. During bootstrap or resume, settings that
+`thread/start` cannot carry, especially collaboration mode, are applied before an initial prompt turn starts.
+
+Codex collaboration-mode payloads require a concrete `AgentSpawnConfig.model`. Hosts that use live Codex model options
+should pass the selected `AgentModelOption.model` before enabling plan mode.
 
 Codex runtime cancellation maps to `turn/interrupt` when Codex reports an active turn. Mid-turn user input uses
 `turn/steer`.

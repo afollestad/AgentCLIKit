@@ -208,11 +208,12 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
         try await waitForBinding()
-        async let collectedEvents = Self.collect(stream, count: 5)
+        async let collectedEvents = Self.collect(stream, count: 6)
 
         await emitRepresentativeNotifications(transport)
 
         let events = await collectedEvents.map(\.event)
+        let settingsMetadata = Self.representativeSettingsMetadata
 
         XCTAssertTrue(events.contains { $0 == .activity(AgentActivityEvent(
             state: .active,
@@ -230,14 +231,11 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         })
         XCTAssertTrue(events.contains { $0 == .permissionMode(AgentPermissionModeEvent(
             mode: "on-request",
-            metadata: [
-                "codex_method": .string("thread/settings/updated"),
-                "codex_thread_id": .string("thread-123"),
-                "codex_model": .string("model-a"),
-                "codex_model_provider": .string("openai"),
-                "codex_effort": .string("medium"),
-                "codex_approval_policy": .string("on-request")
-            ]
+            metadata: settingsMetadata
+        )) })
+        XCTAssertTrue(events.contains { $0 == .collaborationMode(AgentCollaborationModeEvent(
+            mode: .plan,
+            metadata: settingsMetadata
         )) })
         XCTAssertTrue(events.contains { event in
             guard case let .activity(activity) = event else {
@@ -285,7 +283,7 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         runtimeContext(
             threadId: threadId,
             spawnConfig: spawnConfig,
-            processToken: UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID()
+            processToken: fixedProcessToken
         )
     }
 
@@ -320,10 +318,14 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
     private func interruptContext(threadId: AgentSessionID, spawnConfig: AgentSpawnConfig) -> AgentProviderInterruptContext {
         AgentProviderInterruptContext(
             conversationId: "conversation",
-            processToken: UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID(),
+            processToken: fixedProcessToken,
             providerSessionId: threadId,
             spawnConfig: spawnConfig
         )
+    }
+
+    private var fixedProcessToken: UUID {
+        UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID()
     }
 
     private func turnNotificationParams(status: String) -> JSONValue {
@@ -349,10 +351,23 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
                 "approvalPolicy": .string("on-request"),
                 "model": .string("model-a"),
                 "modelProvider": .string("openai"),
-                "effort": .string("medium")
+                "effort": .string("medium"),
+                "collaborationMode": .object(["mode": .string("plan")])
             ])
         ]))
         await transport.emitNotification(method: "turn/completed", params: turnNotificationParams(status: "completed"))
+    }
+
+    private static var representativeSettingsMetadata: [String: JSONValue] {
+        [
+            "codex_method": .string("thread/settings/updated"),
+            "codex_thread_id": .string("thread-123"),
+            "codex_model": .string("model-a"),
+            "codex_model_provider": .string("openai"),
+            "codex_effort": .string("medium"),
+            "codex_approval_policy": .string("on-request"),
+            "codex_collaboration_mode": .object(["mode": .string("plan")])
+        ]
     }
 
     private func waitForBinding() async throws {

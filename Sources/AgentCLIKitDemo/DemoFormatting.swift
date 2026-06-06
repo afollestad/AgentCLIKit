@@ -114,6 +114,8 @@ extension DemoModel {
             return "activity state=\(activity.state.rawValue)\(turnId)"
         case .permissionMode(let permissionMode):
             return "permission_mode mode=\(permissionMode.mode)"
+        case .collaborationMode(let collaborationMode):
+            return "collaboration_mode mode=\(collaborationMode.mode.rawValue)"
         case .task(let task):
             return "task phase=\(task.phase.rawValue) id=\(task.id)"
         case .contextCompaction(let compaction):

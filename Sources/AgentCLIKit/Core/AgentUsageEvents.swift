@@ -161,6 +161,20 @@ public struct AgentPermissionModeEvent: Codable, Equatable, Sendable {
     }
 }
 
+/// Provider-neutral collaboration mode state.
+public struct AgentCollaborationModeEvent: Codable, Equatable, Sendable {
+    /// Current collaboration mode.
+    public let mode: AgentCollaborationMode
+    /// Provider-specific collaboration-mode metadata.
+    public let metadata: [String: JSONValue]
+
+    /// Creates a collaboration-mode event.
+    public init(mode: AgentCollaborationMode, metadata: [String: JSONValue] = [:]) {
+        self.mode = mode
+        self.metadata = metadata
+    }
+}
+
 /// Provider task or sub-agent activity.
 public struct AgentTaskEvent: Codable, Equatable, Sendable {
     /// Provider-defined task identifier.

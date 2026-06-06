@@ -48,7 +48,8 @@ import Foundation
 
 func runAgentConversation(
     projectURL: URL,
-    providerId: AgentProviderID = .claude
+    providerId: AgentProviderID = .claude,
+    model: String? = nil
 ) async throws {
     let sessionsURL = projectURL.appendingPathComponent(".agentclikit-sessions.json")
     let runtime = DefaultAgentRuntime(
@@ -93,7 +94,8 @@ func runAgentConversation(
         config: AgentSpawnConfig(
             providerId: providerId,
             workingDirectory: projectURL,
-            permissionMode: "plan"
+            model: model,
+            collaborationMode: .plan
         )
     )
 
@@ -122,6 +124,17 @@ Most apps build around a few reusable flows:
 - Resolve provider questions and approvals through `runtime.resolveInteraction`.
 - Watch `runtime.statusUpdates` for waiting, active-turn, and cancellation state.
 - Use provider discovery and setup services for settings and project readiness UI.
+
+Treat `AgentSpawnConfig` as the host-facing settings source of truth. `permissionMode` is approval policy. Plan/default
+collaboration uses `collaborationMode`: pass `.plan` to enter plan mode, `.default` to leave it, and `nil` when the host is
+not overriding provider collaboration state. Codex plan mode requires a concrete selected `model`.
+
+Use `runtime.reconfigure(conversationId:config:)` to apply changed settings to a started conversation. The result tells
+the host what happened:
+
+- `.appliedInPlace`: the provider accepted settings without replacing the process.
+- `.restarted`: the runtime restarted or resumed the provider process with the new config.
+- `.nextTurnRequired`: the provider has an active turn, so persist or stage the config and pass it before the next turn.
 
 See [docs/examples.md](docs/examples.md) for practical recipes covering:
 
@@ -178,6 +191,7 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Provider setup | User `.claude.json` trust and hooks | User `~/.codex/config.toml` trust and auth readiness |
 | Interactions | Claude hook requests and stream events | App Server requests and notifications |
 | Models | Built-in `ClaudeModelOptionSource` | Static fallback or opt-in live `model/list` |
+| Plan mode | `collaborationMode: .plan` maps to Claude's internal `--permission-mode plan` | Idle threads use `thread/settings/update`; plan mode requires a concrete model |
 | Archive | Validated no-op | App Server `thread/archive` and `thread/unarchive` |
 
 Both built-in providers expose provider-neutral events, sessions, usage, tool events, task events, prompt/approval

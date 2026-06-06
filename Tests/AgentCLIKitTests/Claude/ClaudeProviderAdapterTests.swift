@@ -58,7 +58,38 @@ final class ClaudeProviderAdapterTests: XCTestCase {
 
         XCTAssertTrue(definition.capabilities.supportsMidTurnSteering)
         XCTAssertTrue(definition.capabilities.supportsModelOptions)
-        XCTAssertEqual(definition.supportedPermissionModes?.map(\.value), ["default", "plan", "acceptEdits", "auto"])
+        XCTAssertTrue(definition.capabilities.supportsPlanMode)
+        XCTAssertEqual(definition.supportedPermissionModes?.map(\.value), ["default", "acceptEdits", "auto"])
+    }
+
+    func testLaunchConfigurationPrioritizesPlanCollaborationModeOverPermissionMode() async throws {
+        let adapter = ClaudeProviderAdapter(executablePath: "/opt/homebrew/bin/claude")
+        let config = AgentSpawnConfig(
+            providerId: .claude,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            permissionMode: "acceptEdits",
+            collaborationMode: .plan
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
+        let permissionModeIndex = try XCTUnwrap(launch.arguments.firstIndex(of: "--permission-mode"))
+
+        XCTAssertEqual(launch.arguments[permissionModeIndex + 1], "plan")
+    }
+
+    func testLaunchConfigurationUsesPermissionModeWhenCollaborationModeIsDefault() async throws {
+        let adapter = ClaudeProviderAdapter(executablePath: "/opt/homebrew/bin/claude")
+        let config = AgentSpawnConfig(
+            providerId: .claude,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            permissionMode: "acceptEdits",
+            collaborationMode: .default
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
+        let permissionModeIndex = try XCTUnwrap(launch.arguments.firstIndex(of: "--permission-mode"))
+
+        XCTAssertEqual(launch.arguments[permissionModeIndex + 1], "acceptEdits")
     }
 
     func testInitializerAcceptsHostOwnedApprovalPolicyStore() {

@@ -45,6 +45,9 @@ public protocol AgentProviderAdapter: Sendable {
     /// Sends a provider-native interruption request for the active turn, if supported.
     func interrupt(context: AgentProviderInterruptContext) async throws
 
+    /// Gives the provider a chance to apply a new spawn configuration without replacing the process.
+    func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult
+
     /// Archives a provider-native session when the provider supports it.
     func archiveSession(_ record: AgentSessionRecord) async throws
 
@@ -97,6 +100,11 @@ public extension AgentProviderAdapter {
 
     /// Performs no provider-native interruption for process-only providers.
     func interrupt(context: AgentProviderInterruptContext) async throws {}
+
+    /// Requests the runtime's replacement-process reconfigure path for providers without in-place settings updates.
+    func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
+        .restartRequired
+    }
 
     /// Validates the provider record and otherwise no-ops for providers without native archiving.
     func archiveSession(_ record: AgentSessionRecord) async throws {
@@ -233,6 +241,49 @@ public struct AgentProviderInterruptContext: Sendable {
         self.spawnConfig = spawnConfig
         self.reason = reason
     }
+}
+
+/// Runtime context supplied for provider-native reconfiguration.
+public struct AgentProviderReconfigureContext: Sendable {
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Runtime process generation token.
+    public let processToken: UUID
+    /// Provider session identifier known to the runtime.
+    public let providerSessionId: AgentSessionID?
+    /// Spawn configuration currently active in the runtime.
+    public let currentConfig: AgentSpawnConfig
+    /// Desired spawn configuration requested by the host.
+    public let newConfig: AgentSpawnConfig
+    /// Whether the runtime currently considers a provider turn active.
+    public let isTurnActive: Bool
+
+    /// Creates provider reconfiguration context.
+    public init(
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        providerSessionId: AgentSessionID?,
+        currentConfig: AgentSpawnConfig,
+        newConfig: AgentSpawnConfig,
+        isTurnActive: Bool
+    ) {
+        self.conversationId = conversationId
+        self.processToken = processToken
+        self.providerSessionId = providerSessionId
+        self.currentConfig = currentConfig
+        self.newConfig = newConfig
+        self.isTurnActive = isTurnActive
+    }
+}
+
+/// Provider-specific outcome for a reconfiguration request.
+public enum AgentProviderReconfigureResult: Equatable, Sendable {
+    /// Let the generic runtime restart or resume the provider process.
+    case restartRequired
+    /// The provider applied the new configuration without process replacement.
+    case appliedInPlace
+    /// The provider has an active turn, so the host should retry with the new config before the next turn.
+    case nextTurnRequired
 }
 
 /// Event emitted by provider-owned runtime resources outside process stdout and stderr.

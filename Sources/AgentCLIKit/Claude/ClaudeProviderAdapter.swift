@@ -183,7 +183,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             "--verbose",
             "--include-partial-messages"
         ])
-        if let permissionMode = spawnConfig.permissionMode {
+        if let permissionMode = effectivePermissionMode(for: spawnConfig) {
             arguments.append(contentsOf: ["--permission-mode", permissionMode])
         }
         if let model = spawnConfig.model {
@@ -317,7 +317,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             let hooks = try await hookCoordinator.prepareLaunch(
                 conversationId: conversationId,
                 processToken: processToken,
-                permissionMode: spawnConfig.permissionMode
+                permissionMode: effectivePermissionMode(for: spawnConfig)
             )
             var arguments = launch.arguments
             let prompt = spawnConfig.initialPrompt
@@ -356,6 +356,13 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     /// Stops the shared Claude hook listener and invalidates active launch tokens.
     public func shutdownProviderResources() async {
         await hookCoordinator?.shutdown()
+    }
+
+    private func effectivePermissionMode(for spawnConfig: AgentSpawnConfig) -> String? {
+        guard spawnConfig.collaborationMode != .plan else {
+            return "plan"
+        }
+        return spawnConfig.permissionMode
     }
 }
 

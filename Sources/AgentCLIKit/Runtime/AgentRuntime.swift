@@ -16,6 +16,12 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     public let effort: String?
     /// Optional provider permission mode.
     public let permissionMode: String?
+    /// Optional provider-neutral collaboration mode override.
+    ///
+    /// Hosts use `.plan` to enter plan mode and `.default` to leave plan mode. A `nil`
+    /// value means the host is not overriding the provider's collaboration mode.
+    /// Active turns cannot be mutated in place; providers apply changes to the next turn.
+    public let collaborationMode: AgentCollaborationMode?
     /// Whether a resumed provider session should fork instead of continuing in-place.
     public let forkSession: Bool
     /// Optional initial prompt sent by the provider launch command.
@@ -30,6 +36,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         model: String? = nil,
         effort: String? = nil,
         permissionMode: String? = nil,
+        collaborationMode: AgentCollaborationMode? = nil,
         forkSession: Bool = false,
         initialPrompt: String? = nil
     ) {
@@ -40,6 +47,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.model = model
         self.effort = effort
         self.permissionMode = permissionMode
+        self.collaborationMode = collaborationMode
         self.forkSession = forkSession
         self.initialPrompt = initialPrompt
     }
@@ -54,9 +62,18 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
         self.effort = try container.decodeIfPresent(String.self, forKey: .effort)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
         self.forkSession = try container.decodeIfPresent(Bool.self, forKey: .forkSession) ?? false
         self.initialPrompt = try container.decodeIfPresent(String.self, forKey: .initialPrompt)
     }
+}
+
+/// Provider-neutral collaboration mode for an agent session.
+public enum AgentCollaborationMode: String, Codable, Equatable, Sendable {
+    /// Normal provider behavior.
+    case `default`
+    /// Planning mode, where supported by the provider.
+    case plan
 }
 
 /// Runtime status for a host conversation.
@@ -75,6 +92,8 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
     public let providerSessionId: AgentSessionID?
     /// Latest provider permission mode when known.
     public let permissionMode: String?
+    /// Latest provider-neutral collaboration mode when known.
+    public let collaborationMode: AgentCollaborationMode?
     /// Whether a host-started provider turn is still active, even if mid-turn input is available.
     public let isTurnActive: Bool
     /// Whether host input can currently be sent to the provider.
@@ -97,6 +116,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         lastEventIndex: Int,
         providerSessionId: AgentSessionID?,
         permissionMode: String? = nil,
+        collaborationMode: AgentCollaborationMode? = nil,
         isTurnActive: Bool = false,
         inputAvailability: AgentInputAvailability = .available,
         waitingState: AgentRuntimeWaitingState = .idle,
@@ -111,6 +131,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.lastEventIndex = lastEventIndex
         self.providerSessionId = providerSessionId
         self.permissionMode = permissionMode
+        self.collaborationMode = collaborationMode
         self.isTurnActive = isTurnActive
         self.inputAvailability = inputAvailability
         self.waitingState = waitingState
@@ -129,6 +150,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.lastEventIndex = try container.decode(Int.self, forKey: .lastEventIndex)
         self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
+        self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
         self.isTurnActive = try container.decodeIfPresent(Bool.self, forKey: .isTurnActive) ?? false
         self.inputAvailability = try container.decodeIfPresent(AgentInputAvailability.self, forKey: .inputAvailability) ?? .available
         self.waitingState = try container.decodeIfPresent(AgentRuntimeWaitingState.self, forKey: .waitingState) ?? .idle
@@ -156,6 +178,16 @@ public enum AgentRuntimeWaitingState: String, Codable, Hashable, Sendable {
     case prompt
     /// Runtime is waiting for permission to leave plan mode.
     case planModeExit
+}
+
+/// Result of applying a runtime reconfiguration request.
+public enum AgentRuntimeReconfigureResult: String, Codable, Equatable, Sendable {
+    /// The provider process was restarted or resumed with the new configuration.
+    case restarted
+    /// The provider applied the new configuration without replacing the process.
+    case appliedInPlace
+    /// The provider has an active turn, so the host should stage the configuration for the next turn.
+    case nextTurnRequired
 }
 
 /// Async event subscription returned by an agent runtime.
@@ -200,8 +232,12 @@ public protocol AgentRuntime: Sendable {
     func destroy(conversationId: AgentConversationID) async
     /// Shuts down runtime-owned shared resources such as local hook listeners.
     func shutdown() async
-    /// Reconfigures a conversation by spawning a replacement process.
-    func reconfigure(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws
+    /// Reconfigures a conversation.
+    ///
+    /// Providers may apply idle-thread settings in place. Active turns are not mutated; callers should
+    /// treat `.nextTurnRequired` as a request to stage `config` for the next outbound turn.
+    @discardableResult
+    func reconfigure(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws -> AgentRuntimeReconfigureResult
     /// Starts a fresh generation for the conversation.
     func freshSession(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws
     /// Returns current runtime status for a conversation.

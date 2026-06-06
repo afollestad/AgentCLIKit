@@ -16,7 +16,7 @@ struct ConversationState {
     let generation: Int
     let processToken: UUID
     let adapter: any AgentProviderAdapter
-    let spawnConfig: AgentSpawnConfig
+    var spawnConfig: AgentSpawnConfig
     var process: Process?
     var stdin: FileHandle?
     var stdinWriter: StdinWriteQueue?
@@ -27,6 +27,7 @@ struct ConversationState {
     var providerSessionId: AgentSessionID?
     var providerSessionCreatedAt: Date?
     var permissionMode: String?
+    var collaborationMode: AgentCollaborationMode?
     var isTurnActive: Bool
     var waitingState: AgentRuntimeWaitingState
     var inputAvailability: AgentInputAvailability
@@ -57,6 +58,7 @@ struct ConversationState {
             lastEventIndex: events.last?.index ?? -1,
             providerSessionId: providerSessionId,
             permissionMode: permissionMode,
+            collaborationMode: collaborationMode,
             isTurnActive: isTurnActive,
             inputAvailability: inputAvailability,
             waitingState: waitingState,
@@ -171,8 +173,8 @@ private struct PendingReplayDeltaMessage {
 extension AgentEvent {
     var isProviderResumeReplayCandidate: Bool {
         switch self {
-        case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode, .task,
-             .contextCompaction, .interaction, .rawOutput:
+        case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode,
+             .collaborationMode, .task, .contextCompaction, .interaction, .rawOutput:
             true
         case .activity, .sessionContinuity, .lifecycle, .diagnostic:
             false

@@ -64,6 +64,8 @@ extension DemoModel {
             handleActivity(activity, sessionID: sessionID)
         case .permissionMode(let permissionMode):
             appendAgentEvent(.status("Permission: \(permissionMode.mode)"), envelope: envelope, sessionID: sessionID)
+        case .collaborationMode(let collaborationMode):
+            appendAgentEvent(.status("Collaboration: \(collaborationMode.mode.rawValue)"), envelope: envelope, sessionID: sessionID)
         case .task(let task):
             appendAgentEvent(.status(Self.taskSummary(task)), envelope: envelope, sessionID: sessionID)
         case .contextCompaction(let compaction):

@@ -53,6 +53,10 @@ public struct ClaudeStreamDecoder: Sendable {
         let metadata = systemMetadata(from: envelope)
         if let permissionMode = envelope.permissionMode {
             events.append(.permissionMode(AgentPermissionModeEvent(mode: permissionMode, metadata: metadata)))
+            events.append(.collaborationMode(AgentCollaborationModeEvent(
+                mode: permissionMode == "plan" ? .plan : .default,
+                metadata: metadata
+            )))
         }
         if let compactionEvent = contextCompactionEvent(from: envelope, metadata: metadata) {
             events.append(compactionEvent)

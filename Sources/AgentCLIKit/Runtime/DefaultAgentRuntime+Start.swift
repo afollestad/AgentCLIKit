@@ -287,6 +287,7 @@ private extension DefaultAgentRuntime {
             providerSessionId: input.launchProviderSessionId ?? input.resumedSession?.providerSessionId,
             providerSessionCreatedAt: input.resumedSession?.createdAt,
             permissionMode: nil,
+            collaborationMode: input.spawnConfig.collaborationMode,
             isTurnActive: input.spawnConfig.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
             waitingState: .idle,
             inputAvailability: .available,

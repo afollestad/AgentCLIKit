@@ -51,7 +51,7 @@ func runOneOffConversation(projectURL: URL) async throws {
         config: AgentSpawnConfig(
             providerId: .claude,
             workingDirectory: projectURL,
-            permissionMode: "plan"
+            collaborationMode: .plan
         )
     )
     try await runtime.send(
@@ -65,7 +65,8 @@ func runOneOffConversation(projectURL: URL) async throws {
 }
 ```
 
-Change `providerId: .claude` to `providerId: .codex` to run the same host flow through Codex App Server.
+Change `providerId: .claude` to `providerId: .codex` to run the same host flow through Codex App Server. If you keep
+`collaborationMode: .plan` for Codex, also pass a concrete selected model.
 
 ## Persist And Resume Sessions
 

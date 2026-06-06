@@ -356,9 +356,41 @@ public actor DefaultAgentRuntime: AgentRuntime {
         }
     }
 
-    /// Reconfigures a conversation by spawning a replacement process.
-    public func reconfigure(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws {
-        try await start(conversationId: conversationId, config: config, fresh: false)
+    /// Reconfigures a conversation by asking the provider to apply settings in place, then falling back to replacement.
+    @discardableResult
+    public func reconfigure(
+        conversationId: AgentConversationID,
+        config: AgentSpawnConfig
+    ) async throws -> AgentRuntimeReconfigureResult {
+        guard let state = states[conversationId] else {
+            try await start(conversationId: conversationId, config: config, fresh: false)
+            return .restarted
+        }
+        let processToken = state.processToken
+        let providerResult = try await state.adapter.reconfigure(context: AgentProviderReconfigureContext(
+            conversationId: conversationId,
+            processToken: processToken,
+            providerSessionId: state.providerSessionId,
+            currentConfig: state.spawnConfig,
+            newConfig: config,
+            isTurnActive: state.isTurnActive
+        ))
+        switch providerResult {
+        case .appliedInPlace:
+            guard states[conversationId]?.processToken == processToken else {
+                return .appliedInPlace
+            }
+            states[conversationId]?.spawnConfig = config
+            states[conversationId]?.permissionMode = config.permissionMode
+            states[conversationId]?.collaborationMode = config.collaborationMode
+            publishStatus(conversationId: conversationId)
+            return .appliedInPlace
+        case .nextTurnRequired:
+            return .nextTurnRequired
+        case .restartRequired:
+            try await start(conversationId: conversationId, config: config, fresh: false)
+            return .restarted
+        }
     }
 
     /// Starts a fresh generation for the conversation.

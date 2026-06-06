@@ -269,6 +269,65 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
         XCTAssertFalse(lifecycleStates.contains(.failed))
     }
 
+    func testReconfigureAppliedInPlaceUpdatesRuntimeStatusWithoutRestart() async throws {
+        let recorder = ReconfigureRecorder(result: .appliedInPlace)
+        let runtime = DefaultAgentRuntime(adapters: [
+            ReconfiguringProviderAdapter(command: shell("sleep 5"), recorder: recorder)
+        ])
+        let conversationId: AgentConversationID = "conversation"
+        let updatedConfig = AgentSpawnConfig(
+            providerId: .claude,
+            workingDirectory: FileManager.default.temporaryDirectory,
+            permissionMode: "on-request",
+            collaborationMode: .plan
+        )
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let result = try await runtime.reconfigure(conversationId: conversationId, config: updatedConfig)
+        let status = await runtime.status(conversationId: conversationId)
+        let contexts = await recorder.contexts
+
+        await runtime.shutdown()
+
+        XCTAssertEqual(result, .appliedInPlace)
+        XCTAssertEqual(status?.permissionMode, "on-request")
+        XCTAssertEqual(status?.collaborationMode, .plan)
+        XCTAssertEqual(contexts.count, 1)
+    }
+
+    func testReconfigureNextTurnRequiredKeepsCurrentRuntimeStatus() async throws {
+        let recorder = ReconfigureRecorder(result: .nextTurnRequired)
+        let runtime = DefaultAgentRuntime(adapters: [
+            ReconfiguringProviderAdapter(command: shell("sleep 5"), recorder: recorder)
+        ])
+        let conversationId: AgentConversationID = "conversation"
+        let initialConfig = AgentSpawnConfig(
+            providerId: .claude,
+            workingDirectory: FileManager.default.temporaryDirectory,
+            permissionMode: "default",
+            collaborationMode: .default,
+            initialPrompt: "Start"
+        )
+        let updatedConfig = AgentSpawnConfig(
+            providerId: .claude,
+            workingDirectory: FileManager.default.temporaryDirectory,
+            permissionMode: "on-request",
+            collaborationMode: .plan
+        )
+
+        try await runtime.spawn(conversationId: conversationId, config: initialConfig)
+        let result = try await runtime.reconfigure(conversationId: conversationId, config: updatedConfig)
+        let status = await runtime.status(conversationId: conversationId)
+        let contexts = await recorder.contexts
+
+        await runtime.shutdown()
+
+        XCTAssertEqual(result, .nextTurnRequired)
+        XCTAssertEqual(status?.permissionMode, nil)
+        XCTAssertEqual(status?.collaborationMode, .default)
+        XCTAssertEqual(contexts.first?.isTurnActive, true)
+    }
+
     private func waitForProcessID(fileURL: URL) async throws -> pid_t {
         for _ in 0..<100 {
             if let contents = try? String(contentsOf: fileURL, encoding: .utf8),
@@ -292,5 +351,44 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     private func isProcessRunning(pid: pid_t) -> Bool {
         Darwin.kill(pid, 0) == 0 || errno == EPERM
+    }
+}
+
+private actor ReconfigureRecorder {
+    private(set) var contexts: [AgentProviderReconfigureContext] = []
+    let result: AgentProviderReconfigureResult
+
+    init(result: AgentProviderReconfigureResult) {
+        self.result = result
+    }
+
+    func record(_ context: AgentProviderReconfigureContext) -> AgentProviderReconfigureResult {
+        contexts.append(context)
+        return result
+    }
+}
+
+private struct ReconfiguringProviderAdapter: AgentProviderAdapter {
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let command: AgentLaunchConfiguration
+    let recorder: ReconfigureRecorder
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?
+    ) async throws -> AgentLaunchConfiguration {
+        command
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        []
+    }
+
+    func encodeInput(_ input: AgentInput) async throws -> Data {
+        Data()
+    }
+
+    func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
+        await recorder.record(context)
     }
 }

@@ -6,6 +6,8 @@
 - Resume with `--resume` only when the canonical Claude session file exists; otherwise preserve continuity with `--session-id`.
 - When invalidating a launch hook token, release live hook decision waits for that token with a deferred decision so teardown never waits for Claude's hook timeout.
 - Seed generated-hook launches with the launch permission mode, and clear stale cached mode when a launch has no mode.
+- Keep host plan mode on `AgentSpawnConfig.collaborationMode`; do not advertise `"plan"` as a selectable permission mode.
+- When `collaborationMode == .plan`, effective Claude launch permission mode is `"plan"` and takes precedence over approval `permissionMode`.
 - Register `PreCompact` and `PostCompact` hooks independently from approval-hook gating; do not model compaction as a tool-use hook.
 - If generated hook listener/settings prep fails, keep launching Claude without `--settings` instead of failing provider spawn solely because hooks are unavailable.
 - `AskUserQuestion` deferred events should surface as `.prompt`, and `ExitPlanMode` deferred events as `.planModeExit`.

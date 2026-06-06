@@ -145,6 +145,11 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         try await client.interrupt(context: context)
     }
 
+    /// Applies idle-thread settings through Codex App Server without replacing the sentinel process.
+    public func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
+        try await client.reconfigure(context: context)
+    }
+
     /// Archives a Codex App Server thread without starting or resuming a runtime session.
     public func archiveSession(_ record: AgentSessionRecord) async throws {
         try validateSessionActionRecord(record)

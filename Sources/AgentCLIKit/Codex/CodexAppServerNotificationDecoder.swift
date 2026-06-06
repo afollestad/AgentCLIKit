@@ -135,11 +135,15 @@ struct CodexAppServerNotificationDecoder {
                 "codex_model": settings["model"],
                 "codex_model_provider": settings["modelProvider"],
                 "codex_effort": settings["effort"],
-                "codex_approval_policy": settings["approvalPolicy"]
+                "codex_approval_policy": settings["approvalPolicy"],
+                "codex_collaboration_mode": settings["collaborationMode"]
             ]
         )
         if let approvalPolicy = settings["approvalPolicy"]?.codexStringValue {
             events.append(runtimeEvent(.permissionMode(AgentPermissionModeEvent(mode: approvalPolicy, metadata: metadata))))
+        }
+        if let collaborationMode = collaborationMode(from: settings) {
+            events.append(runtimeEvent(.collaborationMode(AgentCollaborationModeEvent(mode: collaborationMode, metadata: metadata))))
         }
         events.append(runtimeEvent(.diagnostic(AgentDiagnosticEvent(
             severity: .info,
@@ -147,6 +151,15 @@ struct CodexAppServerNotificationDecoder {
             metadata: metadata
         ))))
         return events
+    }
+
+    private func collaborationMode(from settings: [String: JSONValue]) -> AgentCollaborationMode? {
+        let mode = settings["collaborationMode"]?.codexObjectValue?["mode"]?.codexStringValue
+            ?? settings["collaborationMode"]?.codexStringValue
+        guard let mode else {
+            return nil
+        }
+        return AgentCollaborationMode(rawValue: mode)
     }
 
     private func runtimeEvent(_ event: AgentEvent) -> AgentProviderRuntimeEvent {

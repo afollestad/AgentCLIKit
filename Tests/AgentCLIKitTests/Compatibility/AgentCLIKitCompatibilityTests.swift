@@ -170,6 +170,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertFalse(status.isProcessRunning)
         XCTAssertFalse(status.canCancel)
         XCTAssertFalse(status.isTurnActive)
+        XCTAssertNil(status.collaborationMode)
     }
 }
 

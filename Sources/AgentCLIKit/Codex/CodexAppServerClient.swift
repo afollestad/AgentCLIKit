@@ -9,7 +9,7 @@ actor CodexAppServerClient {
     struct ConversationBinding {
         let threadId: AgentSessionID
         let processToken: UUID
-        let spawnConfig: AgentSpawnConfig
+        var spawnConfig: AgentSpawnConfig
         var activeTurnId: String?
         var initialPromptStarted = false
         var continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation?
@@ -125,7 +125,20 @@ actor CodexAppServerClient {
         }
     }
 
-    private func initializedTransport() async throws -> any CodexAppServerTransport {
+    func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
+        guard var binding = binding(for: context.conversationId, processToken: context.processToken) else {
+            return .restartRequired
+        }
+        guard !context.isTurnActive, binding.activeTurnId == nil else {
+            return .nextTurnRequired
+        }
+        try await updateThreadSettings(threadId: binding.threadId, spawnConfig: context.newConfig)
+        binding.spawnConfig = context.newConfig
+        bindingsByConversation[context.conversationId] = binding
+        return .appliedInPlace
+    }
+
+    func initializedTransport() async throws -> any CodexAppServerTransport {
         let transport = try await transport()
         startIncomingPumpIfNeeded(transport: transport)
         guard !isInitialized else {
@@ -164,7 +177,9 @@ actor CodexAppServerClient {
         binding.continuation = continuation
         bindingsByConversation[context.conversationId] = binding
         conversationByThreadId[threadId] = context.conversationId
-        startInitialPromptIfNeeded(conversationId: context.conversationId)
+        Task {
+            await self.prepareBindingForInitialPrompt(conversationId: context.conversationId)
+        }
     }
 
     private func unregisterRuntimeEvents(context: AgentProviderRuntimeContext) {
@@ -175,6 +190,19 @@ actor CodexAppServerClient {
         conversationByThreadId[binding.threadId] = nil
         bindingsByConversation[context.conversationId] = nil
         pendingServerRequests = pendingServerRequests.filter { $0.value.conversationId != context.conversationId }
+    }
+
+    private func prepareBindingForInitialPrompt(conversationId: AgentConversationID) async {
+        do {
+            try await updateBootstrapThreadSettingsIfNeeded(conversationId: conversationId)
+            startInitialPromptIfNeeded(conversationId: conversationId)
+        } catch {
+            emitDiagnostic(
+                error,
+                conversationId: conversationId,
+                message: "Could not apply Codex thread settings before initial prompt."
+            )
+        }
     }
 
     private func startInitialPromptIfNeeded(conversationId: AgentConversationID) {
@@ -190,8 +218,7 @@ actor CodexAppServerClient {
             do {
                 try await self.startTurn(
                     message: AgentMessageInput(text: initialPrompt),
-                    conversationId: conversationId,
-                    isInitialPrompt: true
+                    conversationId: conversationId
                 )
             } catch {
                 self.emitDiagnostic(
@@ -210,14 +237,13 @@ actor CodexAppServerClient {
         if context.isTurnActive || binding.activeTurnId != nil {
             try await steerTurn(message: message, conversationId: context.conversationId)
         } else {
-            try await startTurn(message: message, conversationId: context.conversationId, isInitialPrompt: false)
+            try await startTurn(message: message, conversationId: context.conversationId)
         }
     }
 
     private func startTurn(
         message: AgentMessageInput,
-        conversationId: AgentConversationID,
-        isInitialPrompt: Bool
+        conversationId: AgentConversationID
     ) async throws {
         guard let binding = bindingsByConversation[conversationId] else {
             throw AgentCLIError.invalidInput("Codex App Server thread is unavailable.")
@@ -225,7 +251,7 @@ actor CodexAppServerClient {
         let transport = try await initializedTransport()
         let response = try await transport.sendRequest(
             method: "turn/start",
-            params: turnStartParams(message: message, binding: binding, includeSettings: !isInitialPrompt)
+            params: try turnStartParams(message: message, binding: binding, includeSettings: true)
         )
         guard let turnId = response.turnResponseId else {
             return
@@ -400,31 +426,4 @@ actor CodexAppServerClient {
         .object(["threadId": .string(threadId.rawValue)])
     }
 
-    private func turnStartParams(message: AgentMessageInput, binding: ConversationBinding, includeSettings: Bool) -> JSONValue {
-        var params: [String: JSONValue] = [
-            "threadId": .string(binding.threadId.rawValue),
-            "input": userInputArray(message)
-        ]
-        if includeSettings {
-            params["cwd"] = .string(binding.spawnConfig.workingDirectory.path)
-            if let model = binding.spawnConfig.model {
-                params["model"] = .string(model)
-            }
-            if let permissionMode = binding.spawnConfig.permissionMode {
-                params["approvalPolicy"] = .string(permissionMode)
-            }
-            if let effort = binding.spawnConfig.effort {
-                params["effort"] = .string(effort)
-            }
-        }
-        return .object(params)
-    }
-
-    private func userInputArray(_ message: AgentMessageInput) -> JSONValue {
-        .array([.object([
-            "type": .string("text"),
-            "text": .string(message.text),
-            "text_elements": .array([])
-        ])])
-    }
 }

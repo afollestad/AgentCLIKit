@@ -56,6 +56,18 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(decoded, event)
     }
 
+    func testCollaborationModeEventRoundTripsThroughJSON() throws {
+        let event = AgentEvent.collaborationMode(AgentCollaborationModeEvent(
+            mode: .plan,
+            metadata: ["provider": .string("codex")]
+        ))
+
+        let data = try JSONEncoder().encode(event)
+        let decoded = try JSONDecoder().decode(AgentEvent.self, from: data)
+
+        XCTAssertEqual(decoded, event)
+    }
+
     func testActivityEventRoundTripsThroughJSONAndDefaultsMetadata() throws {
         let event = AgentEvent.activity(AgentActivityEvent(
             state: .active,
@@ -181,23 +193,27 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(decoded, input)
     }
 
-    func testAgentSpawnConfigRoundTripsPermissionModeThroughJSON() throws {
+    func testAgentSpawnConfigRoundTripsPermissionAndCollaborationModeThroughJSON() throws {
         let config = AgentSpawnConfig(
             providerId: .claude,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
-            permissionMode: "plan"
+            permissionMode: "on-request",
+            collaborationMode: .plan
         )
 
         let data = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: data)
         var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         legacyObject.removeValue(forKey: "permissionMode")
+        legacyObject.removeValue(forKey: "collaborationMode")
         let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
         let legacyDecoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: legacyData)
 
-        XCTAssertEqual(decoded.permissionMode, "plan")
+        XCTAssertEqual(decoded.permissionMode, "on-request")
+        XCTAssertEqual(decoded.collaborationMode, .plan)
         XCTAssertEqual(decoded, config)
         XCTAssertNil(legacyDecoded.permissionMode)
+        XCTAssertNil(legacyDecoded.collaborationMode)
     }
 
     func testPathHelpersExpandTilde() {

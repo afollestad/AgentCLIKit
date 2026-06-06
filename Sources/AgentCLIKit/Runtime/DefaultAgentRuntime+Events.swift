@@ -436,12 +436,11 @@ extension DefaultAgentRuntime {
     private func applyStatusSideEffects(for event: AgentEvent, state: inout ConversationState) {
         switch event {
         case let .activity(activity):
-            state.isTurnActive = activity.state == .active
-            if activity.state == .idle, state.waitingState == .idle, !state.lifecycleState.isTerminal {
-                state.inputAvailability = .available
-            }
+            applyActivityStatusSideEffects(for: activity, state: &state)
         case let .permissionMode(permissionMode):
             state.permissionMode = permissionMode.mode
+        case let .collaborationMode(collaborationMode):
+            state.collaborationMode = collaborationMode.mode
         case let .interaction(interaction):
             applyInteractionStatusSideEffects(for: interaction, state: &state)
         case let .usage(usage):
@@ -449,14 +448,16 @@ extension DefaultAgentRuntime {
                 state.isTurnActive = false
             }
         case let .lifecycle(lifecycle):
-            if lifecycle.state == .running {
-                state.inputAvailability = .available
-            }
-            if lifecycle.state.isTerminal {
-                state.isTurnActive = false
-            }
+            applyLifecycleStatusSideEffects(for: lifecycle, state: &state)
         default:
             break
+        }
+    }
+
+    private func applyActivityStatusSideEffects(for activity: AgentActivityEvent, state: inout ConversationState) {
+        state.isTurnActive = activity.state == .active
+        if activity.state == .idle, state.waitingState == .idle, !state.lifecycleState.isTerminal {
+            state.inputAvailability = .available
         }
     }
 
@@ -474,6 +475,10 @@ extension DefaultAgentRuntime {
         }
     }
 
+    private func applyLifecycleStatusSideEffects(for lifecycle: AgentLifecycleEvent, state: inout ConversationState) {
+        if lifecycle.state == .running { state.inputAvailability = .available }
+        if lifecycle.state.isTerminal { state.isTurnActive = false }
+    }
     func publishStatus(conversationId: AgentConversationID) {
         guard let status = states[conversationId]?.status(conversationId: conversationId) else {
             return

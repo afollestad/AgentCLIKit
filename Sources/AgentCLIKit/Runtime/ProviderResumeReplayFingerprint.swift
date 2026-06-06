@@ -9,6 +9,7 @@ enum ProviderResumeReplayFingerprint: Equatable {
     case usage(ProviderResumeUsageFingerprint)
     case rateLimit(ProviderResumeRateLimitFingerprint)
     case permissionMode(String)
+    case collaborationMode(AgentCollaborationMode)
     case task(ProviderResumeTaskFingerprint)
     case contextCompaction(ProviderResumeCompactionFingerprint)
     case interaction(kind: AgentInteractionKind, prompt: String, metadata: [ProviderResumeMetadataEntry])
@@ -83,6 +84,8 @@ enum ProviderResumeReplayFingerprint: Equatable {
             self = .rateLimit(ProviderResumeRateLimitFingerprint(rateLimit))
         case .permissionMode(let permissionMode):
             self = .permissionMode(permissionMode.mode)
+        case .collaborationMode(let collaborationMode):
+            self = .collaborationMode(collaborationMode.mode)
         case .task(let task):
             self = .task(ProviderResumeTaskFingerprint(task))
         case .contextCompaction(let compaction):

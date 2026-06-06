@@ -5,7 +5,7 @@ import XCTest
 final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
     func testStatusUpdatesPublishPermissionModeAndWaitingState() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("printf 'permission:plan\\ninteraction:prompt\\n'; sleep 1"))
+            StatusReportingProviderAdapter(command: shell("printf 'permission:plan\\ncollaboration:plan\\ninteraction:prompt\\n'; sleep 1"))
         ])
         let stream = await runtime.statusUpdates(conversationId: "conversation")
         var iterator = stream.makeAsyncIterator()
@@ -13,9 +13,10 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
 
         let statuses = await Self.collect(&iterator, until: { statuses in
-            statuses.contains { $0.permissionMode == "plan" && $0.waitingState == .prompt }
+            statuses.contains { $0.permissionMode == "plan" && $0.collaborationMode == .plan && $0.waitingState == .prompt }
         })
         XCTAssertTrue(statuses.contains { $0.permissionMode == "plan" })
+        XCTAssertTrue(statuses.contains { $0.collaborationMode == .plan })
         XCTAssertTrue(statuses.contains { $0.waitingState == .prompt && $0.inputAvailability == .blocked(reason: "Waiting for a prompt answer.") })
         await runtime.shutdown()
     }
@@ -280,6 +281,10 @@ private struct StatusReportingProviderAdapter: AgentProviderAdapter {
         if line.hasPrefix("permission:") {
             let mode = String(line.dropFirst("permission:".count))
             return [.permissionMode(AgentPermissionModeEvent(mode: mode))]
+        }
+        if line.hasPrefix("collaboration:") {
+            let mode = String(line.dropFirst("collaboration:".count))
+            return AgentCollaborationMode(rawValue: mode).map { [.collaborationMode(AgentCollaborationModeEvent(mode: $0))] } ?? []
         }
         if line == "interaction:prompt" {
             return [.interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?"))]
