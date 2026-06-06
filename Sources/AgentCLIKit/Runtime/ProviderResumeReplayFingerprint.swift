@@ -11,7 +11,7 @@ enum ProviderResumeReplayFingerprint: Equatable {
     case permissionMode(String)
     case task(ProviderResumeTaskFingerprint)
     case contextCompaction(ProviderResumeCompactionFingerprint)
-    case interaction(id: AgentInteractionID, kind: AgentInteractionKind, prompt: String, metadata: [ProviderResumeMetadataEntry])
+    case interaction(kind: AgentInteractionKind, prompt: String, metadata: [ProviderResumeMetadataEntry])
     case rawOutput(text: String, isComplete: Bool)
 
     func matchesReplay(of replayed: ProviderResumeReplayFingerprint) -> Bool {
@@ -89,7 +89,6 @@ enum ProviderResumeReplayFingerprint: Equatable {
             self = .contextCompaction(ProviderResumeCompactionFingerprint(compaction))
         case .interaction(let interaction):
             self = .interaction(
-                id: interaction.id,
                 kind: interaction.kind,
                 prompt: interaction.prompt,
                 metadata: metadataFingerprint(
