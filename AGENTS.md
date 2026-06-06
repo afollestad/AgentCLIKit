@@ -13,6 +13,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `AGENTS.md`: repo-wide workflow.
 - `.agents/AGENTS.md`: repo-local agent workflows.
 - `.agents/checks/AGENTS.md`: repo-local review, audit, and check workflows.
+- `docs/AGENTS.md`: README and human-facing documentation.
 - `Sources/AgentCLIKit/Claude/AGENTS.md`: Claude provider adapter, config, stream decoding, and hook server behavior.
 - `Sources/AgentCLIKit/Claude/Hooks/AGENTS.md`: Claude hook transport.
 - `Sources/AgentCLIKit/Codex/AGENTS.md`: Codex App Server metadata, wire formats, config, and permission semantics.

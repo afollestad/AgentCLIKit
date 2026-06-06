@@ -50,8 +50,7 @@ func runOneOffConversation(projectURL: URL) async throws {
         conversationId: conversationId,
         config: AgentSpawnConfig(
             providerId: .claude,
-            workingDirectory: projectURL,
-            collaborationMode: .plan
+            workingDirectory: projectURL
         )
     )
     try await runtime.send(
@@ -65,8 +64,7 @@ func runOneOffConversation(projectURL: URL) async throws {
 }
 ```
 
-Change `providerId: .claude` to `providerId: .codex` to run the same host flow through Codex App Server. If you keep
-`collaborationMode: .plan` for Codex, also pass a concrete selected model.
+Change `providerId: .claude` to `providerId: .codex` to run the same host flow through Codex App Server.
 
 ## Persist And Resume Sessions
 
@@ -170,6 +168,51 @@ func loadProviderChoices(projectURL: URL) async -> [ProviderChoice] {
 
 Use the selected `AgentModelOption.model` and effort option value in `AgentSpawnConfig.model` and `AgentSpawnConfig.effort`.
 If a model has no `supportedEffortOptions`, hide effort controls for that model.
+
+## Settings And Plan Mode
+
+**Skeleton.** Hosts can update settings for a started conversation by sending a complete replacement `AgentSpawnConfig`.
+Use `collaborationMode` for plan/default mode and keep `permissionMode` for approval policy.
+
+```swift
+func setPlanMode(
+    enabled: Bool,
+    currentConfig: AgentSpawnConfig,
+    conversationId: AgentConversationID,
+    runtime: any AgentRuntime
+) async throws {
+    let updatedConfig = AgentSpawnConfig(
+        providerId: currentConfig.providerId,
+        workingDirectory: currentConfig.workingDirectory,
+        arguments: currentConfig.arguments,
+        environment: currentConfig.environment,
+        model: currentConfig.model,
+        effort: currentConfig.effort,
+        permissionMode: currentConfig.permissionMode,
+        collaborationMode: enabled ? .plan : .default,
+        forkSession: currentConfig.forkSession,
+        initialPrompt: nil
+    )
+
+    let result = try await runtime.reconfigure(
+        conversationId: conversationId,
+        config: updatedConfig
+    )
+
+    switch result {
+    case .appliedInPlace, .restarted:
+        rememberCurrentConfig(updatedConfig)
+    case .nextTurnRequired:
+        stageConfigForNextTurn(updatedConfig)
+    }
+}
+```
+
+Codex plan/default collaboration settings require a concrete `AgentSpawnConfig.model`; pass the selected
+`AgentModelOption.model` before enabling plan mode. Keep `initialPrompt` nil for settings-only reconfigure requests so a
+replacement launch does not resend a one-shot prompt. Render plan-mode UI from `AgentRuntimeStatus.collaborationMode` or
+`AgentEvent.collaborationMode`, because providers can report collaboration changes after host actions such as
+`ExitPlanMode`.
 
 ## Project Trust
 

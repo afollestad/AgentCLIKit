@@ -6,7 +6,8 @@ It gives host apps a reusable layer for:
 
 - Launching Claude Code or Codex App Server.
 - Sending user messages and steering active turns.
-- Receiving provider-neutral events for messages, tools, usage, tasks, context compaction, lifecycle, and interactions.
+- Receiving provider-neutral events for messages, tools, usage, tasks, permission/collaboration state, context compaction,
+  lifecycle, and interactions.
 - Persisting provider session IDs so conversations can resume.
 - Checking provider readiness, project trust, model options, and model-scoped effort options.
 
@@ -48,8 +49,7 @@ import Foundation
 
 func runAgentConversation(
     projectURL: URL,
-    providerId: AgentProviderID = .claude,
-    model: String? = nil
+    providerId: AgentProviderID = .claude
 ) async throws {
     let sessionsURL = projectURL.appendingPathComponent(".agentclikit-sessions.json")
     let runtime = DefaultAgentRuntime(
@@ -93,9 +93,7 @@ func runAgentConversation(
         conversationId: conversationId,
         config: AgentSpawnConfig(
             providerId: providerId,
-            workingDirectory: projectURL,
-            model: model,
-            collaborationMode: .plan
+            workingDirectory: projectURL
         )
     )
 
@@ -142,6 +140,7 @@ See [docs/examples.md](docs/examples.md) for practical recipes covering:
 - Session persistence and resume.
 - Provider readiness, model, and effort selection.
 - Project trust setup.
+- Settings updates and plan/default collaboration mode.
 - Approval and prompt resolution.
 - Status updates and cancellation.
 
@@ -194,9 +193,9 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Plan mode | `collaborationMode: .plan` maps to Claude's internal `--permission-mode plan` | Idle threads use `thread/settings/update`; plan mode requires a concrete model |
 | Archive | Validated no-op | App Server `thread/archive` and `thread/unarchive` |
 
-Both built-in providers expose provider-neutral events, sessions, usage, tool events, task events, prompt/approval
-interactions, MCP support, and context compaction lifecycle events. Inspect `AgentProviderDefinition.capabilities` before
-showing provider-specific UI.
+Both built-in providers expose provider-neutral events, sessions, usage, tool events, task events, permission/collaboration
+state, prompt/approval interactions, MCP support, and context compaction lifecycle events. Inspect
+`AgentProviderDefinition.capabilities` before showing provider-specific UI.
 
 For detailed provider behavior, see [docs/provider-reference.md](docs/provider-reference.md).
 

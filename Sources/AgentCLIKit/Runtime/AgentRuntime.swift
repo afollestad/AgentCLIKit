@@ -14,7 +14,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     public let model: String?
     /// Optional provider effort setting.
     public let effort: String?
-    /// Optional provider permission mode.
+    /// Optional provider approval policy.
     public let permissionMode: String?
     /// Optional provider-neutral collaboration mode override.
     ///
@@ -90,7 +90,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
     public let lastEventIndex: Int
     /// Provider session identifier when known.
     public let providerSessionId: AgentSessionID?
-    /// Latest provider permission mode when known.
+    /// Latest provider-reported permission mode when known.
     public let permissionMode: String?
     /// Latest provider-neutral collaboration mode when known.
     public let collaborationMode: AgentCollaborationMode?

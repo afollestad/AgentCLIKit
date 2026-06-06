@@ -45,6 +45,8 @@ Inspect `AgentProviderDefinition.capabilities` before showing provider-specific 
 | Task and todo events | Supported | Supported |
 | Prompt requests | Supported through hooks and stream events | Supported through App Server requests |
 | Approvals | Supported through hooks | Supported through App Server requests |
+| Plan/default collaboration | `AgentSpawnConfig.collaborationMode`; Claude maps plan to internal `--permission-mode plan` | `AgentSpawnConfig.collaborationMode`; requires a concrete model |
+| Runtime reconfigure | Process replacement or resume path | Idle threads use `thread/settings/update`; active turns require next-turn staging |
 | Context compaction | Supported through hooks and stream frames | Supported through App Server notifications and items |
 | MCP | Supported | Supported |
 | Native archive | No provider-native action; validated no-op | `thread/archive` and `thread/unarchive` |
@@ -113,7 +115,8 @@ Codex App Server requests map into provider-neutral interactions:
 - User-input requests.
 
 Codex emits provider-neutral events for messages, reasoning, tool calls/results, diffs, usage, context-window metadata,
-context compaction, tasks/todos, sub-agent activity, permission-mode changes, diagnostics, and lifecycle.
+context compaction, tasks/todos, sub-agent activity, permission-mode changes, collaboration-mode changes, diagnostics,
+and lifecycle.
 
 Host-defined Codex custom tool execution is not a v1 host API.
 

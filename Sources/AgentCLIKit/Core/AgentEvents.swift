@@ -75,9 +75,9 @@ public enum AgentEvent: Codable, Equatable, Sendable {
     case rateLimit(AgentRateLimitEvent)
     /// Provider turn or thread activity state changed.
     case activity(AgentActivityEvent)
-    /// Provider permission mode changed.
+    /// Provider-reported permission mode changed.
     case permissionMode(AgentPermissionModeEvent)
-    /// Provider collaboration mode changed.
+    /// Provider-neutral collaboration mode changed.
     case collaborationMode(AgentCollaborationModeEvent)
     /// Provider task or sub-agent activity.
     case task(AgentTaskEvent)

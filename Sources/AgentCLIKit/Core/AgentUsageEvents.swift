@@ -147,9 +147,9 @@ public struct AgentPermissionDenialSummary: Codable, Equatable, Sendable {
     }
 }
 
-/// Provider permission mode state.
+/// Provider-reported permission mode state.
 public struct AgentPermissionModeEvent: Codable, Equatable, Sendable {
-    /// Provider permission mode value.
+    /// Provider-reported permission mode value.
     public let mode: String
     /// Provider-specific permission-mode metadata.
     public let metadata: [String: JSONValue]
@@ -163,7 +163,7 @@ public struct AgentPermissionModeEvent: Codable, Equatable, Sendable {
 
 /// Provider-neutral collaboration mode state.
 public struct AgentCollaborationModeEvent: Codable, Equatable, Sendable {
-    /// Current collaboration mode.
+    /// Current provider-neutral collaboration mode.
     public let mode: AgentCollaborationMode
     /// Provider-specific collaboration-mode metadata.
     public let metadata: [String: JSONValue]

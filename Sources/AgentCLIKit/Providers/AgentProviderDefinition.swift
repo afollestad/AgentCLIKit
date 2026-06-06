@@ -62,11 +62,11 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsToolEvents: Bool
     /// Whether the provider emits enough metadata to group tool output in transcripts.
     public let supportsGroupedToolOutput: Bool
-    /// Whether the provider supports plan-mode entry or exit events.
+    /// Whether the provider supports provider-neutral plan/default collaboration mode.
     public let supportsPlanMode: Bool
     /// Whether the provider emits task-list or todo snapshots.
     public let supportsTaskLists: Bool
-    /// Whether the provider emits sub-agent or collaboration events.
+    /// Whether the provider emits sub-agent activity events.
     public let supportsSubagents: Bool
     /// Whether the provider can request host-provided prompt answers.
     public let supportsPromptRequests: Bool
