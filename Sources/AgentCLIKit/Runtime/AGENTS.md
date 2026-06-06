@@ -1,6 +1,7 @@
 ## Runtime Replay
 
 - **Suppress deferred-approval replay:** Non-fresh resumes after a deferred tool stop can replay provider transcript frames. Keep already-retained provider output from being emitted again to subscribers.
+- **Treat replayed interaction IDs as volatile:** Deferred-approval resumes may replay approval, prompt, or plan-mode interaction frames with fresh `AgentInteractionID` values. Replay fingerprints should match on transcript-visible identity such as kind, prompt, session/tool metadata, tool input, and plan content; keep `resolvedInteractions` ID-based for live resolution/idempotence.
 - **Preserve new output:** Replay suppression must end at the first genuinely new provider event, and matching content after that point must still be emitted.
 - **Preserve compaction lifecycle:** Runtime compaction guards should deduplicate by `id` plus phase, synthesize a `started` event before terminal compaction events when providers omit the start, and synthesize a failed terminal event when a process is cancelled or exits with an open compaction.
 - **Do not hide runtime events:** Lifecycle, session-continuity, diagnostics, and fresh-session output must remain visible.
