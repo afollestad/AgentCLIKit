@@ -103,6 +103,14 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
             "xhigh",
             "max"
         ])
+        XCTAssertEqual(
+            claudeOptions
+                .first(where: { $0.id == "opus" })?
+                .supportedEffortOptions
+                .first(where: { $0.value == "xhigh" })?
+                .label,
+            "Extra High"
+        )
         XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.defaultEffortOption?.value, "xhigh")
         XCTAssertEqual(codexOptions, AgentDefaultModelOptions.providerDefault(for: .codex, description: "Use the Codex default model."))
     }

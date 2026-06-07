@@ -27,6 +27,8 @@ final class CodexModelOptionSourceTests: XCTestCase {
         XCTAssertEqual(options.first?.supportedEffortOptions.map(\.value), ["low", "medium", "high"])
         XCTAssertEqual(options.first?.defaultEffortOption?.value, "medium")
         XCTAssertEqual(options.last?.supportedEffortOptions.map(\.value), ["minimal", "xhigh"])
+        XCTAssertEqual(options.last?.supportedEffortOptions.last?.label, "Extra High")
+        XCTAssertEqual(options.last?.supportedEffortOptions.last?.description, "Use extra high reasoning effort.")
         XCTAssertEqual(options.last?.defaultEffortOption?.value, "xhigh")
     }
 

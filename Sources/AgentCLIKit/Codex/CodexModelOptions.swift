@@ -206,7 +206,7 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
     private static func effortLabel(for value: String) -> String {
         switch value {
         case "xhigh":
-            return "XHigh"
+            return "Extra High"
         default:
             return value
                 .split { $0 == "-" || $0 == "_" }
