@@ -33,18 +33,18 @@ public enum CodexProviderDefinition {
         supportedPermissionModes: [
             AgentProviderOption(
                 value: "untrusted",
-                label: "Untrusted",
-                description: "Only known-safe read-only commands run without approval; other commands prompt."
+                label: "Ask for approval",
+                description: "Always ask to edit external files and use the internet."
             ),
             AgentProviderOption(
                 value: "on-request",
-                label: "On request",
-                description: "Codex decides when to request approval for higher-risk commands."
+                label: "Approve for me",
+                description: "Only ask for actions detected as potentially unsafe."
             ),
             AgentProviderOption(
                 value: "never",
-                label: "Never ask",
-                description: "Codex never prompts for command approval and returns failures directly to the model."
+                label: "Full access",
+                description: "Unrestricted access to the internet and any file on your computer."
             )
         ]
     )

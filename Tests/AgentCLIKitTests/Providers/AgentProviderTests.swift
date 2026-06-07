@@ -33,7 +33,54 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertTrue(definitions[1].capabilities.supportsSessionArchiving)
         XCTAssertTrue(definitions[1].capabilities.supportsSessionUnarchiving)
         XCTAssertTrue(definitions[1].capabilities.supportsContextCompaction)
+        XCTAssertEqual(definitions[0].supportedPermissionModes?.map(\.value), ["default", "acceptEdits", "auto"])
         XCTAssertEqual(definitions[1].supportedPermissionModes?.map(\.value), ["untrusted", "on-request", "never"])
+    }
+
+    func testBuiltInClaudeProviderDefinitionExposesPermissionMetadata() {
+        XCTAssertEqual(
+            ClaudeProviderDefinition.definition.supportedPermissionModes,
+            [
+                AgentProviderOption(
+                    value: "default",
+                    label: "default",
+                    description: "Ask before file edits and restricted tool actions."
+                ),
+                AgentProviderOption(
+                    value: "acceptEdits",
+                    label: "acceptEdits",
+                    description: "Automatically allow file edits, but ask for other sensitive actions."
+                ),
+                AgentProviderOption(
+                    value: "auto",
+                    label: "auto",
+                    description: "Automatically approve most actions with safety checks."
+                )
+            ]
+        )
+    }
+
+    func testBuiltInCodexProviderDefinitionExposesPermissionMetadata() {
+        XCTAssertEqual(
+            CodexProviderDefinition.definition.supportedPermissionModes,
+            [
+                AgentProviderOption(
+                    value: "untrusted",
+                    label: "Ask for approval",
+                    description: "Always ask to edit external files and use the internet."
+                ),
+                AgentProviderOption(
+                    value: "on-request",
+                    label: "Approve for me",
+                    description: "Only ask for actions detected as potentially unsafe."
+                ),
+                AgentProviderOption(
+                    value: "never",
+                    label: "Full access",
+                    description: "Unrestricted access to the internet and any file on your computer."
+                )
+            ]
+        )
     }
 
     func testAdapterSetOverridesBuiltInAdapters() {

@@ -32,18 +32,18 @@ public enum ClaudeProviderDefinition {
         supportedPermissionModes: [
             AgentProviderOption(
                 value: "default",
-                label: "Default permissions",
-                description: "Safe default; denied writes return as tool errors in non-interactive mode."
+                label: "default",
+                description: "Ask before file edits and restricted tool actions."
             ),
             AgentProviderOption(
                 value: "acceptEdits",
-                label: "Accept edits",
-                description: "Auto-accept file edits while keeping stronger checks for other actions."
+                label: "acceptEdits",
+                description: "Automatically allow file edits, but ask for other sensitive actions."
             ),
             AgentProviderOption(
                 value: "auto",
-                label: "Automatic",
-                description: "Auto-approve most actions with safety checks."
+                label: "auto",
+                description: "Automatically approve most actions with safety checks."
             )
         ]
     )

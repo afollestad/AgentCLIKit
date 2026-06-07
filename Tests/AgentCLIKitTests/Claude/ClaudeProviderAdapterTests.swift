@@ -59,7 +59,7 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertTrue(definition.capabilities.supportsMidTurnSteering)
         XCTAssertTrue(definition.capabilities.supportsModelOptions)
         XCTAssertTrue(definition.capabilities.supportsPlanMode)
-        XCTAssertEqual(definition.supportedPermissionModes?.map(\.value), ["default", "acceptEdits", "auto"])
+        XCTAssertEqual(definition.supportedPermissionModes, ClaudeProviderDefinition.definition.supportedPermissionModes)
     }
 
     func testLaunchConfigurationPrioritizesPlanCollaborationModeOverPermissionMode() async throws {
