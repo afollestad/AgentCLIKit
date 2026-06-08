@@ -11,6 +11,14 @@ func defaultAgentRuntimeSleep(nanoseconds: UInt64) async {
     await DefaultAgentRuntime.defaultSleep(nanoseconds: nanoseconds)
 }
 
+func normalizedProviderSessionName(_ name: String?) -> String? {
+    guard let normalized = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !normalized.isEmpty else {
+        return nil
+    }
+    return normalized
+}
+
 struct ConversationState {
     let providerId: AgentProviderID
     let generation: Int
@@ -25,6 +33,8 @@ struct ConversationState {
     var stderrTail: [String]
     var lifecycleState: AgentLifecycleState
     var providerSessionId: AgentSessionID?
+    var providerSessionName: String?
+    var providerSessionRecordMetadata: [String: JSONValue]
     var providerSessionCreatedAt: Date?
     var permissionMode: String?
     var collaborationMode: AgentCollaborationMode?
@@ -57,6 +67,7 @@ struct ConversationState {
             state: lifecycleState,
             lastEventIndex: events.last?.index ?? -1,
             providerSessionId: providerSessionId,
+            providerSessionName: providerSessionName,
             permissionMode: permissionMode,
             collaborationMode: collaborationMode,
             isTurnActive: isTurnActive,
@@ -176,7 +187,7 @@ extension AgentEvent {
         case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode,
              .collaborationMode, .task, .contextCompaction, .interaction, .rawOutput:
             true
-        case .activity, .sessionContinuity, .lifecycle, .diagnostic:
+        case .activity, .sessionMetadata, .sessionContinuity, .lifecycle, .diagnostic:
             false
         }
     }
@@ -219,6 +230,23 @@ final class OutputLinePump: @unchecked Sendable {
                 return
             }
             await sleep(sleepNanoseconds)
+        }
+    }
+
+    func waitUntilIdle(timeoutNanoseconds: UInt64, sleep: AgentRuntimeSleep) async {
+        let sleepNanoseconds: UInt64 = 5_000_000
+        let attempts = max(1, Int(timeoutNanoseconds / sleepNanoseconds))
+        var idleChecks = 0
+        for _ in 0..<attempts {
+            await sleep(sleepNanoseconds)
+            if lineQueue.isIdle {
+                idleChecks += 1
+                if idleChecks >= 2 {
+                    return
+                }
+            } else {
+                idleChecks = 0
+            }
         }
     }
 

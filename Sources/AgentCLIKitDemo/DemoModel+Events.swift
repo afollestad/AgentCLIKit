@@ -76,6 +76,8 @@ extension DemoModel {
                 envelope: envelope,
                 sessionID: sessionID
             )
+        case .sessionMetadata:
+            return
         case .lifecycle(let lifecycle):
             handleLifecycle(lifecycle, envelope: envelope, sessionID: sessionID)
         }
@@ -213,12 +215,18 @@ extension DemoModel {
             return
         }
         let current = sessions[index]
+        let eventProviderSessionName = Self.providerSessionName(from: envelope.event)
+        let isProviderSessionChange = current.record?.providerSessionId != providerSessionId
+        let providerSessionName = isProviderSessionChange
+            ? eventProviderSessionName
+            : eventProviderSessionName ?? current.record?.providerSessionName
         sessions[index] = DemoSession(
             id: current.id,
             record: AgentSessionRecord(
                 conversationId: envelope.conversationId,
                 providerId: envelope.providerId,
                 providerSessionId: providerSessionId,
+                providerSessionName: providerSessionName,
                 generation: envelope.generation,
                 createdAt: current.record?.createdAt ?? current.createdAt,
                 updatedAt: envelope.createdAt,
@@ -226,5 +234,18 @@ extension DemoModel {
             ),
             createdAt: current.createdAt
         )
+    }
+
+    private static func providerSessionName(from event: AgentEvent) -> String? {
+        guard case let .sessionMetadata(metadata) = event else {
+            return nil
+        }
+        return metadata.name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

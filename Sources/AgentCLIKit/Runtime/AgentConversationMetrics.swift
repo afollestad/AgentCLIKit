@@ -40,6 +40,8 @@ public struct AgentConversationMetricsBuilder: Sendable {
                 latestUsage = usage
             case let .rateLimit(rateLimit):
                 latestRateLimit = rateLimit
+            case .sessionMetadata:
+                break
             default:
                 break
             }

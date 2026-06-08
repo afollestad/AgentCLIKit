@@ -207,6 +207,9 @@ struct SessionReportingProviderAdapter: AgentProviderAdapter {
     }
 
     func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        if let metadata = sessionMetadata(from: line) {
+            return [.sessionMetadata(metadata)]
+        }
         guard let sessionId = line.removingPrefix("session:") else {
             return []
         }
@@ -218,6 +221,9 @@ struct SessionReportingProviderAdapter: AgentProviderAdapter {
     }
 
     func sessionID(from event: AgentEvent) -> AgentSessionID? {
+        if case let .sessionMetadata(metadata) = event {
+            return metadata.providerSessionId
+        }
         guard case let .diagnostic(diagnostic) = event, case let .string(sessionId)? = diagnostic.metadata["session_id"] else {
             return nil
         }
@@ -241,6 +247,9 @@ struct SequencedSessionReportingProviderAdapter: AgentProviderAdapter {
     }
 
     func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        if let metadata = sessionMetadata(from: line) {
+            return [.sessionMetadata(metadata)]
+        }
         if let sessionId = line.removingPrefix("session:") {
             return [.diagnostic(AgentDiagnosticEvent(
                 severity: .info,
@@ -255,6 +264,9 @@ struct SequencedSessionReportingProviderAdapter: AgentProviderAdapter {
     }
 
     func sessionID(from event: AgentEvent) -> AgentSessionID? {
+        if case let .sessionMetadata(metadata) = event {
+            return metadata.providerSessionId
+        }
         guard case let .diagnostic(diagnostic) = event, case let .string(sessionId)? = diagnostic.metadata["session_id"] else {
             return nil
         }
@@ -387,6 +399,7 @@ actor FailableLaunchSequence {
     enum Step: Sendable {
         case launch(AgentLaunchConfiguration)
         case delayedLaunch(UInt64, AgentLaunchConfiguration)
+        case triggerAndWait(triggerPath: String, observedPath: String, AgentLaunchConfiguration)
         case fail(String)
     }
 
@@ -407,6 +420,15 @@ actor FailableLaunchSequence {
         case let .delayedLaunch(delay, configuration):
             try await Task.sleep(nanoseconds: delay)
             return configuration
+        case let .triggerAndWait(triggerPath, observedPath, configuration):
+            FileManager.default.createFile(atPath: triggerPath, contents: Data())
+            for _ in 0..<100 {
+                if FileManager.default.fileExists(atPath: observedPath) {
+                    return configuration
+                }
+                try await Task.sleep(nanoseconds: 5_000_000)
+            }
+            throw AgentCLIError.invalidInput("Timed out waiting for launch trigger observation.")
         case let .fail(message):
             throw AgentCLIError.invalidInput(message)
         }
@@ -462,34 +484,6 @@ actor FailingSlowSessionStore: AgentSessionStore {
     }
 }
 
-actor OutOfOrderSessionStore: AgentSessionStore {
-    private var records: [AgentConversationID: AgentSessionRecord] = [:]
-    private let delays: [String: UInt64]
-
-    init(delays: [String: UInt64]) {
-        self.delays = delays
-    }
-
-    func record(conversationId: AgentConversationID, providerId: AgentProviderID) async throws -> AgentSessionRecord? {
-        records[conversationId]
-    }
-
-    func save(_ record: AgentSessionRecord) async throws {
-        if let delay = delays[record.providerSessionId.rawValue] {
-            try await Task.sleep(nanoseconds: delay)
-        }
-        records[record.conversationId] = record
-    }
-
-    func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws {
-        records[conversationId] = nil
-    }
-
-    func allRecords() async throws -> [AgentSessionRecord] {
-        Array(records.values)
-    }
-}
-
 private extension String {
     func removingPrefix(_ prefix: String) -> String? {
         guard hasPrefix(prefix) else {
@@ -497,4 +491,16 @@ private extension String {
         }
         return String(dropFirst(prefix.count))
     }
+}
+
+private func sessionMetadata(from line: String) -> AgentSessionMetadataEvent? {
+    guard let rawMetadata = line.removingPrefix("metadata:") else {
+        return nil
+    }
+    let parts = rawMetadata.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+    guard let sessionId = parts.first, !sessionId.isEmpty else {
+        return nil
+    }
+    let name = parts.count > 1 ? String(parts[1]) : nil
+    return AgentSessionMetadataEvent(providerSessionId: AgentSessionID(rawValue: String(sessionId)), name: name)
 }

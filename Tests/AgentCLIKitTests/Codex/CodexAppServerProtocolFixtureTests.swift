@@ -5,11 +5,20 @@ final class CodexAppServerProtocolFixtureTests: XCTestCase {
     func testProtocolValidationFixtureDocumentsRequiredPhaseThreeCoverage() throws {
         let fixture = try Self.fixture()
 
-        XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.136.0-alpha.2")
+        XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.137.0-alpha.4")
         XCTAssertEqual(fixture.value(at: ["documentation", "transport", "default"]) as? String, "stdio://")
         XCTAssertEqual(fixture.value(at: ["documentation", "jsonRPC", "wireOmitsJsonrpcHeader"]) as? Bool, true)
         XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireLiveCodexAuth"]) as? Bool, false)
         XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireNetwork"]) as? Bool, false)
+
+        let serverNotifications = try XCTUnwrap(fixture.value(at: ["schema", "serverNotificationsRelevantToV1"]) as? [String])
+        XCTAssertTrue(serverNotifications.contains("thread/started"))
+        XCTAssertTrue(serverNotifications.contains("thread/name/updated"))
+        XCTAssertEqual(fixture.value(at: ["schema", "threadMetadata", "threadObject", "name"]) as? String, "nullable string")
+        XCTAssertEqual(
+            fixture.value(at: ["schema", "threadMetadata", "nameUpdateNotification", "fields", "threadName"]) as? String,
+            "optional string"
+        )
 
         let serverRequests = try XCTUnwrap(fixture.value(at: ["schema", "serverRequests"]) as? [String])
         XCTAssertTrue(serverRequests.contains("item/commandExecution/requestApproval"))

@@ -85,7 +85,9 @@ Claude model options come from `ClaudeModelOptionSource`.
 
 Codex support uses Codex App Server JSON-RPC. `CodexProviderAdapter` starts the App Server lazily for Codex runtime work,
 initializes it, starts or resumes a thread, persists the Codex thread ID as the provider session ID, and sends user turns
-through `turn/start`.
+through `turn/start`. When Codex reports `Thread.name` during bootstrap, resume, `thread/started`, or
+`thread/name/updated`, the adapter emits `AgentEvent.sessionMetadata`; the runtime mirrors the normalized name into
+`AgentRuntimeStatus.providerSessionName` and `AgentSessionRecord.providerSessionName`.
 
 Codex uses the same `AgentSpawnConfig.collaborationMode` API. `turn/start` and idle-thread `thread/settings/update`
 share the same sticky settings payload for `cwd`, `model`, `approvalPolicy`, `effort`, and `collaborationMode`. If a
@@ -115,8 +117,8 @@ Codex App Server requests map into provider-neutral interactions:
 - User-input requests.
 
 Codex emits provider-neutral events for messages, reasoning, tool calls/results, diffs, usage, context-window metadata,
-context compaction, tasks/todos, sub-agent activity, permission-mode changes, collaboration-mode changes, diagnostics,
-and lifecycle.
+session metadata, context compaction, tasks/todos, sub-agent activity, permission-mode changes, collaboration-mode
+changes, diagnostics, and lifecycle.
 
 Host-defined Codex custom tool execution is not a v1 host API.
 
@@ -161,7 +163,8 @@ the runtime emits a synthetic failed compaction so host UI can replace in-progre
 
 `AgentSessionStore` stores provider session mappings keyed by host conversation and provider. `JSONFileAgentSessionStore`
 is useful for small apps and examples; production apps can back the protocol with files, SQLite, app databases, or another
-durable store.
+durable store. Providers may also report a user-facing session name through `AgentEvent.sessionMetadata`; when usable, the
+runtime stores it in `AgentSessionRecord.providerSessionName` and publishes it in `AgentRuntimeStatus.providerSessionName`.
 
 `AgentProviderSessionActionRouter` pairs host archive UI with provider-native actions. Codex archive/unarchive uses App
 Server `thread/archive` and `thread/unarchive`. Claude validates matching session records and no-ops because the Claude

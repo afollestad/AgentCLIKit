@@ -109,6 +109,24 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(legacyCompaction.metadata, [:])
     }
 
+    func testSessionMetadataEventRoundTripsThroughJSONAndDefaultsMetadata() throws {
+        let event = AgentEvent.sessionMetadata(AgentSessionMetadataEvent(
+            providerSessionId: "session-1",
+            name: "Generated Name",
+            metadata: ["provider": .string("codex")]
+        ))
+
+        let data = try JSONEncoder().encode(event)
+        let decoded = try JSONDecoder().decode(AgentEvent.self, from: data)
+        let legacyMetadata = try JSONDecoder().decode(
+            AgentSessionMetadataEvent.self,
+            from: Data(#"{"providerSessionId":"session-1","name":"Generated Name"}"#.utf8)
+        )
+
+        XCTAssertEqual(decoded, event)
+        XCTAssertEqual(legacyMetadata.metadata, [:])
+    }
+
     func testInteractionEventRoundTripsPromptOptionsAndDefaultsLegacyFields() throws {
         let event = AgentInteractionEvent(
             id: "prompt",

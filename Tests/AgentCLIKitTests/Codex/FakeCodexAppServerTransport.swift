@@ -21,6 +21,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     }
 
     private var threadIds: [String]
+    private var threadNames: [String?]
     private var modelListResponses: [JSONValue]
     private let failModelListRequests: Bool
     private let failModelListRequestsAfterSuccessCount: Int?
@@ -40,12 +41,14 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
 
     init(
         threadIds: [String],
+        threadNames: [String?] = [],
         modelListResponses: [JSONValue] = [],
         failModelListRequests: Bool = false,
         failModelListRequestsAfterSuccessCount: Int? = nil,
         failingMethods: Set<String> = []
     ) {
         self.threadIds = threadIds
+        self.threadNames = threadNames
         self.modelListResponses = modelListResponses
         self.failModelListRequests = failModelListRequests
         self.failModelListRequestsAfterSuccessCount = failModelListRequestsAfterSuccessCount
@@ -79,11 +82,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         case "initialize":
             return .object(["server": .string("fake")])
         case "thread/start", "thread/resume":
-            return .object([
-                "thread": .object([
-                    "id": .string(threadIds.removeFirst())
-                ])
-            ])
+            return nextThreadResponse()
         case "turn/start":
             turnIndex += 1
             return .object([
@@ -111,6 +110,18 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         default:
             return .null
         }
+    }
+
+    private func nextThreadResponse() -> JSONValue {
+        var thread: [String: JSONValue] = [
+            "id": .string(threadIds.removeFirst())
+        ]
+        if !threadNames.isEmpty, let name = threadNames.removeFirst() {
+            thread["name"] = .string(name)
+        }
+        return .object([
+            "thread": .object(thread)
+        ])
     }
 
     func sendNotification(method: String, params: JSONValue?) async throws {

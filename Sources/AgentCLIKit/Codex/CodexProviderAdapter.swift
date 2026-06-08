@@ -88,7 +88,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
                 "-c",
                 "printf '%s\\n' \"$1\"; sleep 2147483647",
                 "codex-bootstrap",
-                try Self.bootstrapLine(threadId: bootstrap.threadId)
+                try Self.bootstrapLine(threadId: bootstrap.threadId, name: bootstrap.name)
             ],
             workingDirectory: spawnConfig.workingDirectory,
             sessionContinuity: bootstrap.continuity,
@@ -104,18 +104,23 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
               payload.codexAppServerBootstrap == true else {
             return [.rawOutput(AgentRawOutputEvent(text: line, isComplete: true))]
         }
-        return [.diagnostic(AgentDiagnosticEvent(
-            severity: .info,
-            message: "Codex App Server thread bootstrapped.",
+        let threadId = AgentSessionID(rawValue: payload.threadId)
+        return [.sessionMetadata(AgentSessionMetadataEvent(
+            providerSessionId: threadId,
+            name: payload.name,
             metadata: [
                 "codex_thread_id": .string(payload.threadId),
-                "provider_session_id": .string(payload.threadId)
+                "provider_session_id": .string(payload.threadId),
+                "codex_source": .string("bootstrap")
             ]
         ))]
     }
 
-    /// Extracts Codex's App Server thread identifier from bootstrap diagnostics.
+    /// Extracts Codex's App Server thread identifier from session metadata and legacy bootstrap diagnostics.
     public func sessionID(from event: AgentEvent) -> AgentSessionID? {
+        if case let .sessionMetadata(metadata) = event {
+            return metadata.providerSessionId
+        }
         guard case let .diagnostic(diagnostic) = event,
               case let .string(threadId)? = diagnostic.metadata["codex_thread_id"],
               !threadId.isEmpty else {
@@ -167,8 +172,8 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         await client.shutdown()
     }
 
-    private static func bootstrapLine(threadId: AgentSessionID) throws -> String {
-        let payload = CodexBootstrapPayload(codexAppServerBootstrap: true, threadId: threadId.rawValue)
+    private static func bootstrapLine(threadId: AgentSessionID, name: String?) throws -> String {
+        let payload = CodexBootstrapPayload(codexAppServerBootstrap: true, threadId: threadId.rawValue, name: name)
         let data = try JSONEncoder().encode(payload)
         guard let line = String(data: data, encoding: .utf8) else {
             throw AgentCLIError.invalidInput("Could not encode Codex bootstrap line.")
@@ -180,6 +185,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
 private struct CodexBootstrapPayload: Codable {
     let codexAppServerBootstrap: Bool
     let threadId: String
+    let name: String?
 }
 
 extension CodexProviderAdapter.Configuration {

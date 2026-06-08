@@ -5,7 +5,7 @@ import XCTest
 
 final class CodexProviderAdapterTests: XCTestCase {
     func testBootstrapsThreadLazilyAndPersistsThreadIdFromSentinel() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"], threadNames: ["Build Parser"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
 
         let startCountBeforeLaunch = await transport.startCount
@@ -23,6 +23,7 @@ final class CodexProviderAdapterTests: XCTestCase {
         let line = try XCTUnwrap(launch.arguments.last)
         let events = try await adapter.decodeStdoutLine(line)
         let sessionId = events.compactMap(adapter.sessionID(from:)).first
+        let metadata = try XCTUnwrap(events.compactMap(\.sessionMetadataEvent).first)
         let startCount = await transport.startCount
         let requestMethods = await transport.requestMethods
         let notificationMethods = await transport.notificationMethods
@@ -35,8 +36,11 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(launch.executable, "/usr/bin/env")
         XCTAssertEqual(launch.arguments.prefix(3), ["sh", "-c", "printf '%s\\n' \"$1\"; sleep 2147483647"])
         XCTAssertEqual(launch.sessionContinuity, .fresh)
+        XCTAssertEqual(launch.providerSessionId, "thread-123")
         XCTAssertTrue(launch.includesSpawnArguments)
         XCTAssertEqual(sessionId, "thread-123")
+        XCTAssertEqual(metadata.providerSessionId, "thread-123")
+        XCTAssertEqual(metadata.name, "Build Parser")
 
         let threadStartParams = try XCTUnwrap(requestParams["thread/start"])
         XCTAssertEqual(threadStartParams.objectValue?["cwd"], .string("/tmp/project"))
@@ -47,7 +51,7 @@ final class CodexProviderAdapterTests: XCTestCase {
     }
 
     func testResumesSavedThreadId() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-existing"])
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-existing"], threadNames: ["Existing Thread"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
         let resumedSession = AgentSessionRecord(
             conversationId: "conversation",
@@ -62,11 +66,17 @@ final class CodexProviderAdapterTests: XCTestCase {
             resumedSession: resumedSession
         )
 
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let metadata = try XCTUnwrap(events.compactMap(\.sessionMetadataEvent).first)
         let requestMethods = await transport.requestMethods
         let requestParams = await transport.requestParams
 
         XCTAssertEqual(requestMethods, ["initialize", "thread/resume"])
         XCTAssertEqual(launch.sessionContinuity, AgentSessionContinuity.resumed)
+        XCTAssertEqual(launch.providerSessionId, "thread-existing")
+        XCTAssertEqual(metadata.providerSessionId, "thread-existing")
+        XCTAssertEqual(metadata.name, "Existing Thread")
         let threadResumeParams = try XCTUnwrap(requestParams["thread/resume"])
         XCTAssertEqual(threadResumeParams.objectValue?["threadId"], .string("thread-existing"))
     }
@@ -291,4 +301,13 @@ final class CodexProviderAdapterTests: XCTestCase {
         )
     }
 
+}
+
+private extension AgentEvent {
+    var sessionMetadataEvent: AgentSessionMetadataEvent? {
+        guard case let .sessionMetadata(metadata) = self else {
+            return nil
+        }
+        return metadata
+    }
 }

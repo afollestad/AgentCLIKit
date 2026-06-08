@@ -69,6 +69,7 @@ public struct AgentTranscriptProjector: Sendable {
         envelopes.sorted(by: eventOrder).compactMap(project)
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     private func project(_ envelope: AgentEventEnvelope) -> AgentTranscriptProjection? {
         switch envelope.event {
         case let .message(message):
@@ -89,6 +90,8 @@ public struct AgentTranscriptProjector: Sendable {
             projection(envelope, kind: .centeredNote, title: continuity.message ?? continuity.continuity.rawValue)
         case let .diagnostic(diagnostic):
             projection(envelope, kind: .diagnostic, title: diagnostic.message, detail: diagnostic.severity.rawValue)
+        case .sessionMetadata:
+            nil
         default:
             nil
         }

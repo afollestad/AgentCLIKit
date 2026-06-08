@@ -8,6 +8,8 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
     public let providerId: AgentProviderID
     /// Provider-defined session identifier.
     public let providerSessionId: AgentSessionID
+    /// Provider-reported user-facing session name when known.
+    public let providerSessionName: String?
     /// Canonical working directory associated with the provider session, when known.
     public let workingDirectory: URL?
     /// Runtime generation associated with the provider session.
@@ -24,6 +26,7 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         conversationId: AgentConversationID,
         providerId: AgentProviderID,
         providerSessionId: AgentSessionID,
+        providerSessionName: String? = nil,
         workingDirectory: URL? = nil,
         generation: Int,
         createdAt: Date = Date(),
@@ -33,6 +36,7 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         self.conversationId = conversationId
         self.providerId = providerId
         self.providerSessionId = providerSessionId
+        self.providerSessionName = providerSessionName
         self.workingDirectory = workingDirectory.map(AgentPathHelpers.canonicalFileURL)
         self.generation = generation
         self.createdAt = createdAt
@@ -46,6 +50,7 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
         providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
         providerSessionId = try container.decode(AgentSessionID.self, forKey: .providerSessionId)
+        providerSessionName = try container.decodeIfPresent(String.self, forKey: .providerSessionName)
         workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory).map(AgentPathHelpers.canonicalFileURL)
         generation = try container.decode(Int.self, forKey: .generation)
         createdAt = try container.decode(Date.self, forKey: .createdAt)

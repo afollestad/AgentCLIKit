@@ -6,9 +6,9 @@ It gives host apps a reusable layer for:
 
 - Launching Claude Code or Codex App Server.
 - Sending user messages and steering active turns.
-- Receiving provider-neutral events for messages, tools, usage, tasks, permission/collaboration state, context compaction,
-  lifecycle, and interactions.
-- Persisting provider session IDs so conversations can resume.
+- Receiving provider-neutral events for messages, tools, usage, tasks, session metadata, permission/collaboration state,
+  context compaction, lifecycle, and interactions.
+- Persisting provider session IDs and provider-reported names so conversations can resume.
 - Checking provider readiness, project trust, model options, and model-scoped effort options.
 
 Host apps still own UI, durable app data, queueing policy, notifications, and product-specific workflow decisions.
@@ -73,6 +73,10 @@ func runAgentConversation(
                 print("Tool: \(toolCall.name)")
             case .contextCompaction(let compaction):
                 print("Compaction \(compaction.id): \(compaction.phase.rawValue)")
+            case .sessionMetadata(let metadata):
+                if let name = metadata.name {
+                    print("Session name: \(name)")
+                }
             case .interaction(let interaction):
                 print("Waiting for \(interaction.kind.rawValue): \(interaction.prompt)")
             case .lifecycle(let lifecycle):
@@ -193,8 +197,8 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Plan mode | `collaborationMode: .plan` maps to Claude's internal `--permission-mode plan` | Idle threads use `thread/settings/update`; plan mode requires a concrete model |
 | Archive | Validated no-op | App Server `thread/archive` and `thread/unarchive` |
 
-Both built-in providers expose provider-neutral events, sessions, usage, tool events, task events, permission/collaboration
-state, prompt/approval interactions, MCP support, and context compaction lifecycle events. Inspect
+Both built-in providers expose provider-neutral events, sessions, provider session metadata, usage, tool events, task
+events, permission/collaboration state, prompt/approval interactions, MCP support, and context compaction lifecycle events. Inspect
 `AgentProviderDefinition.capabilities` before showing provider-specific UI.
 
 For detailed provider behavior, see [docs/provider-reference.md](docs/provider-reference.md).

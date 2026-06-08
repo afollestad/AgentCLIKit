@@ -111,6 +111,18 @@ final class AgentTaskListReducerTests: XCTestCase {
         XCTAssertEqual(snapshot?.items.map(\.status), [.completed, .inProgress])
     }
 
+    func testSessionMetadataDoesNotMutateTaskListSnapshot() {
+        var reducer = AgentTaskListReducer()
+
+        let snapshot = reducer.append(envelope(
+            index: 0,
+            event: .sessionMetadata(AgentSessionMetadataEvent(providerSessionId: "session", name: "Generated Name"))
+        ))
+
+        XCTAssertNil(snapshot)
+        XCTAssertNil(reducer.snapshot)
+    }
+
     func testRecognizesTaskOnlyToolDiscovery() {
         let taskDiscovery = toolCallEnvelope(index: 0, id: "search", name: "ToolSearch", input: [
             "query": .string("select:TaskCreate,TaskUpdate,TaskList,TaskGet")

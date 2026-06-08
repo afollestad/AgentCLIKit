@@ -44,6 +44,8 @@ public struct AgentTaskListReducer: Sendable {
             return mutation(from: result)
         case let .task(task):
             return mutation(from: task)
+        case .sessionMetadata:
+            return nil
         default:
             return nil
         }

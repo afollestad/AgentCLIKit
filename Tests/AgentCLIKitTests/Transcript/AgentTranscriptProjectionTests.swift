@@ -46,6 +46,17 @@ final class AgentTranscriptProjectionTests: XCTestCase {
         XCTAssertEqual(projections.map(\.detail), [nil, "Retained recent context.", "Compaction failed."])
     }
 
+    func testProjectorDoesNotRenderSessionMetadata() {
+        let projections = AgentTranscriptProjector().project([
+            envelope(index: 0, event: .sessionMetadata(AgentSessionMetadataEvent(
+                providerSessionId: "session",
+                name: "Generated Name"
+            )))
+        ])
+
+        XCTAssertTrue(projections.isEmpty)
+    }
+
     func testMetricsBuilderUsesLatestUsageAndRateLimit() {
         let usage = AgentUsageEvent(
             model: "claude",
@@ -65,6 +76,17 @@ final class AgentTranscriptProjectionTests: XCTestCase {
         XCTAssertEqual(metrics.rateLimit, rateLimit)
         XCTAssertEqual(metrics.model, "claude")
         XCTAssertEqual(metrics.contextWindow, 200_000)
+    }
+
+    func testMetricsBuilderIgnoresSessionMetadata() {
+        let metrics = AgentConversationMetricsBuilder().build(from: [
+            envelope(index: 0, event: .sessionMetadata(AgentSessionMetadataEvent(
+                providerSessionId: "session",
+                name: "Generated Name"
+            )))
+        ])
+
+        XCTAssertEqual(metrics, AgentConversationMetrics())
     }
 
     private func envelope(index: Int, event: AgentEvent) -> AgentEventEnvelope {

@@ -9,6 +9,10 @@ struct CodexAppServerNotificationDecoder {
             return itemEvents
         }
         return switch notification.method {
+        case "thread/started":
+            decodeThreadStarted(notification)
+        case "thread/name/updated":
+            decodeThreadNameUpdated(notification)
         case "thread/status/changed":
             decodeThreadStatusChanged(notification)
         case "turn/started":
@@ -34,6 +38,31 @@ struct CodexAppServerNotificationDecoder {
         default:
             []
         }
+    }
+
+    private func decodeThreadStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+        guard let params = notification.params?.codexObjectValue,
+              let thread = params["thread"]?.codexObjectValue,
+              let threadId = thread["id"]?.codexStringValue else {
+            return []
+        }
+        return [runtimeEvent(.sessionMetadata(AgentSessionMetadataEvent(
+            providerSessionId: AgentSessionID(rawValue: threadId),
+            name: thread["name"]?.codexStringValue,
+            metadata: metadata(method: notification.method, threadId: threadId)
+        )))]
+    }
+
+    private func decodeThreadNameUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+        guard let params = notification.params?.codexObjectValue,
+              let threadId = notification.threadId else {
+            return []
+        }
+        return [runtimeEvent(.sessionMetadata(AgentSessionMetadataEvent(
+            providerSessionId: AgentSessionID(rawValue: threadId),
+            name: params["threadName"]?.codexStringValue ?? params["thread"]?.codexObjectValue?["name"]?.codexStringValue,
+            metadata: metadata(method: notification.method, threadId: threadId)
+        )))]
     }
 
     private func decodeThreadStatusChanged(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {

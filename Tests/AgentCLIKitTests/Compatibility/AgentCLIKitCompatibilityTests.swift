@@ -100,6 +100,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertEqual(snapshot.state, "running")
         XCTAssertEqual(snapshot.lastEventIndex, 12)
         XCTAssertEqual(snapshot.providerSessionId, "provider-session")
+        XCTAssertNil(snapshot.providerSessionName)
         XCTAssertTrue(snapshot.isTurnActive)
     }
 
@@ -171,6 +172,30 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertFalse(status.canCancel)
         XCTAssertFalse(status.isTurnActive)
         XCTAssertNil(status.collaborationMode)
+        XCTAssertNil(status.providerSessionName)
+    }
+
+    func testOlderSessionRecordPayloadDefaultsProviderSessionName() throws {
+        let data = Data(
+            """
+            {
+              "conversationId":"conversation",
+              "providerId":"claude",
+              "providerSessionId":"session",
+              "generation":1,
+              "createdAt":"2026-01-01T00:00:00Z",
+              "updatedAt":"2026-01-01T00:00:00Z"
+            }
+            """.utf8
+        )
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let record = try decoder.decode(AgentSessionRecord.self, from: data)
+
+        XCTAssertEqual(record.providerSessionId, "session")
+        XCTAssertNil(record.providerSessionName)
+        XCTAssertEqual(record.metadata, [:])
     }
 }
 
@@ -214,6 +239,7 @@ private struct HostStatusSnapshot {
     let state: String
     let lastEventIndex: Int
     let providerSessionId: String?
+    let providerSessionName: String?
     let isTurnActive: Bool
 
     init(status: AgentRuntimeStatus) {
@@ -221,6 +247,7 @@ private struct HostStatusSnapshot {
         self.state = status.state.rawValue
         self.lastEventIndex = status.lastEventIndex
         self.providerSessionId = status.providerSessionId?.rawValue
+        self.providerSessionName = status.providerSessionName
         self.isTurnActive = status.isTurnActive
     }
 }

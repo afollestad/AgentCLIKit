@@ -1,11 +1,5 @@
 import Foundation
 
-private struct ProviderSessionSaveFailure {
-    let record: AgentSessionRecord
-    let processToken: UUID
-    let error: Error
-}
-
 extension DefaultAgentRuntime {
     func addSubscriber(
         _ continuation: AsyncStream<AgentEventEnvelope>.Continuation,
@@ -168,110 +162,6 @@ extension DefaultAgentRuntime {
             return false
         }
         return usage.stopReason == "tool_deferred" || usage.metadata["stop_reason"] == .string("tool_deferred")
-    }
-
-    func recordProviderSessionIfNeeded(
-        from event: AgentEvent,
-        conversationId: AgentConversationID,
-        processToken: UUID
-    ) async {
-        guard
-            var state = states[conversationId],
-            state.processToken == processToken,
-            let providerSessionId = state.adapter.sessionID(from: event)
-        else {
-            return
-        }
-        let shouldPersistSeededSession = state.providerSessionId == providerSessionId && state.providerSessionCreatedAt == nil
-        guard state.providerSessionId != providerSessionId || shouldPersistSeededSession else {
-            return
-        }
-
-        // Session IDs are usually discovered from provider output. Some providers seed the ID during launch, then confirm it
-        // through output so the same durable persistence path still runs.
-        state.providerSessionId = providerSessionId
-        let createdAt = state.providerSessionCreatedAt ?? now()
-        state.providerSessionCreatedAt = createdAt
-        states[conversationId] = state
-        publishStatus(conversationId: conversationId)
-
-        let record = providerSessionRecord(
-            conversationId: conversationId,
-            state: state,
-            providerSessionId: providerSessionId,
-            createdAt: createdAt
-        )
-        if let failure = await persistProviderSessionRecord(record, processToken: processToken) {
-            guard
-                let current = states[conversationId],
-                current.processToken == failure.processToken || current.providerSessionId == failure.record.providerSessionId
-            else {
-                return
-            }
-            emitDiagnostic(
-                code: .sessionStoreSaveFailed,
-                severity: .warning,
-                message: "Could not persist provider session: \(failure.error.localizedDescription)",
-                metadata: [
-                    "provider_session_id": .string(failure.record.providerSessionId.rawValue),
-                    "store_error": .string(failure.error.localizedDescription)
-                ],
-                source: .runtime,
-                conversationId: conversationId
-            )
-        }
-    }
-
-    private func persistProviderSessionRecord(
-        _ record: AgentSessionRecord,
-        processToken: UUID
-    ) async -> ProviderSessionSaveFailure? {
-        var pendingRecord = record
-        var pendingProcessToken = processToken
-
-        while true {
-            do {
-                try await sessionStore.save(pendingRecord)
-            } catch {
-                return ProviderSessionSaveFailure(record: pendingRecord, processToken: pendingProcessToken, error: error)
-            }
-            guard
-                let current = states[pendingRecord.conversationId],
-                current.processToken != pendingProcessToken,
-                let currentProviderSessionId = current.providerSessionId,
-                currentProviderSessionId != pendingRecord.providerSessionId
-            else {
-                return nil
-            }
-
-            // A save from a replaced process can resume last; persist the active session again so continuity stays current.
-            let createdAt = current.providerSessionCreatedAt ?? now()
-            pendingRecord = providerSessionRecord(
-                conversationId: pendingRecord.conversationId,
-                state: current,
-                providerSessionId: currentProviderSessionId,
-                createdAt: createdAt
-            )
-            pendingProcessToken = current.processToken
-        }
-    }
-
-    private func providerSessionRecord(
-        conversationId: AgentConversationID,
-        state: ConversationState,
-        providerSessionId: AgentSessionID,
-        createdAt: Date
-    ) -> AgentSessionRecord {
-        AgentSessionRecord(
-            conversationId: conversationId,
-            providerId: state.providerId,
-            providerSessionId: providerSessionId,
-            workingDirectory: state.spawnConfig.workingDirectory,
-            generation: state.generation,
-            createdAt: createdAt,
-            updatedAt: now(),
-            metadata: ["source": .string("runtime")]
-        )
     }
 
     func processExited(conversationId: AgentConversationID, processToken: UUID, exitCode: Int32) async {
@@ -441,6 +331,8 @@ extension DefaultAgentRuntime {
             state.permissionMode = permissionMode.mode
         case let .collaborationMode(collaborationMode):
             state.collaborationMode = collaborationMode.mode
+        case let .sessionMetadata(metadata):
+            applySessionMetadataStatusSideEffects(for: metadata, state: &state)
         case let .interaction(interaction):
             applyInteractionStatusSideEffects(for: interaction, state: &state)
         case let .usage(usage):

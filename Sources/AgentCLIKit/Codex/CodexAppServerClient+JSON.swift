@@ -9,6 +9,16 @@ extension JSONValue {
         return threadId
     }
 
+    var threadResponseName: String? {
+        guard case let .object(response) = self,
+              case let .object(thread)? = response["thread"],
+              case let .string(name)? = thread["name"],
+              !name.isEmpty else {
+            return nil
+        }
+        return name
+    }
+
     var turnResponseId: String? {
         guard case let .object(response) = self,
               case let .object(turn)? = response["turn"],
@@ -75,8 +85,7 @@ extension CodexAppServerError {
 extension JSONValue {
     var threadId: String? {
         guard case let .object(params) = self,
-              case let .string(threadId)? = params["threadId"],
-              !threadId.isEmpty else {
+              let threadId = params.topLevelThreadId ?? params.nestedThreadId else {
             return nil
         }
         return threadId
@@ -106,5 +115,24 @@ extension JSONValue {
             return type
         }
         return nil
+    }
+}
+
+private extension [String: JSONValue] {
+    var topLevelThreadId: String? {
+        guard case let .string(threadId)? = self["threadId"],
+              !threadId.isEmpty else {
+            return nil
+        }
+        return threadId
+    }
+
+    var nestedThreadId: String? {
+        guard case let .object(thread)? = self["thread"],
+              case let .string(threadId)? = thread["id"],
+              !threadId.isEmpty else {
+            return nil
+        }
+        return threadId
     }
 }

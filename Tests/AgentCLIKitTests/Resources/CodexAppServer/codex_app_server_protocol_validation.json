@@ -1,6 +1,6 @@
 {
   "codexCLI": {
-    "version": "codex-cli 0.136.0-alpha.2",
+    "version": "codex-cli 0.137.0-alpha.4",
     "schemaCommands": [
       "codex app-server generate-json-schema --out <redacted:path>",
       "codex app-server generate-ts --out <redacted:path>"
@@ -74,6 +74,7 @@
     ],
     "serverNotificationsRelevantToV1": [
       "thread/started",
+      "thread/name/updated",
       "thread/status/changed",
       "thread/settings/updated",
       "turn/started",
@@ -90,6 +91,24 @@
       "model/verification",
       "serverRequest/resolved"
     ],
+    "threadMetadata": {
+      "threadObject": {
+        "id": "opaque string",
+        "name": "nullable string"
+      },
+      "bootstrapSources": [
+        "thread/start result.thread.name",
+        "thread/resume result.thread.name",
+        "thread/started params.thread.name"
+      ],
+      "nameUpdateNotification": {
+        "method": "thread/name/updated",
+        "fields": {
+          "threadId": "string",
+          "threadName": "optional string"
+        }
+      }
+    },
     "approvalResponses": {
       "commandExecution": {
         "method": "item/commandExecution/requestApproval",

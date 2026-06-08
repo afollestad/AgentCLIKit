@@ -204,9 +204,17 @@ private extension DefaultAgentRuntime {
             process: process
         )
 
+        await waitForPreviousOutputQueuesToBecomeIdle(previous)
+        try await ensureStartIsCurrent(
+            conversationId: stateInput.conversationId,
+            startToken: startToken,
+            adapter: adapter,
+            processToken: stateInput.processToken,
+            process: process
+        )
         let latestPrevious = states[stateInput.conversationId] ?? previous
-        let oldProcess = previous?.process
-        await invalidatePreviousProcessToken(previous)
+        let oldProcess = latestPrevious?.process
+        await invalidatePreviousProcessToken(latestPrevious)
         try await ensureStartIsCurrent(
             conversationId: stateInput.conversationId,
             startToken: startToken,
@@ -219,6 +227,15 @@ private extension DefaultAgentRuntime {
         states[stateInput.conversationId] = makeState(input: stateInput, previous: latestPrevious)
         emitLifecycle(.starting, conversationId: stateInput.conversationId)
         forceKill(oldProcess)
+    }
+
+    func waitForPreviousOutputQueuesToBecomeIdle(_ previous: ConversationState?) async {
+        guard let previous else {
+            return
+        }
+        for pump in previous.outputPumps {
+            await pump.waitUntilIdle(timeoutNanoseconds: outputDrainTimeoutNanoseconds, sleep: sleep)
+        }
     }
 
     func installProcessWithoutRunningPrevious(_ prepared: PreparedStart, startToken: UUID) async throws {
@@ -285,6 +302,8 @@ private extension DefaultAgentRuntime {
             stderrTail: [],
             lifecycleState: .starting,
             providerSessionId: input.launchProviderSessionId ?? input.resumedSession?.providerSessionId,
+            providerSessionName: normalizedProviderSessionName(input.resumedSession?.providerSessionName),
+            providerSessionRecordMetadata: input.resumedSession?.metadata ?? ["source": .string("runtime")],
             providerSessionCreatedAt: input.resumedSession?.createdAt,
             permissionMode: nil,
             collaborationMode: input.spawnConfig.collaborationMode,

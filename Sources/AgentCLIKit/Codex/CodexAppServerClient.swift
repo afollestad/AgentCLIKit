@@ -2,6 +2,7 @@ import Foundation
 
 struct CodexThreadBootstrap: Sendable {
     let threadId: AgentSessionID
+    let name: String?
     let continuity: AgentSessionContinuity
 }
 
@@ -43,6 +44,7 @@ actor CodexAppServerClient {
         }
         return CodexThreadBootstrap(
             threadId: AgentSessionID(rawValue: threadId),
+            name: response.threadResponseName,
             continuity: resumedSession == nil ? .fresh : .resumed
         )
     }

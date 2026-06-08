@@ -356,9 +356,25 @@ final class DefaultAgentRuntimeTests: XCTestCase {
     }
 
     func testReconfigurePreservesEventsEmittedDuringReplacementSetup() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let replacementStartedPath = directory.appendingPathComponent("replacement-started").path
+        let oldMessageEmittedPath = directory.appendingPathComponent("old-message-emitted").path
         let launchSequence = FailableLaunchSequence([
-            .launch(shell("sleep 0.05; printf 'message:old-before-replace\\n'; sleep 5")),
-            .delayedLaunch(150_000_000, shell("printf 'message:new\\n'"))
+            .launch(shell("""
+            while [ ! -f '\(replacementStartedPath)' ]; do sleep 0.005; done
+            printf 'message:old-before-replace\\n'
+            touch '\(oldMessageEmittedPath)'
+            sleep 5
+            """)),
+            .triggerAndWait(
+                triggerPath: replacementStartedPath,
+                observedPath: oldMessageEmittedPath,
+                shell("printf 'message:new\\n'")
+            )
         ])
         let runtime = DefaultAgentRuntime(adapters: [
             FailableLaunchProviderAdapter(launchSequence: launchSequence)

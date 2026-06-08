@@ -83,6 +83,8 @@ public enum AgentEvent: Codable, Equatable, Sendable {
     case task(AgentTaskEvent)
     /// Provider context compaction lifecycle event.
     case contextCompaction(AgentContextCompactionEvent)
+    /// Provider session metadata changed.
+    case sessionMetadata(AgentSessionMetadataEvent)
     /// Provider session continuity changed during launch.
     case sessionContinuity(AgentSessionContinuityEvent)
     /// Interaction requiring host resolution.
@@ -93,6 +95,35 @@ public enum AgentEvent: Codable, Equatable, Sendable {
     case diagnostic(AgentDiagnosticEvent)
     /// Raw provider output retained for debugging or compatibility.
     case rawOutput(AgentRawOutputEvent)
+}
+
+/// Provider-reported metadata for the active session.
+public struct AgentSessionMetadataEvent: Codable, Equatable, Sendable {
+    /// Provider session identifier when reported by the provider.
+    public let providerSessionId: AgentSessionID?
+    /// User-facing provider session name when reported by the provider.
+    public let name: String?
+    /// Provider-specific metadata for this event.
+    public let metadata: [String: JSONValue]
+
+    /// Creates a session metadata event.
+    public init(
+        providerSessionId: AgentSessionID? = nil,
+        name: String? = nil,
+        metadata: [String: JSONValue] = [:]
+    ) {
+        self.providerSessionId = providerSessionId
+        self.name = name
+        self.metadata = metadata
+    }
+
+    /// Decodes a session metadata event, defaulting missing metadata for persisted events from older versions.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
+    }
 }
 
 /// Role attached to a message event or message input.

@@ -90,6 +90,8 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
     public let lastEventIndex: Int
     /// Provider session identifier when known.
     public let providerSessionId: AgentSessionID?
+    /// Provider-reported user-facing session name when known.
+    public let providerSessionName: String?
     /// Latest provider-reported permission mode when known.
     public let permissionMode: String?
     /// Latest provider-neutral collaboration mode when known.
@@ -115,6 +117,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         state: AgentLifecycleState,
         lastEventIndex: Int,
         providerSessionId: AgentSessionID?,
+        providerSessionName: String? = nil,
         permissionMode: String? = nil,
         collaborationMode: AgentCollaborationMode? = nil,
         isTurnActive: Bool = false,
@@ -130,6 +133,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.state = state
         self.lastEventIndex = lastEventIndex
         self.providerSessionId = providerSessionId
+        self.providerSessionName = providerSessionName
         self.permissionMode = permissionMode
         self.collaborationMode = collaborationMode
         self.isTurnActive = isTurnActive
@@ -149,6 +153,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.state = try container.decode(AgentLifecycleState.self, forKey: .state)
         self.lastEventIndex = try container.decode(Int.self, forKey: .lastEventIndex)
         self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
+        self.providerSessionName = try container.decodeIfPresent(String.self, forKey: .providerSessionName)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
         self.isTurnActive = try container.decodeIfPresent(Bool.self, forKey: .isTurnActive) ?? false

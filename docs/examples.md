@@ -116,8 +116,8 @@ func sendWithPersistedSession(projectURL: URL, lastPersistedIndex: Int?) async t
 }
 ```
 
-`DefaultAgentRuntime` records provider session IDs when providers report them. Hosts should persist their latest event
-cursor separately, then pass it as `afterIndex` when subscribing after an app restart.
+`DefaultAgentRuntime` records provider session IDs and usable provider-reported names when providers report them. Hosts
+should persist their latest event cursor separately, then pass it as `afterIndex` when subscribing after an app restart.
 
 ## Provider Readiness, Models, And Effort
 
