@@ -28,6 +28,9 @@ extension DemoModel {
         if let inputTokens = usage.inputTokens {
             parts.append("input: \(inputTokens)")
         }
+        if let cachedInputTokens = usage.cachedInputTokens {
+            parts.append("cached input: \(cachedInputTokens)")
+        }
         if let outputTokens = usage.outputTokens {
             parts.append("output: \(outputTokens)")
         }

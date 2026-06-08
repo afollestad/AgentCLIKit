@@ -15,7 +15,7 @@ extension CodexAppServerNotificationDecoder {
         let current = last ?? total
         let inputTokens = current["inputTokens"]?.codexIntValue
         let outputTokens = current["outputTokens"]?.codexIntValue
-        let cacheReadInputTokens = current["cachedInputTokens"]?.codexIntValue
+        let cachedInputTokens = current["cachedInputTokens"]?.codexIntValue
         let totalTokens = current["totalTokens"]?.codexIntValue
         var metadata = codexNotificationMetadata(
             method: notification.method,
@@ -25,7 +25,7 @@ extension CodexAppServerNotificationDecoder {
                 "stop_reason": .string(AgentUsageEvent.interimUsageStopReason),
                 "input_tokens": inputTokens.map(JSONValue.numberValue),
                 "output_tokens": outputTokens.map(JSONValue.numberValue),
-                "cache_read_input_tokens": cacheReadInputTokens.map(JSONValue.numberValue),
+                "cached_input_tokens": cachedInputTokens.map(JSONValue.numberValue),
                 "reasoning_output_tokens": current["reasoningOutputTokens"],
                 "total_tokens": totalTokens.map(JSONValue.numberValue),
                 "context_window": contextWindow.map(JSONValue.numberValue),
@@ -38,7 +38,7 @@ extension CodexAppServerNotificationDecoder {
             model: nil,
             inputTokens: inputTokens,
             outputTokens: outputTokens,
-            cacheReadInputTokens: cacheReadInputTokens,
+            cachedInputTokens: cachedInputTokens,
             totalTokens: totalTokens,
             contextWindow: contextWindow,
             stopReason: AgentUsageEvent.interimUsageStopReason,

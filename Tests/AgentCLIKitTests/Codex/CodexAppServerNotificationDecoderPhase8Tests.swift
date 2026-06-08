@@ -32,12 +32,17 @@ final class CodexNotificationPhase8Tests: XCTestCase {
             ]
         )).map(\.event)
 
+        guard case let .usage(usage)? = events.first else {
+            return XCTFail("Expected usage event")
+        }
+        XCTAssertNil(usage.cacheReadInputTokens)
+
         XCTAssertEqual(events, [
             .usage(AgentUsageEvent(
                 model: nil,
                 inputTokens: 2,
                 outputTokens: 3,
-                cacheReadInputTokens: 1,
+                cachedInputTokens: 1,
                 totalTokens: 10,
                 contextWindow: 200_000,
                 stopReason: AgentUsageEvent.interimUsageStopReason,
@@ -48,7 +53,7 @@ final class CodexNotificationPhase8Tests: XCTestCase {
                     "stop_reason": .string(AgentUsageEvent.interimUsageStopReason),
                     "input_tokens": .number(2),
                     "output_tokens": .number(3),
-                    "cache_read_input_tokens": .number(1),
+                    "cached_input_tokens": .number(1),
                     "reasoning_output_tokens": .number(4),
                     "total_tokens": .number(10),
                     "context_window": .number(200_000),
@@ -71,6 +76,7 @@ final class CodexNotificationPhase8Tests: XCTestCase {
         ])
     }
 
+    // swiftlint:disable:next function_body_length
     func testTokenUsageFallsBackToTotalUsageWhenLastUsageIsUnavailable() {
         let events = decoder.decode(notification(
             method: "thread/tokenUsage/updated",
@@ -90,12 +96,17 @@ final class CodexNotificationPhase8Tests: XCTestCase {
             ]
         )).map(\.event)
 
+        guard case let .usage(usage)? = events.first else {
+            return XCTFail("Expected usage event")
+        }
+        XCTAssertNil(usage.cacheReadInputTokens)
+
         XCTAssertEqual(events, [
             .usage(AgentUsageEvent(
                 model: nil,
                 inputTokens: 20,
                 outputTokens: 30,
-                cacheReadInputTokens: 5,
+                cachedInputTokens: 5,
                 totalTokens: 62,
                 contextWindow: 200_000,
                 stopReason: AgentUsageEvent.interimUsageStopReason,
@@ -106,7 +117,7 @@ final class CodexNotificationPhase8Tests: XCTestCase {
                     "stop_reason": .string(AgentUsageEvent.interimUsageStopReason),
                     "input_tokens": .number(20),
                     "output_tokens": .number(30),
-                    "cache_read_input_tokens": .number(5),
+                    "cached_input_tokens": .number(5),
                     "reasoning_output_tokens": .number(7),
                     "total_tokens": .number(62),
                     "context_window": .number(200_000),

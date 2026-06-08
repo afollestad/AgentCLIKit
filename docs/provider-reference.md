@@ -123,6 +123,15 @@ changes, diagnostics, and lifecycle.
 
 Host-defined Codex custom tool execution is not a v1 host API.
 
+## Usage Accounting
+
+`AgentUsageEvent.cacheReadInputTokens` and `cacheCreationInputTokens` are additive input-side token counts, used by
+providers such as Claude when those token classes are reported separately from `inputTokens`.
+
+`AgentUsageEvent.cachedInputTokens` is different: it is a non-additive subset of `inputTokens`. Codex App Server reports
+`cachedInputTokens` this way, so host apps should display it as cache detail but should not add it to `inputTokens` when
+computing context-window occupancy.
+
 ## Model Options
 
 `AgentModelOption` is the host-facing model metadata type. Use:

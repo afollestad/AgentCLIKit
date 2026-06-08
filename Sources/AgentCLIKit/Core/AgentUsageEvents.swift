@@ -11,6 +11,8 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
     public let inputTokens: Int?
     /// Output tokens produced.
     public let outputTokens: Int?
+    /// Cached input tokens included within `inputTokens`, when reported by the provider.
+    public let cachedInputTokens: Int?
     /// Cache-read input tokens consumed.
     public let cacheReadInputTokens: Int?
     /// Cache-creation input tokens consumed.
@@ -41,6 +43,7 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
         model: String?,
         inputTokens: Int?,
         outputTokens: Int?,
+        cachedInputTokens: Int? = nil,
         cacheReadInputTokens: Int? = nil,
         cacheCreationInputTokens: Int? = nil,
         totalTokens: Int? = nil,
@@ -57,6 +60,7 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
         self.model = model
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
+        self.cachedInputTokens = cachedInputTokens
         self.cacheReadInputTokens = cacheReadInputTokens
         self.cacheCreationInputTokens = cacheCreationInputTokens
         self.totalTokens = totalTokens
@@ -79,6 +83,8 @@ public struct AgentUsageEvent: Codable, Equatable, Sendable {
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
         self.inputTokens = try container.decodeIfPresent(Int.self, forKey: .inputTokens)
         self.outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens)
+        self.cachedInputTokens = try container.decodeIfPresent(Int.self, forKey: .cachedInputTokens)
+            ?? metadata.intValue("cached_input_tokens")
         self.cacheReadInputTokens = try container.decodeIfPresent(Int.self, forKey: .cacheReadInputTokens)
             ?? metadata.intValue("cache_read_input_tokens")
         self.cacheCreationInputTokens = try container.decodeIfPresent(Int.self, forKey: .cacheCreationInputTokens)

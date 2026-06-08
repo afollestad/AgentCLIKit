@@ -136,9 +136,34 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertEqual(usage.stopReason, "end_turn")
         XCTAssertEqual(usage.durationMs, 50)
         XCTAssertEqual(usage.costUSD, 0.02)
+        XCTAssertNil(usage.cachedInputTokens)
         XCTAssertTrue(usage.isTerminal)
         XCTAssertFalse(usage.isError)
         XCTAssertEqual(usage.permissionDenials, [])
+    }
+
+    func testUsageEventPayloadDecodesCachedInputTokensFromMetadata() throws {
+        let data = Data(
+            """
+            {
+              "model": "gpt-5.3-codex-spark",
+              "inputTokens": 10,
+              "outputTokens": 2,
+              "metadata": {
+                "stop_reason": "usage_update",
+                "cached_input_tokens": 4
+              }
+            }
+            """.utf8
+        )
+
+        let usage = try JSONDecoder().decode(AgentUsageEvent.self, from: data)
+        let encoded = try JSONEncoder().encode(usage)
+        let decoded = try JSONDecoder().decode(AgentUsageEvent.self, from: encoded)
+
+        XCTAssertEqual(decoded.cachedInputTokens, 4)
+        XCTAssertNil(decoded.cacheReadInputTokens)
+        XCTAssertFalse(decoded.isTerminal)
     }
 
     func testOlderLaunchConfigurationPayloadDefaultsSessionContinuity() throws {
