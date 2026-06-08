@@ -203,6 +203,37 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         XCTAssertEqual(requestLog.filter { $0.method == "turn/steer" }.count, 0)
     }
 
+    func testCompletedTurnClearsSteerReadinessForNextMessage() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        _ = stream
+        try await waitForBinding()
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Start work")),
+            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: false)
+        )
+        await transport.emitNotification(method: "turn/started", params: turnNotificationParams(status: "inProgress"))
+        try await waitForBinding()
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Steer current turn")),
+            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: true)
+        )
+        await transport.emitNotification(method: "turn/completed", params: turnNotificationParams(status: "completed"))
+        try await waitForBinding()
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Start next turn")),
+            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: false)
+        )
+
+        let requestLog = await transport.requestLog
+
+        XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "turn/start", "turn/steer", "turn/start"])
+    }
+
     func testRuntimeEventsReplaceStaleProcessBinding() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-1", "thread-2"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
