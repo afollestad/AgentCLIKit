@@ -26,16 +26,17 @@ final class ClaudeHookDecisionRaceTests: XCTestCase {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
         let token = await tokenStore.issue(validFor: 60)
+        let decisionProvider = HangingSignalingDecisionProvider()
         let server = ClaudeHookServer(
             tokenStore: tokenStore,
             interactionStore: interactionStore,
-            decisionProvider: SlowDecisionProvider(delayNanoseconds: 50_000_000),
+            decisionProvider: decisionProvider,
             decisionTimeout: nil
         )
         let request = preToolUse(token: token.value)
 
         async let response = server.handle(request)
-        try? await Task.sleep(nanoseconds: 10_000_000)
+        await decisionProvider.waitUntilStarted()
         await server.invalidateToken(token.value)
         let resolvedResponse = await response
         try? await Task.sleep(nanoseconds: 100_000_000)
@@ -67,5 +68,29 @@ private struct SlowDecisionProvider: ClaudeHookDecisionProviding {
     func decision(for request: ClaudeHookRequest, interactionId: AgentInteractionID) async -> ClaudeHookDecision {
         try? await Task.sleep(nanoseconds: delayNanoseconds)
         return .allow()
+    }
+}
+
+private actor HangingSignalingDecisionProvider: ClaudeHookDecisionProviding {
+    private var isStarted = false
+    private var startContinuations: [CheckedContinuation<Void, Never>] = []
+
+    func decision(for request: ClaudeHookRequest, interactionId: AgentInteractionID) async -> ClaudeHookDecision {
+        isStarted = true
+        startContinuations.forEach { $0.resume() }
+        startContinuations.removeAll()
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+        }
+        return .allow()
+    }
+
+    func waitUntilStarted() async {
+        guard !isStarted else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            startContinuations.append(continuation)
+        }
     }
 }
