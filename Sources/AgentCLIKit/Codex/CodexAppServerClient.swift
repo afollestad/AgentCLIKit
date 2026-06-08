@@ -13,6 +13,7 @@ actor CodexAppServerClient {
         let processToken: UUID
         var spawnConfig: AgentSpawnConfig
         var activeTurnId: String?
+        var isTurnSteerReady = false
         var initialPromptStarted = false
         var continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation?
     }
@@ -238,10 +239,12 @@ actor CodexAppServerClient {
         guard let binding = binding(for: context.conversationId, processToken: context.processToken) else {
             throw AgentCLIError.invalidInput("Codex App Server thread is unavailable.")
         }
-        if context.isTurnActive || binding.activeTurnId != nil {
+        if !context.isTurnActive, binding.activeTurnId == nil {
+            try await startTurn(message: message, conversationId: context.conversationId)
+        } else if binding.isTurnSteerReady, binding.activeTurnId != nil {
             try await steerTurn(message: message, conversationId: context.conversationId)
         } else {
-            try await startTurn(message: message, conversationId: context.conversationId)
+            throw AgentCLIError.invalidInput("Codex active turn is not ready for steering yet.")
         }
     }
 
@@ -326,15 +329,20 @@ actor CodexAppServerClient {
         }
         if let startedTurnId = notification.startedTurnId {
             binding.activeTurnId = startedTurnId
+            binding.isTurnSteerReady = true
+        } else if notification.marksThreadActive, binding.activeTurnId != nil {
+            binding.isTurnSteerReady = true
         }
         if let completedTurnId = notification.completedTurnId {
             if binding.activeTurnId == completedTurnId {
                 binding.activeTurnId = nil
             }
+            binding.isTurnSteerReady = false
             clearPendingServerRequests(conversationId: conversationId, turnId: completedTurnId)
         }
         if notification.marksThreadIdle {
             binding.activeTurnId = nil
+            binding.isTurnSteerReady = false
             clearPendingServerRequests(conversationId: conversationId, turnId: nil)
         }
         bindingsByConversation[conversationId] = binding

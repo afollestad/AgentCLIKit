@@ -62,6 +62,11 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
             .userMessage(AgentMessageInput(text: "Start work")),
             context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: false)
         )
+        await transport.emitNotification(method: "thread/status/changed", params: .object([
+            "threadId": .string("thread-123"),
+            "status": .object(["type": .string("active"), "activeFlags": .array([])])
+        ]))
+        try await waitForBinding()
         _ = try await adapter.encodeInput(
             .userMessage(AgentMessageInput(text: "Actually use option B")),
             context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: true)
@@ -82,6 +87,66 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
             "text_elements": .array([])
         ])]))
         XCTAssertEqual(turnSteerParams["threadId"], .string("thread-123"))
+        XCTAssertEqual(turnSteerParams["expectedTurnId"], .string("turn-1"))
+    }
+
+    func testActiveRuntimeTurnDoesNotSteerBeforeCodexConfirmsActiveTurn() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        _ = stream
+        try await waitForBinding()
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Start work")),
+            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: false)
+        )
+
+        do {
+            _ = try await adapter.encodeInput(
+                .userMessage(AgentMessageInput(text: "Too early")),
+                context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: true)
+            )
+            XCTFail("Expected premature Codex steering to fail.")
+        } catch let error as AgentCLIError {
+            guard case let .invalidInput(message) = error else {
+                XCTFail("Expected invalidInput, got \(error).")
+                return
+            }
+            XCTAssertEqual(message, "Codex active turn is not ready for steering yet.")
+        }
+
+        let requestLog = await transport.requestLog
+        XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "turn/start"])
+        XCTAssertEqual(requestLog.filter { $0.method == "turn/steer" }.count, 0)
+    }
+
+    func testTurnStartedNotificationEnablesSteering() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        _ = stream
+        try await waitForBinding()
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Start work")),
+            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: false)
+        )
+        await transport.emitNotification(method: "turn/started", params: turnNotificationParams(status: "inProgress"))
+        try await waitForBinding()
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Steer after started")),
+            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig, isTurnActive: true)
+        )
+
+        let requestLog = await transport.requestLog
+        let turnSteerParams = try XCTUnwrap(requestLog.first { $0.method == "turn/steer" }?.params?.objectValue)
+
+        XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "turn/start", "turn/steer"])
         XCTAssertEqual(turnSteerParams["expectedTurnId"], .string("turn-1"))
     }
 

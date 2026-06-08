@@ -75,6 +75,14 @@ extension CodexAppServerNotification {
         }
         return statusType == "idle" || statusType == "notLoaded" || statusType == "systemError"
     }
+
+    var marksThreadActive: Bool {
+        guard method == "thread/status/changed",
+              let statusType = params?.threadStatusType else {
+            return false
+        }
+        return statusType == "active"
+    }
 }
 
 extension CodexAppServerRequest {
