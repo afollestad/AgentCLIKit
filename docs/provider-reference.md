@@ -85,9 +85,10 @@ Claude model options come from `ClaudeModelOptionSource`.
 
 Codex support uses Codex App Server JSON-RPC. `CodexProviderAdapter` starts the App Server lazily for Codex runtime work,
 initializes it, starts or resumes a thread, persists the Codex thread ID as the provider session ID, and sends user turns
-through `turn/start`. When Codex reports `Thread.name` during bootstrap, resume, `thread/started`, or
-`thread/name/updated`, the adapter emits `AgentEvent.sessionMetadata`; the runtime mirrors the normalized name into
-`AgentRuntimeStatus.providerSessionName` and `AgentSessionRecord.providerSessionName`.
+through `turn/start`. When Codex reports `Thread.name` or `Thread.preview` during bootstrap, resume, `thread/started`, or
+thread metadata notifications, the adapter emits `AgentEvent.sessionMetadata`; the runtime mirrors normalized values into
+`AgentRuntimeStatus.providerSessionName`, `AgentRuntimeStatus.providerSessionPreview`, `AgentSessionRecord.providerSessionName`,
+and `AgentSessionRecord.providerSessionPreview`.
 
 Codex uses the same `AgentSpawnConfig.collaborationMode` API. `turn/start` and idle-thread `thread/settings/update`
 share the same sticky settings payload for `cwd`, `model`, `approvalPolicy`, `effort`, and `collaborationMode`. If a
@@ -163,8 +164,12 @@ the runtime emits a synthetic failed compaction so host UI can replace in-progre
 
 `AgentSessionStore` stores provider session mappings keyed by host conversation and provider. `JSONFileAgentSessionStore`
 is useful for small apps and examples; production apps can back the protocol with files, SQLite, app databases, or another
-durable store. Providers may also report a user-facing session name through `AgentEvent.sessionMetadata`; when usable, the
-runtime stores it in `AgentSessionRecord.providerSessionName` and publishes it in `AgentRuntimeStatus.providerSessionName`.
+durable store. Providers may also report a user-facing session name or preview through `AgentEvent.sessionMetadata`; when
+usable, the runtime stores them in `AgentSessionRecord.providerSessionName` and `AgentSessionRecord.providerSessionPreview`
+and publishes them in `AgentRuntimeStatus.providerSessionName` and `AgentRuntimeStatus.providerSessionPreview`. A provider
+name is the authoritative visible title; preview is a fallback for sessions that do not yet have a name. For providers that
+do not report a native preview, AgentCLIKit generates one from a usable initial prompt with
+`AgentSessionPreviewGenerator.preview(fromInitialPrompt:)`.
 
 `AgentProviderSessionActionRouter` pairs host archive UI with provider-native actions. Codex archive/unarchive uses App
 Server `thread/archive` and `thread/unarchive`. Claude validates matching session records and no-ops because the Claude

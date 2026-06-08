@@ -3,9 +3,14 @@ import XCTest
 
 @testable import AgentCLIKit
 
+// swiftlint:disable file_length
+
 extension XCTestCase {
-    func spawnConfig(workingDirectory: URL = FileManager.default.temporaryDirectory) -> AgentSpawnConfig {
-        AgentSpawnConfig(providerId: .claude, workingDirectory: workingDirectory)
+    func spawnConfig(
+        workingDirectory: URL = FileManager.default.temporaryDirectory,
+        initialPrompt: String? = nil
+    ) -> AgentSpawnConfig {
+        AgentSpawnConfig(providerId: .claude, workingDirectory: workingDirectory, initialPrompt: initialPrompt)
     }
 
     func shell(_ script: String) -> AgentLaunchConfiguration {
@@ -493,14 +498,28 @@ private extension String {
     }
 }
 
+extension AgentEvent {
+    var runtimeSessionMetadataEvent: AgentSessionMetadataEvent? {
+        guard case let .sessionMetadata(metadata) = self else {
+            return nil
+        }
+        return metadata
+    }
+}
+
 private func sessionMetadata(from line: String) -> AgentSessionMetadataEvent? {
     guard let rawMetadata = line.removingPrefix("metadata:") else {
         return nil
     }
-    let parts = rawMetadata.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+    let parts = rawMetadata.split(separator: ":", maxSplits: 2, omittingEmptySubsequences: false)
     guard let sessionId = parts.first, !sessionId.isEmpty else {
         return nil
     }
     let name = parts.count > 1 ? String(parts[1]) : nil
-    return AgentSessionMetadataEvent(providerSessionId: AgentSessionID(rawValue: String(sessionId)), name: name)
+    let preview = parts.count > 2 ? String(parts[2]) : nil
+    return AgentSessionMetadataEvent(
+        providerSessionId: AgentSessionID(rawValue: String(sessionId)),
+        name: name,
+        preview: preview
+    )
 }

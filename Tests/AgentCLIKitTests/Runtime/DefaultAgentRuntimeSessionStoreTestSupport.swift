@@ -15,7 +15,7 @@ actor OutOfOrderSessionStore: AgentSessionStore {
     }
 
     func save(_ record: AgentSessionRecord) async throws {
-        let delayKey = record.providerSessionName ?? record.providerSessionId.rawValue
+        let delayKey = record.providerSessionName ?? record.providerSessionPreview ?? record.providerSessionId.rawValue
         if let delay = delays[delayKey] ?? delays[record.providerSessionId.rawValue] {
             try await Task.sleep(nanoseconds: delay)
         }
@@ -46,7 +46,7 @@ actor SelectiveFailureOutOfOrderSessionStore: AgentSessionStore {
     }
 
     func save(_ record: AgentSessionRecord) async throws {
-        let delayKey = record.providerSessionName ?? record.providerSessionId.rawValue
+        let delayKey = record.providerSessionName ?? record.providerSessionPreview ?? record.providerSessionId.rawValue
         if let delay = delays[delayKey] ?? delays[record.providerSessionId.rawValue] {
             try await Task.sleep(nanoseconds: delay)
         }

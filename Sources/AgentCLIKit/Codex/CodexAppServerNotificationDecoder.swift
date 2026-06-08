@@ -49,6 +49,7 @@ struct CodexAppServerNotificationDecoder {
         return [runtimeEvent(.sessionMetadata(AgentSessionMetadataEvent(
             providerSessionId: AgentSessionID(rawValue: threadId),
             name: thread["name"]?.codexStringValue,
+            preview: thread["preview"]?.codexStringValue,
             metadata: metadata(method: notification.method, threadId: threadId)
         )))]
     }
@@ -61,6 +62,7 @@ struct CodexAppServerNotificationDecoder {
         return [runtimeEvent(.sessionMetadata(AgentSessionMetadataEvent(
             providerSessionId: AgentSessionID(rawValue: threadId),
             name: params["threadName"]?.codexStringValue ?? params["thread"]?.codexObjectValue?["name"]?.codexStringValue,
+            preview: params["threadPreview"]?.codexStringValue ?? params["thread"]?.codexObjectValue?["preview"]?.codexStringValue,
             metadata: metadata(method: notification.method, threadId: threadId)
         )))]
     }

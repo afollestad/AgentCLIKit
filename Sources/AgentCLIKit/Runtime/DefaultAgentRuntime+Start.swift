@@ -16,6 +16,7 @@ extension DefaultAgentRuntime {
         try await installPreparedProcess(prepared, startToken: startToken)
         try await ensureStartIsCurrent(prepared, startToken: startToken)
 
+        emitInitialPromptPreviewIfNeeded(prepared)
         emitLifecycle(.running, conversationId: conversationId)
         emitSessionContinuity(
             prepared.launch.sessionContinuity,
@@ -303,6 +304,7 @@ private extension DefaultAgentRuntime {
             lifecycleState: .starting,
             providerSessionId: input.launchProviderSessionId ?? input.resumedSession?.providerSessionId,
             providerSessionName: normalizedProviderSessionName(input.resumedSession?.providerSessionName),
+            providerSessionPreview: normalizedProviderSessionPreview(input.resumedSession?.providerSessionPreview),
             providerSessionRecordMetadata: input.resumedSession?.metadata ?? ["source": .string("runtime")],
             providerSessionCreatedAt: input.resumedSession?.createdAt,
             permissionMode: nil,
@@ -377,6 +379,23 @@ private extension DefaultAgentRuntime {
             return nil
         }
         return ProviderResumeReplayGate(previous.events.filter { $0.generation == input.generation })
+    }
+
+    func emitInitialPromptPreviewIfNeeded(_ prepared: PreparedStart) {
+        guard prepared.resumedSession == nil,
+              let initialPrompt = prepared.stateInput.spawnConfig.initialPrompt,
+              let preview = AgentSessionPreviewGenerator.preview(fromInitialPrompt: initialPrompt) else {
+            return
+        }
+        append(
+            .sessionMetadata(
+                providerSessionId: prepared.launch.providerSessionId,
+                preview: preview,
+                metadata: ["source": .string("initial_prompt")]
+            ),
+            source: .runtime,
+            conversationId: prepared.stateInput.conversationId
+        )
     }
 
     func runProcess(

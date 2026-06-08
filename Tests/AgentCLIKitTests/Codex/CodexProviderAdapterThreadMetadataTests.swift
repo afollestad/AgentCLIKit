@@ -4,6 +4,7 @@ import XCTest
 @testable import AgentCLIKit
 
 final class CodexProviderAdapterThreadMetadataTests: XCTestCase {
+    // swiftlint:disable:next function_body_length
     func testRuntimeEventsMapThreadMetadataNotifications() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
@@ -17,17 +18,20 @@ final class CodexProviderAdapterThreadMetadataTests: XCTestCase {
         await transport.emitNotification(method: "thread/started", params: .object([
             "thread": .object([
                 "id": .string("thread-123"),
-                "name": .string("Initial Name")
+                "name": .string("Initial Name"),
+                "preview": .string("Initial Preview")
             ])
         ]))
         await transport.emitNotification(method: "thread/name/updated", params: .object([
             "threadId": .string("thread-123"),
-            "threadName": .string("Renamed Thread")
+            "threadName": .string("Renamed Thread"),
+            "threadPreview": .string("Renamed Preview")
         ]))
         await transport.emitNotification(method: "thread/name/updated", params: .object([
             "thread": .object([
                 "id": .string("thread-123"),
-                "name": .string("Nested Rename")
+                "name": .string("Nested Rename"),
+                "preview": .string("Nested Preview")
             ])
         ]))
 
@@ -37,6 +41,7 @@ final class CodexProviderAdapterThreadMetadataTests: XCTestCase {
             .sessionMetadata(AgentSessionMetadataEvent(
                 providerSessionId: "thread-123",
                 name: "Initial Name",
+                preview: "Initial Preview",
                 metadata: [
                     "codex_method": .string("thread/started"),
                     "codex_thread_id": .string("thread-123")
@@ -45,6 +50,7 @@ final class CodexProviderAdapterThreadMetadataTests: XCTestCase {
             .sessionMetadata(AgentSessionMetadataEvent(
                 providerSessionId: "thread-123",
                 name: "Renamed Thread",
+                preview: "Renamed Preview",
                 metadata: [
                     "codex_method": .string("thread/name/updated"),
                     "codex_thread_id": .string("thread-123")
@@ -53,6 +59,7 @@ final class CodexProviderAdapterThreadMetadataTests: XCTestCase {
             .sessionMetadata(AgentSessionMetadataEvent(
                 providerSessionId: "thread-123",
                 name: "Nested Rename",
+                preview: "Nested Preview",
                 metadata: [
                     "codex_method": .string("thread/name/updated"),
                     "codex_thread_id": .string("thread-123")

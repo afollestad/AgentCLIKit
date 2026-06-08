@@ -5,7 +5,11 @@ import XCTest
 
 final class CodexProviderAdapterTests: XCTestCase {
     func testBootstrapsThreadLazilyAndPersistsThreadIdFromSentinel() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"], threadNames: ["Build Parser"])
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-123"],
+            threadNames: ["Build Parser"],
+            threadPreviews: ["Build parser preview"]
+        )
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
 
         let startCountBeforeLaunch = await transport.startCount
@@ -41,6 +45,7 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(sessionId, "thread-123")
         XCTAssertEqual(metadata.providerSessionId, "thread-123")
         XCTAssertEqual(metadata.name, "Build Parser")
+        XCTAssertEqual(metadata.preview, "Build parser preview")
 
         let threadStartParams = try XCTUnwrap(requestParams["thread/start"])
         XCTAssertEqual(threadStartParams.objectValue?["cwd"], .string("/tmp/project"))
@@ -51,7 +56,11 @@ final class CodexProviderAdapterTests: XCTestCase {
     }
 
     func testResumesSavedThreadId() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-existing"], threadNames: ["Existing Thread"])
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-existing"],
+            threadNames: ["Existing Thread"],
+            threadPreviews: ["Existing preview"]
+        )
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
         let resumedSession = AgentSessionRecord(
             conversationId: "conversation",
@@ -77,6 +86,7 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(launch.providerSessionId, "thread-existing")
         XCTAssertEqual(metadata.providerSessionId, "thread-existing")
         XCTAssertEqual(metadata.name, "Existing Thread")
+        XCTAssertEqual(metadata.preview, "Existing preview")
         let threadResumeParams = try XCTUnwrap(requestParams["thread/resume"])
         XCTAssertEqual(threadResumeParams.objectValue?["threadId"], .string("thread-existing"))
     }

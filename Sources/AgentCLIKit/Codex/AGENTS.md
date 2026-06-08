@@ -6,7 +6,7 @@
 - Do not start a Codex App Server process from provider discovery or static provider metadata.
 - Keep live Codex `model/list` usage behind explicit model option sources; default provider discovery must not launch App Server unless a host injects a live Codex source.
 - `CodexProviderAdapter` owns one shared App Server transport per adapter instance; keep startup lazy and stop it from provider resource shutdown.
-- Surface Codex `Thread.name` from bootstrap/resume and `thread/name/updated` as provider-neutral `AgentEvent.sessionMetadata`.
+- Surface Codex `Thread.name` and `Thread.preview` from bootstrap/resume and thread metadata notifications as provider-neutral `AgentEvent.sessionMetadata`.
 - Keep `turn/start` and `thread/settings/update` sticky settings in one shared builder for `cwd`, `model`, `approvalPolicy`, `effort`, and `collaborationMode`.
 - Apply collaboration-mode bootstrap settings before an initial prompt turn; `thread/start` cannot carry every sticky setting.
 - After successful in-place `thread/settings/update`, update the binding `spawnConfig` so later turns use the same settings.

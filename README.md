@@ -76,6 +76,8 @@ func runAgentConversation(
             case .sessionMetadata(let metadata):
                 if let name = metadata.name {
                     print("Session name: \(name)")
+                } else if let preview = metadata.preview {
+                    print("Session preview: \(preview)")
                 }
             case .interaction(let interaction):
                 print("Waiting for \(interaction.kind.rawValue): \(interaction.prompt)")

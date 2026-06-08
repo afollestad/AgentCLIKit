@@ -94,18 +94,23 @@
     "threadMetadata": {
       "threadObject": {
         "id": "opaque string",
-        "name": "nullable string"
+        "name": "nullable string",
+        "preview": "nullable string"
       },
       "bootstrapSources": [
         "thread/start result.thread.name",
+        "thread/start result.thread.preview",
         "thread/resume result.thread.name",
-        "thread/started params.thread.name"
+        "thread/resume result.thread.preview",
+        "thread/started params.thread.name",
+        "thread/started params.thread.preview"
       ],
       "nameUpdateNotification": {
         "method": "thread/name/updated",
         "fields": {
           "threadId": "string",
-          "threadName": "optional string"
+          "threadName": "optional string",
+          "threadPreview": "optional string"
         }
       }
     },

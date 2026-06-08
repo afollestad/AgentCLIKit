@@ -216,10 +216,14 @@ extension DemoModel {
         }
         let current = sessions[index]
         let eventProviderSessionName = Self.providerSessionName(from: envelope.event)
+        let eventProviderSessionPreview = Self.providerSessionPreview(from: envelope.event)
         let isProviderSessionChange = current.record?.providerSessionId != providerSessionId
         let providerSessionName = isProviderSessionChange
             ? eventProviderSessionName
             : eventProviderSessionName ?? current.record?.providerSessionName
+        let providerSessionPreview = isProviderSessionChange
+            ? eventProviderSessionPreview
+            : eventProviderSessionPreview ?? current.record?.providerSessionPreview
         sessions[index] = DemoSession(
             id: current.id,
             record: AgentSessionRecord(
@@ -227,6 +231,7 @@ extension DemoModel {
                 providerId: envelope.providerId,
                 providerSessionId: providerSessionId,
                 providerSessionName: providerSessionName,
+                providerSessionPreview: providerSessionPreview,
                 generation: envelope.generation,
                 createdAt: current.record?.createdAt ?? current.createdAt,
                 updatedAt: envelope.createdAt,
@@ -241,6 +246,13 @@ extension DemoModel {
             return nil
         }
         return metadata.name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
+    private static func providerSessionPreview(from event: AgentEvent) -> String? {
+        guard case let .sessionMetadata(metadata) = event else {
+            return nil
+        }
+        return metadata.preview?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     }
 }
 

@@ -65,8 +65,8 @@ extension DemoModel {
             return "Streaming"
         }
         var parts = [status.state.rawValue.capitalized]
-        if let providerSessionName = status.providerSessionName {
-            parts.append("session: \(providerSessionName)")
+        if let providerSessionTitle = status.providerSessionName ?? status.providerSessionPreview {
+            parts.append("session: \(providerSessionTitle)")
         }
         if let permissionMode = status.permissionMode {
             parts.append("permission: \(permissionMode)")
@@ -128,7 +128,8 @@ extension DemoModel {
         case .sessionMetadata(let metadata):
             let providerSessionId = metadata.providerSessionId?.rawValue ?? "nil"
             let name = metadata.name ?? "nil"
-            return "session_metadata provider_session_id=\(providerSessionId) name=\(name)"
+            let preview = metadata.preview ?? "nil"
+            return "session_metadata provider_session_id=\(providerSessionId) name=\(name) preview=\(preview)"
         case .interaction(let interaction):
             return "interaction kind=\(interaction.kind.rawValue)"
         case .lifecycle(let lifecycle):

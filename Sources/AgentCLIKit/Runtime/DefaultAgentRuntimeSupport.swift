@@ -19,6 +19,10 @@ func normalizedProviderSessionName(_ name: String?) -> String? {
     return normalized
 }
 
+func normalizedProviderSessionPreview(_ preview: String?) -> String? {
+    normalizedProviderSessionName(preview)
+}
+
 struct ConversationState {
     let providerId: AgentProviderID
     let generation: Int
@@ -34,6 +38,7 @@ struct ConversationState {
     var lifecycleState: AgentLifecycleState
     var providerSessionId: AgentSessionID?
     var providerSessionName: String?
+    var providerSessionPreview: String?
     var providerSessionRecordMetadata: [String: JSONValue]
     var providerSessionCreatedAt: Date?
     var permissionMode: String?
@@ -68,6 +73,7 @@ struct ConversationState {
             lastEventIndex: events.last?.index ?? -1,
             providerSessionId: providerSessionId,
             providerSessionName: providerSessionName,
+            providerSessionPreview: providerSessionPreview,
             permissionMode: permissionMode,
             collaborationMode: collaborationMode,
             isTurnActive: isTurnActive,

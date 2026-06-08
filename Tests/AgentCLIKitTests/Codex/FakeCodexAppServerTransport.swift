@@ -22,6 +22,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
 
     private var threadIds: [String]
     private var threadNames: [String?]
+    private var threadPreviews: [String?]
     private var modelListResponses: [JSONValue]
     private let failModelListRequests: Bool
     private let failModelListRequestsAfterSuccessCount: Int?
@@ -42,6 +43,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     init(
         threadIds: [String],
         threadNames: [String?] = [],
+        threadPreviews: [String?] = [],
         modelListResponses: [JSONValue] = [],
         failModelListRequests: Bool = false,
         failModelListRequestsAfterSuccessCount: Int? = nil,
@@ -49,6 +51,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     ) {
         self.threadIds = threadIds
         self.threadNames = threadNames
+        self.threadPreviews = threadPreviews
         self.modelListResponses = modelListResponses
         self.failModelListRequests = failModelListRequests
         self.failModelListRequestsAfterSuccessCount = failModelListRequestsAfterSuccessCount
@@ -118,6 +121,9 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         ]
         if !threadNames.isEmpty, let name = threadNames.removeFirst() {
             thread["name"] = .string(name)
+        }
+        if !threadPreviews.isEmpty, let preview = threadPreviews.removeFirst() {
+            thread["preview"] = .string(preview)
         }
         return .object([
             "thread": .object(thread)

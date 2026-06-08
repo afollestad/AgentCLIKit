@@ -283,6 +283,7 @@ extension DefaultAgentRuntime {
             states[conversationId] = state
             return
         }
+        let event = eventForEnvelope(event, state: &state)
         let envelope = AgentEventEnvelope(
             generation: state.generation,
             index: (state.events.last?.index ?? -1) + 1,
@@ -293,12 +294,25 @@ extension DefaultAgentRuntime {
             event: event
         )
         state.events.append(envelope)
-        applyStatusSideEffects(for: event, state: &state)
         notifyProviderOfStatusSideEffects(for: event, adapter: state.adapter, conversationId: conversationId)
         state.compactReplayBuffer(replayLimit: replayLimit)
         state.subscribers.values.forEach { $0.yield(envelope) }
         states[conversationId] = state
         publishStatus(conversationId: conversationId)
+    }
+
+    private func eventForEnvelope(_ event: AgentEvent, state: inout ConversationState) -> AgentEvent {
+        guard case let .sessionMetadata(metadata) = event else {
+            applyStatusSideEffects(for: event, state: &state)
+            return event
+        }
+        applySessionMetadataStatusSideEffects(for: metadata, state: &state)
+        return .sessionMetadata(AgentSessionMetadataEvent(
+            providerSessionId: metadata.providerSessionId ?? state.providerSessionId,
+            name: state.providerSessionName,
+            preview: state.providerSessionPreview,
+            metadata: metadata.metadata
+        ))
     }
 
     private func shouldAppendEvent(_ event: AgentEvent, state: ConversationState) -> Bool {
@@ -331,8 +345,8 @@ extension DefaultAgentRuntime {
             state.permissionMode = permissionMode.mode
         case let .collaborationMode(collaborationMode):
             state.collaborationMode = collaborationMode.mode
-        case let .sessionMetadata(metadata):
-            applySessionMetadataStatusSideEffects(for: metadata, state: &state)
+        case .sessionMetadata:
+            break
         case let .interaction(interaction):
             applyInteractionStatusSideEffects(for: interaction, state: &state)
         case let .usage(usage):

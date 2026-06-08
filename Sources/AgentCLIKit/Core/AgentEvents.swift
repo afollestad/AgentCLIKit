@@ -103,6 +103,8 @@ public struct AgentSessionMetadataEvent: Codable, Equatable, Sendable {
     public let providerSessionId: AgentSessionID?
     /// User-facing provider session name when reported by the provider.
     public let name: String?
+    /// User-facing provider session preview when a full provider name is not available.
+    public let preview: String?
     /// Provider-specific metadata for this event.
     public let metadata: [String: JSONValue]
 
@@ -110,19 +112,39 @@ public struct AgentSessionMetadataEvent: Codable, Equatable, Sendable {
     public init(
         providerSessionId: AgentSessionID? = nil,
         name: String? = nil,
+        preview: String? = nil,
         metadata: [String: JSONValue] = [:]
     ) {
         self.providerSessionId = providerSessionId
         self.name = name
+        self.preview = preview
         self.metadata = metadata
     }
 
-    /// Decodes a session metadata event, defaulting missing metadata for persisted events from older versions.
+    /// Decodes a session metadata event, defaulting additive fields for persisted events from older versions.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
         self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.preview = try container.decodeIfPresent(String.self, forKey: .preview)
         self.metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
+    }
+}
+
+public extension AgentEvent {
+    /// Creates a provider session metadata event.
+    static func sessionMetadata(
+        providerSessionId: AgentSessionID? = nil,
+        name: String? = nil,
+        preview: String? = nil,
+        metadata: [String: JSONValue] = [:]
+    ) -> Self {
+        .sessionMetadata(AgentSessionMetadataEvent(
+            providerSessionId: providerSessionId,
+            name: name,
+            preview: preview,
+            metadata: metadata
+        ))
     }
 }
 

@@ -113,6 +113,7 @@ final class AgentEventAndInputTests: XCTestCase {
         let event = AgentEvent.sessionMetadata(AgentSessionMetadataEvent(
             providerSessionId: "session-1",
             name: "Generated Name",
+            preview: "Generated Preview",
             metadata: ["provider": .string("codex")]
         ))
 
@@ -124,6 +125,7 @@ final class AgentEventAndInputTests: XCTestCase {
         )
 
         XCTAssertEqual(decoded, event)
+        XCTAssertNil(legacyMetadata.preview)
         XCTAssertEqual(legacyMetadata.metadata, [:])
     }
 

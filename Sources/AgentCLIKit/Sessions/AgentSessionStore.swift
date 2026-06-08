@@ -10,6 +10,8 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
     public let providerSessionId: AgentSessionID
     /// Provider-reported user-facing session name when known.
     public let providerSessionName: String?
+    /// Provider-reported user-facing session preview when known.
+    public let providerSessionPreview: String?
     /// Canonical working directory associated with the provider session, when known.
     public let workingDirectory: URL?
     /// Runtime generation associated with the provider session.
@@ -27,6 +29,7 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         providerId: AgentProviderID,
         providerSessionId: AgentSessionID,
         providerSessionName: String? = nil,
+        providerSessionPreview: String? = nil,
         workingDirectory: URL? = nil,
         generation: Int,
         createdAt: Date = Date(),
@@ -37,6 +40,7 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         self.providerId = providerId
         self.providerSessionId = providerSessionId
         self.providerSessionName = providerSessionName
+        self.providerSessionPreview = providerSessionPreview
         self.workingDirectory = workingDirectory.map(AgentPathHelpers.canonicalFileURL)
         self.generation = generation
         self.createdAt = createdAt
@@ -51,6 +55,7 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
         providerSessionId = try container.decode(AgentSessionID.self, forKey: .providerSessionId)
         providerSessionName = try container.decodeIfPresent(String.self, forKey: .providerSessionName)
+        providerSessionPreview = try container.decodeIfPresent(String.self, forKey: .providerSessionPreview)
         workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory).map(AgentPathHelpers.canonicalFileURL)
         generation = try container.decode(Int.self, forKey: .generation)
         createdAt = try container.decode(Date.self, forKey: .createdAt)

@@ -36,6 +36,7 @@ extension DefaultAgentRuntime {
         if let failure = await persistProviderSessionRecord(record, processToken: processToken) {
             emitProviderSessionSaveFailureIfCurrent(failure, conversationId: conversationId)
         }
+        emitProviderSessionSnapshotIfNeeded(from: event, update: update, conversationId: conversationId, processToken: processToken)
     }
 
     func applySessionMetadataStatusSideEffects(for metadata: AgentSessionMetadataEvent, state: inout ConversationState) {
@@ -44,10 +45,16 @@ extension DefaultAgentRuntime {
             state.providerSessionId = providerSessionId
         }
         let providerSessionName = normalizedProviderSessionName(metadata.name)
-        if metadata.providerSessionId != nil, state.providerSessionId != previousProviderSessionId {
+        let providerSessionPreview = normalizedProviderSessionPreview(metadata.preview)
+        let isNewConcreteSession = previousProviderSessionId != nil && state.providerSessionId != previousProviderSessionId
+        if metadata.providerSessionId != nil, isNewConcreteSession {
             state.providerSessionName = providerSessionName
+            state.providerSessionPreview = providerSessionPreview
         } else if let providerSessionName {
             state.providerSessionName = providerSessionName
+        }
+        if !isNewConcreteSession, let providerSessionPreview {
+            state.providerSessionPreview = providerSessionPreview
         }
     }
 
@@ -65,10 +72,12 @@ extension DefaultAgentRuntime {
             return nil
         }
         let providerSessionName = normalizedProviderSessionName(metadataEvent?.name)
+        let providerSessionPreview = normalizedProviderSessionPreview(metadataEvent?.preview)
         let isSessionChange = state.providerSessionId != providerSessionId
         let shouldPersistSeededSession = state.providerSessionId == providerSessionId && state.providerSessionCreatedAt == nil
         let shouldPersistNameChange = providerSessionName != nil && state.providerSessionName != providerSessionName
-        guard isSessionChange || shouldPersistSeededSession || shouldPersistNameChange else {
+        let shouldPersistPreviewChange = providerSessionPreview != nil && state.providerSessionPreview != providerSessionPreview
+        guard isSessionChange || shouldPersistSeededSession || shouldPersistNameChange || shouldPersistPreviewChange else {
             return nil
         }
 
@@ -76,7 +85,8 @@ extension DefaultAgentRuntime {
             &state,
             providerSessionId: providerSessionId,
             providerSessionName: providerSessionName,
-            isSessionChange: isSessionChange
+            providerSessionPreview: providerSessionPreview,
+            resetsMetadata: state.providerSessionId != nil && isSessionChange
         )
         let createdAt = (isSessionChange ? nil : state.providerSessionCreatedAt) ?? now()
         state.providerSessionCreatedAt = createdAt
@@ -87,14 +97,19 @@ extension DefaultAgentRuntime {
         _ state: inout ConversationState,
         providerSessionId: AgentSessionID,
         providerSessionName: String?,
-        isSessionChange: Bool
+        providerSessionPreview: String?,
+        resetsMetadata: Bool
     ) {
         // Session IDs can be seeded during launch; provider output still drives durable record creation and name updates.
         state.providerSessionId = providerSessionId
-        if isSessionChange {
+        if resetsMetadata {
             state.providerSessionName = providerSessionName
+            state.providerSessionPreview = providerSessionPreview
         } else if let providerSessionName {
             state.providerSessionName = providerSessionName
+        }
+        if !resetsMetadata, let providerSessionPreview {
+            state.providerSessionPreview = providerSessionPreview
         }
     }
 
@@ -130,6 +145,7 @@ extension DefaultAgentRuntime {
             let record = currentProviderSessionRecord(conversationId: savedRecord.conversationId, state: current),
             record.providerSessionId != savedRecord.providerSessionId ||
                 record.providerSessionName != savedRecord.providerSessionName ||
+                record.providerSessionPreview != savedRecord.providerSessionPreview ||
                 current.processToken != processToken
         else {
             return nil
@@ -160,6 +176,7 @@ extension DefaultAgentRuntime {
             providerId: state.providerId,
             providerSessionId: providerSessionId,
             providerSessionName: state.providerSessionName,
+            providerSessionPreview: state.providerSessionPreview,
             workingDirectory: state.spawnConfig.workingDirectory,
             generation: state.generation,
             createdAt: createdAt,
@@ -188,6 +205,29 @@ extension DefaultAgentRuntime {
         )
     }
 
+    private func emitProviderSessionSnapshotIfNeeded(
+        from event: AgentEvent,
+        update: ProviderSessionStateUpdate,
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) {
+        guard event.sessionMetadataEvent == nil,
+              states[conversationId]?.processToken == processToken,
+              update.state.providerSessionName != nil || update.state.providerSessionPreview != nil else {
+            return
+        }
+        append(
+            .sessionMetadata(
+                providerSessionId: update.providerSessionId,
+                name: update.state.providerSessionName,
+                preview: update.state.providerSessionPreview,
+                metadata: ["source": .string("runtime")]
+            ),
+            source: .runtime,
+            conversationId: conversationId
+        )
+    }
+
     private func isCurrentProviderSessionSaveFailure(
         _ failure: ProviderSessionSaveFailure,
         current: ConversationState
@@ -195,7 +235,8 @@ extension DefaultAgentRuntime {
         current.processToken == failure.processToken ||
             (
                 current.providerSessionId == failure.record.providerSessionId &&
-                    current.providerSessionName == failure.record.providerSessionName
+                    current.providerSessionName == failure.record.providerSessionName &&
+                    current.providerSessionPreview == failure.record.providerSessionPreview
             )
     }
 }

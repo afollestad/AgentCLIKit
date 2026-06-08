@@ -88,7 +88,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
                 "-c",
                 "printf '%s\\n' \"$1\"; sleep 2147483647",
                 "codex-bootstrap",
-                try Self.bootstrapLine(threadId: bootstrap.threadId, name: bootstrap.name)
+                try Self.bootstrapLine(threadId: bootstrap.threadId, name: bootstrap.name, preview: bootstrap.preview)
             ],
             workingDirectory: spawnConfig.workingDirectory,
             sessionContinuity: bootstrap.continuity,
@@ -108,6 +108,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         return [.sessionMetadata(AgentSessionMetadataEvent(
             providerSessionId: threadId,
             name: payload.name,
+            preview: payload.preview,
             metadata: [
                 "codex_thread_id": .string(payload.threadId),
                 "provider_session_id": .string(payload.threadId),
@@ -172,8 +173,13 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         await client.shutdown()
     }
 
-    private static func bootstrapLine(threadId: AgentSessionID, name: String?) throws -> String {
-        let payload = CodexBootstrapPayload(codexAppServerBootstrap: true, threadId: threadId.rawValue, name: name)
+    private static func bootstrapLine(threadId: AgentSessionID, name: String?, preview: String?) throws -> String {
+        let payload = CodexBootstrapPayload(
+            codexAppServerBootstrap: true,
+            threadId: threadId.rawValue,
+            name: name,
+            preview: preview
+        )
         let data = try JSONEncoder().encode(payload)
         guard let line = String(data: data, encoding: .utf8) else {
             throw AgentCLIError.invalidInput("Could not encode Codex bootstrap line.")
@@ -186,6 +192,7 @@ private struct CodexBootstrapPayload: Codable {
     let codexAppServerBootstrap: Bool
     let threadId: String
     let name: String?
+    let preview: String?
 }
 
 extension CodexProviderAdapter.Configuration {

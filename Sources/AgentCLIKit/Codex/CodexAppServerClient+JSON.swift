@@ -19,6 +19,16 @@ extension JSONValue {
         return name
     }
 
+    var threadResponsePreview: String? {
+        guard case let .object(response) = self,
+              case let .object(thread)? = response["thread"],
+              case let .string(preview)? = thread["preview"],
+              !preview.isEmpty else {
+            return nil
+        }
+        return preview
+    }
+
     var turnResponseId: String? {
         guard case let .object(response) = self,
               case let .object(turn)? = response["turn"],

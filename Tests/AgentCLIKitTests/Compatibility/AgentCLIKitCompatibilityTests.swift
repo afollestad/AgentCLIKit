@@ -101,6 +101,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertEqual(snapshot.lastEventIndex, 12)
         XCTAssertEqual(snapshot.providerSessionId, "provider-session")
         XCTAssertNil(snapshot.providerSessionName)
+        XCTAssertNil(snapshot.providerSessionPreview)
         XCTAssertTrue(snapshot.isTurnActive)
     }
 
@@ -173,9 +174,10 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertFalse(status.isTurnActive)
         XCTAssertNil(status.collaborationMode)
         XCTAssertNil(status.providerSessionName)
+        XCTAssertNil(status.providerSessionPreview)
     }
 
-    func testOlderSessionRecordPayloadDefaultsProviderSessionName() throws {
+    func testOlderSessionRecordPayloadDefaultsProviderSessionMetadata() throws {
         let data = Data(
             """
             {
@@ -195,6 +197,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
 
         XCTAssertEqual(record.providerSessionId, "session")
         XCTAssertNil(record.providerSessionName)
+        XCTAssertNil(record.providerSessionPreview)
         XCTAssertEqual(record.metadata, [:])
     }
 }
@@ -240,6 +243,7 @@ private struct HostStatusSnapshot {
     let lastEventIndex: Int
     let providerSessionId: String?
     let providerSessionName: String?
+    let providerSessionPreview: String?
     let isTurnActive: Bool
 
     init(status: AgentRuntimeStatus) {
@@ -248,6 +252,7 @@ private struct HostStatusSnapshot {
         self.lastEventIndex = status.lastEventIndex
         self.providerSessionId = status.providerSessionId?.rawValue
         self.providerSessionName = status.providerSessionName
+        self.providerSessionPreview = status.providerSessionPreview
         self.isTurnActive = status.isTurnActive
     }
 }

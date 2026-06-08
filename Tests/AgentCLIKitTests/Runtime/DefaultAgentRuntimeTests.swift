@@ -2,6 +2,7 @@ import XCTest
 
 @testable import AgentCLIKit
 
+// swiftlint:disable:next type_body_length
 final class DefaultAgentRuntimeTests: XCTestCase {
     func testSubscribeAfterIndexReplaysOnlyLaterEvents() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
