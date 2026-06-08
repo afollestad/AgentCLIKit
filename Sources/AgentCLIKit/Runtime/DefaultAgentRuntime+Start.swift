@@ -205,6 +205,8 @@ private extension DefaultAgentRuntime {
             process: process
         )
 
+        // The replacement is now live; delayed save completions from the old process should no longer report diagnostics.
+        markProviderSessionSavesStale(conversationId: stateInput.conversationId, processToken: previous?.processToken)
         await waitForPreviousOutputQueuesToBecomeIdle(previous)
         try await ensureStartIsCurrent(
             conversationId: stateInput.conversationId,
@@ -307,6 +309,7 @@ private extension DefaultAgentRuntime {
             providerSessionPreview: normalizedProviderSessionPreview(input.resumedSession?.providerSessionPreview),
             providerSessionRecordMetadata: input.resumedSession?.metadata ?? ["source": .string("runtime")],
             providerSessionCreatedAt: input.resumedSession?.createdAt,
+            staleProviderSessionSaveProcessTokens: previous?.staleProviderSessionSaveProcessTokens ?? [],
             permissionMode: nil,
             collaborationMode: input.spawnConfig.collaborationMode,
             isTurnActive: input.spawnConfig.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
@@ -323,6 +326,13 @@ private extension DefaultAgentRuntime {
             outputPumps: [],
             providerEventTasks: []
         )
+    }
+
+    func markProviderSessionSavesStale(conversationId: AgentConversationID, processToken: UUID?) {
+        guard let processToken else {
+            return
+        }
+        states[conversationId]?.staleProviderSessionSaveProcessTokens.insert(processToken)
     }
 
     private static func contextCompactionStartedIds(from previous: ConversationState?, generation: Int) -> Set<String> {

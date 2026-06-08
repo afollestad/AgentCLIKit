@@ -299,7 +299,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
     func testReconfigureIgnoresSessionPersistenceFailureFromReplacedProcess() async throws {
         let sessionStore = FailingSlowSessionStore(saveDelay: 200_000_000)
         let launchSequence = LaunchSequence([
-            shell("printf 'session:old-session\\n'"),
+            shell("printf 'session:old-session\\n'; sleep 1"),
             shell("printf 'message:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(

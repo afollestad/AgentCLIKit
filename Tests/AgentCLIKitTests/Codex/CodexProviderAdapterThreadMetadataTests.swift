@@ -4,6 +4,70 @@ import XCTest
 @testable import AgentCLIKit
 
 final class CodexProviderAdapterThreadMetadataTests: XCTestCase {
+    func testRuntimeEventsApplyGeneratedNameWhenBootstrapHasNoMetadata() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        try await waitForBinding()
+        async let collectedEvents = Self.collect(stream, count: 1)
+
+        await transport.emitNotification(method: "thread/name/updated", params: .object([
+            "threadId": .string("thread-123"),
+            "threadName": .string("Generated Thread Name"),
+            "threadPreview": .string("Generated Thread Preview")
+        ]))
+
+        let events = await collectedEvents.map(\.event)
+
+        XCTAssertEqual(events, [
+            .sessionMetadata(AgentSessionMetadataEvent(
+                providerSessionId: "thread-123",
+                name: "Generated Thread Name",
+                preview: "Generated Thread Preview",
+                metadata: [
+                    "codex_method": .string("thread/name/updated"),
+                    "codex_thread_id": .string("thread-123")
+                ]
+            ))
+        ])
+    }
+
+    func testRuntimeEventsApplyGeneratedNameFromNestedThreadPayload() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        try await waitForBinding()
+        async let collectedEvents = Self.collect(stream, count: 1)
+
+        await transport.emitNotification(method: "thread/name/updated", params: .object([
+            "thread": .object([
+                "id": .string("thread-123"),
+                "name": .string("Nested Generated Thread Name"),
+                "preview": .string("Nested Generated Preview")
+            ])
+        ]))
+
+        let events = await collectedEvents.map(\.event)
+
+        XCTAssertEqual(events, [
+            .sessionMetadata(AgentSessionMetadataEvent(
+                providerSessionId: "thread-123",
+                name: "Nested Generated Thread Name",
+                preview: "Nested Generated Preview",
+                metadata: [
+                    "codex_method": .string("thread/name/updated"),
+                    "codex_thread_id": .string("thread-123")
+                ]
+            ))
+        ])
+    }
+
     // swiftlint:disable:next function_body_length
     func testRuntimeEventsMapThreadMetadataNotifications() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])

@@ -41,6 +41,7 @@ struct ConversationState {
     var providerSessionPreview: String?
     var providerSessionRecordMetadata: [String: JSONValue]
     var providerSessionCreatedAt: Date?
+    var staleProviderSessionSaveProcessTokens: Set<UUID>
     var permissionMode: String?
     var collaborationMode: AgentCollaborationMode?
     var isTurnActive: Bool

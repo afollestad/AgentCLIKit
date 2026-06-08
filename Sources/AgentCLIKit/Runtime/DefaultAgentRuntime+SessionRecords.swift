@@ -232,7 +232,10 @@ extension DefaultAgentRuntime {
         _ failure: ProviderSessionSaveFailure,
         current: ConversationState
     ) -> Bool {
-        current.processToken == failure.processToken ||
+        guard !current.staleProviderSessionSaveProcessTokens.contains(failure.processToken) else {
+            return false
+        }
+        return current.processToken == failure.processToken ||
             (
                 current.providerSessionId == failure.record.providerSessionId &&
                     current.providerSessionName == failure.record.providerSessionName &&
