@@ -10,27 +10,19 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
         guard providerId == ClaudeProviderDefinition.providerId else {
             return AgentDefaultModelOptions.providerDefault(for: providerId)
         }
-        let defaultEfforts = Self.effortOptions(["low", "medium", "high", "max"])
-        let opusEfforts = Self.effortOptions(["low", "medium", "high", "xhigh", "max"])
+        let sonnetEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: ClaudeModelAliases.defaultModel))
+        let opusEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: "opus"))
+        let haikuEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: "haiku"))
         return [
             AgentModelOption(
                 providerId: providerId,
-                id: "default",
-                model: nil,
-                label: "Provider default",
-                description: "Use the Claude CLI default model.",
-                isDefault: true,
-                supportedEffortOptions: defaultEfforts,
-                defaultEffortOption: Self.effortOption("medium")
-            ),
-            AgentModelOption(
-                providerId: providerId,
-                id: "sonnet",
-                model: "sonnet",
+                id: ClaudeModelAliases.defaultModel,
+                model: ClaudeModelAliases.defaultModel,
                 label: "Sonnet",
                 description: "Use Claude's Sonnet model alias.",
-                supportedEffortOptions: defaultEfforts,
-                defaultEffortOption: Self.effortOption("medium")
+                isDefault: true,
+                supportedEffortOptions: sonnetEfforts,
+                defaultEffortOption: Self.effortOption("high")
             ),
             AgentModelOption(
                 providerId: providerId,
@@ -39,7 +31,16 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
                 label: "Opus",
                 description: "Use Claude's Opus model alias.",
                 supportedEffortOptions: opusEfforts,
-                defaultEffortOption: Self.effortOption("xhigh")
+                defaultEffortOption: Self.effortOption("high")
+            ),
+            AgentModelOption(
+                providerId: providerId,
+                id: "haiku",
+                model: "haiku",
+                label: "Haiku",
+                description: "Use Claude's Haiku model alias.",
+                supportedEffortOptions: haikuEfforts,
+                defaultEffortOption: Self.effortOption("medium")
             )
         ]
     }
@@ -63,5 +64,63 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
         default:
             return value.capitalized
         }
+    }
+}
+
+enum ClaudeModelAliases {
+    static let defaultModel = "sonnet"
+
+    static func normalizedModel(_ model: String?) -> String {
+        let trimmed = model?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return isLegacyDefaultModel(model) ? defaultModel : trimmed
+    }
+
+    static func normalizedEffort(_ effort: String?, model: String?) -> String? {
+        let trimmed = effort?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let normalizedModel = normalizedModel(model)
+        if trimmed.isEmpty {
+            return defaultEffort(for: normalizedModel)
+        }
+        if isLegacyDefaultModel(model), trimmed.lowercased() == "medium" {
+            return defaultEffort(for: normalizedModel)
+        }
+        let supportedEfforts = supportedEfforts(for: normalizedModel)
+        guard !supportedEfforts.isEmpty else {
+            return trimmed
+        }
+        let normalizedEffort = trimmed.lowercased()
+        if supportedEfforts.contains(normalizedEffort) {
+            return normalizedEffort
+        }
+        return defaultEffort(for: normalizedModel)
+    }
+
+    static func supportedEfforts(for model: String) -> [String] {
+        switch model.lowercased() {
+        case "haiku":
+            return ["low", "medium", "high"]
+        case "opus":
+            return ["low", "medium", "high", "xhigh", "max"]
+        case "sonnet":
+            return ["low", "medium", "high", "max"]
+        default:
+            return []
+        }
+    }
+
+    private static func defaultEffort(for model: String) -> String? {
+        switch model.lowercased() {
+        case "haiku":
+            return "medium"
+        case "opus", "sonnet":
+            return "high"
+        default:
+            return nil
+        }
+    }
+
+    private static func isLegacyDefaultModel(_ model: String?) -> Bool {
+        let trimmed = model?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty || trimmed.lowercased() == "default"
     }
 }

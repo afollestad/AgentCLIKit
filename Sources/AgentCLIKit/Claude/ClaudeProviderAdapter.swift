@@ -186,10 +186,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         if let permissionMode = effectivePermissionMode(for: spawnConfig) {
             arguments.append(contentsOf: ["--permission-mode", permissionMode])
         }
-        if let model = spawnConfig.model {
-            arguments.append(contentsOf: ["--model", model])
-        }
-        if let effort = spawnConfig.effort {
+        arguments.append(contentsOf: ["--model", ClaudeModelAliases.normalizedModel(spawnConfig.model)])
+        if let effort = ClaudeModelAliases.normalizedEffort(spawnConfig.effort, model: spawnConfig.model) {
             arguments.append(contentsOf: ["--effort", effort])
         }
         var sessionContinuity: AgentSessionContinuity = resumedSession == nil ? .fresh : .resumed

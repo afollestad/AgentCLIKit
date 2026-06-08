@@ -88,14 +88,15 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
         let claudeOptions = await source.modelOptions(for: .claude)
         let codexOptions = await source.modelOptions(for: .codex)
 
-        XCTAssertEqual(claudeOptions.map(\.id), ["default", "sonnet", "opus"])
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "default" })?.supportedEffortOptions.map(\.value), [
+        XCTAssertEqual(claudeOptions.map(\.id), ["sonnet", "opus", "haiku"])
+        XCTAssertEqual(claudeOptions.map(\.label), ["Sonnet", "Opus", "Haiku"])
+        XCTAssertEqual(claudeOptions.first?.isDefault, true)
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "sonnet" })?.supportedEffortOptions.map(\.value), [
             "low",
             "medium",
             "high",
             "max"
         ])
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "default" })?.defaultEffortOption?.value, "medium")
         XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.supportedEffortOptions.map(\.value), [
             "low",
             "medium",
@@ -103,6 +104,14 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
             "xhigh",
             "max"
         ])
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "haiku" })?.supportedEffortOptions.map(\.value), [
+            "low",
+            "medium",
+            "high"
+        ])
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "sonnet" })?.defaultEffortOption?.value, "high")
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.defaultEffortOption?.value, "high")
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "haiku" })?.defaultEffortOption?.value, "medium")
         XCTAssertEqual(
             claudeOptions
                 .first(where: { $0.id == "opus" })?
@@ -111,7 +120,6 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
                 .label,
             "Extra High"
         )
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.defaultEffortOption?.value, "xhigh")
         XCTAssertEqual(codexOptions, AgentDefaultModelOptions.providerDefault(for: .codex, description: "Use the Codex default model."))
     }
 
