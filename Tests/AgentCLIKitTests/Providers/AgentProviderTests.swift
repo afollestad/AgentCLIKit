@@ -43,17 +43,17 @@ final class AgentProviderTests: XCTestCase {
             [
                 AgentProviderOption(
                     value: "default",
-                    label: "default",
+                    label: "Default",
                     description: "Ask before file edits and restricted tool actions."
                 ),
                 AgentProviderOption(
                     value: "acceptEdits",
-                    label: "acceptEdits",
+                    label: "Accept edits",
                     description: "Automatically allow file edits, but ask for other sensitive actions."
                 ),
                 AgentProviderOption(
                     value: "auto",
-                    label: "auto",
+                    label: "Automatic",
                     description: "Automatically approve most actions with safety checks."
                 )
             ]
