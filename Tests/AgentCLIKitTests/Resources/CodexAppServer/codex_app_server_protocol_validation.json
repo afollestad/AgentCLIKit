@@ -361,7 +361,7 @@
             "serverRequest": "item/permissions/requestApproval",
             "result": {
               "triggered": false,
-              "notes": "Prompting the model to request permissions did not produce a permission-profile server request during Phase 3 live validation."
+              "notes": "Prompting the model to request permissions did not produce a permission-profile server request during live validation."
             }
           }
         ]

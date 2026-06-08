@@ -2,7 +2,7 @@ import XCTest
 
 @testable import AgentCLIKit
 
-final class CodexNotificationPhase8Tests: XCTestCase {
+final class CodexAppServerNotificationRuntimeTests: XCTestCase {
     private let decoder = CodexAppServerNotificationDecoder()
 
     // swiftlint:disable:next function_body_length

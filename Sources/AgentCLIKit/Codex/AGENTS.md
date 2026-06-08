@@ -2,7 +2,7 @@
 
 - Keep Codex App Server launch details, JSON-RPC/App Server wire formats, `.codex` config behavior, permission-profile handling, model-list parsing/cache behavior, and Codex-specific policies here.
 - Keep provider-neutral runtime, session, event, interaction, transcript, MCP, usage, diagnostics, and discovery APIs outside this folder.
-- Use the Phase 3 protocol fixture before adding or changing Codex App Server request, notification, or approval behavior.
+- Use the Codex App Server protocol fixture before adding or changing request, notification, or approval behavior.
 - Do not start a Codex App Server process from provider discovery or static provider metadata.
 - Keep live Codex `model/list` usage behind explicit model option sources; default provider discovery must not launch App Server unless a host injects a live Codex source.
 - `CodexProviderAdapter` owns one shared App Server transport per adapter instance; keep startup lazy and stop it from provider resource shutdown.

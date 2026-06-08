@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 final class CodexAppServerProtocolFixtureTests: XCTestCase {
-    func testProtocolValidationFixtureDocumentsRequiredPhaseThreeCoverage() throws {
+    func testProtocolValidationFixtureDocumentsRequiredCodexAppServerCoverage() throws {
         let fixture = try Self.fixture()
 
         XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.137.0-alpha.4")
