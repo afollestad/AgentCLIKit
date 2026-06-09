@@ -8,11 +8,13 @@ final class CodexFeatureSupportTests: XCTestCase {
         let output = """
         Name                                    Stage              Enabled
         fast_mode                               stable             false
+        namespace_tools                         stable             true
         other_feature                           experimental       true
         """
 
         XCTAssertEqual(DefaultCodexFeatureSupportChecker.parseFeatureNames(from: output), [
             "fast_mode",
+            "namespace_tools",
             "other_feature"
         ])
     }

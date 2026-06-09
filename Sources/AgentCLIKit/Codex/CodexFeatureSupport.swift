@@ -131,10 +131,11 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
     static func parseFeatureNames(from output: String) -> Set<String> {
         Set(output.split(whereSeparator: \.isNewline).compactMap { line in
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, !trimmed.lowercased().hasPrefix("name") else {
+            let columns = trimmed.split(whereSeparator: \.isWhitespace)
+            guard let name = columns.first, name.lowercased() != "name" else {
                 return nil
             }
-            return trimmed.split(whereSeparator: \.isWhitespace).first.map(String.init)
+            return String(name)
         })
     }
 }
