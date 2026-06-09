@@ -210,16 +210,14 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             arguments.append(contentsOf: sessionArguments)
         }
         arguments.append(contentsOf: spawnConfig.arguments)
-        if let initialPrompt = spawnConfig.initialPrompt {
-            arguments.append(initialPrompt)
-        }
         return AgentLaunchConfiguration(
             executable: launchExecutable.executable,
             arguments: arguments,
             environment: spawnConfig.environment,
             workingDirectory: spawnConfig.workingDirectory,
             sessionContinuity: sessionContinuity,
-            includesSpawnArguments: true
+            includesSpawnArguments: true,
+            sendsInitialPromptOverStdin: true
         )
     }
 
@@ -322,21 +320,15 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
                 permissionMode: effectivePermissionMode(for: spawnConfig)
             )
             var arguments = launch.arguments
-            let prompt = spawnConfig.initialPrompt
-            if let prompt, arguments.last == prompt {
-                arguments.removeLast()
-            }
             arguments.append(contentsOf: hooks.arguments)
-            if let prompt {
-                arguments.append(prompt)
-            }
             return AgentLaunchConfiguration(
                 executable: launch.executable,
                 arguments: arguments,
                 environment: launch.environment.merging(hooks.environment) { _, new in new },
                 workingDirectory: launch.workingDirectory,
                 sessionContinuity: launch.sessionContinuity,
-                includesSpawnArguments: launch.includesSpawnArguments
+                includesSpawnArguments: launch.includesSpawnArguments,
+                sendsInitialPromptOverStdin: launch.sendsInitialPromptOverStdin
             )
         } catch {
             await hookCoordinator.invalidate(processToken: processToken)

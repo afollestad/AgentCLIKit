@@ -23,6 +23,7 @@ extension DefaultAgentRuntime {
             providerSessionId: prepared.launch.providerSessionId ?? prepared.resumedSession?.providerSessionId,
             conversationId: conversationId
         )
+        try await sendInitialPromptOverStdinIfNeeded(prepared)
         pump(
             prepared.preparedProcess.stdout.fileHandleForReading,
             source: .stdout,
@@ -439,6 +440,44 @@ private extension DefaultAgentRuntime {
         // A very short-lived process can terminate before its handler is installed.
         if !process.isRunning {
             Task { await self.processExited(conversationId: conversationId, processToken: processToken, exitCode: process.terminationStatus) }
+        }
+    }
+
+    func sendInitialPromptOverStdinIfNeeded(_ prepared: PreparedStart) async throws {
+        guard prepared.launch.sendsInitialPromptOverStdin,
+              let initialPrompt = prepared.stateInput.spawnConfig.initialPrompt,
+              !initialPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        do {
+            let context = AgentProviderInputContext(
+                conversationId: prepared.stateInput.conversationId,
+                processToken: prepared.stateInput.processToken,
+                providerSessionId: prepared.launch.providerSessionId ?? prepared.resumedSession?.providerSessionId,
+                spawnConfig: prepared.stateInput.spawnConfig,
+                isTurnActive: true
+            )
+            let data = try await prepared.adapter.encodeInput(
+                .userMessage(AgentMessageInput(text: initialPrompt)),
+                context: context
+            )
+            try writeInputData(
+                data,
+                conversationId: prepared.stateInput.conversationId,
+                processToken: prepared.stateInput.processToken,
+                marksTurnActive: false
+            )
+        } catch {
+            emitLifecycle(
+                .failed,
+                conversationId: prepared.stateInput.conversationId,
+                message: "Could not write initial provider input: \(error.localizedDescription)"
+            )
+            states[prepared.stateInput.conversationId]?.stdin = nil
+            states[prepared.stateInput.conversationId]?.stdinWriter = nil
+            forceKill(prepared.preparedProcess.process)
+            await prepared.adapter.processDidTerminate(processToken: prepared.stateInput.processToken)
+            throw error
         }
     }
 }

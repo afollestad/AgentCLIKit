@@ -246,7 +246,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         throw AgentCLIError.invalidInput("Input is blocked for conversation '\(conversationId.rawValue)': \(reason)")
     }
 
-    private func writeInputData(
+    func writeInputData(
         _ data: Data,
         conversationId: AgentConversationID,
         processToken: UUID,

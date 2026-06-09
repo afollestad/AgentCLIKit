@@ -44,9 +44,9 @@ final class ClaudeProviderAdapterTests: XCTestCase {
             "high",
             "--resume",
             "session-id",
-            "--dangerously-skip-permissions",
-            "Continue"
+            "--dangerously-skip-permissions"
         ])
+        XCTAssertTrue(launch.sendsInitialPromptOverStdin)
         XCTAssertEqual(launch.environment, ["CLAUDE_CONFIG_DIR": "/tmp/claude-config"])
         XCTAssertEqual(launch.workingDirectory?.path, "/tmp/project")
         XCTAssertEqual(launch.sessionContinuity, .resumed)

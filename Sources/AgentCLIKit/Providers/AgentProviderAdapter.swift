@@ -316,6 +316,8 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
     public let providerSessionId: AgentSessionID?
     /// Whether `arguments` already include `AgentSpawnConfig.arguments`.
     public let includesSpawnArguments: Bool
+    /// Whether the runtime should write `AgentSpawnConfig.initialPrompt` as the first provider stdin message.
+    public let sendsInitialPromptOverStdin: Bool
 
     /// Creates a launch configuration.
     public init(
@@ -325,7 +327,8 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
         workingDirectory: URL? = nil,
         sessionContinuity: AgentSessionContinuity? = nil,
         providerSessionId: AgentSessionID? = nil,
-        includesSpawnArguments: Bool = false
+        includesSpawnArguments: Bool = false,
+        sendsInitialPromptOverStdin: Bool = false
     ) {
         self.executable = executable
         self.arguments = arguments
@@ -334,6 +337,7 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
         self.sessionContinuity = sessionContinuity
         self.providerSessionId = providerSessionId
         self.includesSpawnArguments = includesSpawnArguments
+        self.sendsInitialPromptOverStdin = sendsInitialPromptOverStdin
     }
 
     /// Decodes launch configuration, defaulting newer optional fields for older persisted values.
@@ -346,5 +350,6 @@ public struct AgentLaunchConfiguration: Codable, Equatable, Sendable {
         self.sessionContinuity = try container.decodeIfPresent(AgentSessionContinuity.self, forKey: .sessionContinuity)
         self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
         self.includesSpawnArguments = try container.decodeIfPresent(Bool.self, forKey: .includesSpawnArguments) ?? false
+        self.sendsInitialPromptOverStdin = try container.decodeIfPresent(Bool.self, forKey: .sendsInitialPromptOverStdin) ?? false
     }
 }
