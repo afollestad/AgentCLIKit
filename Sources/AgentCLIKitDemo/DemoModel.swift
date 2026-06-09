@@ -12,6 +12,7 @@ final class DemoModel: ObservableObject {
     @Published var providerSelectionBySession: [AgentConversationID: AgentProviderID] = [:]
     @Published var modelSelectionBySession: [AgentConversationID: String] = [:]
     @Published var effortSelectionBySession: [AgentConversationID: String] = [:]
+    @Published var speedSelectionBySession: [AgentConversationID: AgentSpeedMode] = [:]
 
     private let sessionStore: JSONFileAgentSessionStore
     private let runtime: DefaultAgentRuntime
@@ -31,6 +32,8 @@ final class DemoModel: ObservableObject {
             ClaudeProviderSetup(configStore: ClaudeConfigStore()),
             CodexProviderSetup()
         ]
+        let codexFeatureSupportChecker = DefaultCodexFeatureSupportChecker()
+        let codexConfiguration = CodexProviderAdapter.Configuration(featureSupportChecker: codexFeatureSupportChecker)
         let projectTrustService = DefaultAgentProjectTrustService(setups: providerSetups)
         self.sessionStore = store
         self.hookDecisionProvider = hookDecisionProvider
@@ -38,13 +41,19 @@ final class DemoModel: ObservableObject {
         self.providerDiscovery = DefaultAgentProviderDiscoveryService(
             projectTrustService: projectTrustService,
             providerSetups: providerSetups,
-            modelOptionSource: DefaultAgentModelOptionSource(codexSource: CodexAppServerModelOptionSource())
+            modelOptionSource: DefaultAgentModelOptionSource(
+                codexSource: CodexAppServerModelOptionSource(configuration: codexConfiguration)
+            ),
+            capabilitySource: DefaultAgentProviderCapabilitySource(
+                codexSource: CodexProviderCapabilitySource(configuration: codexConfiguration)
+            )
         )
         let adapterSet = AgentProviderAdapterSet.default(
             claude: ClaudeProviderAdapter.Configuration(
                 hookDecisionProvider: hookDecisionProvider,
                 hookDecisionTimeout: 595
-            )
+            ),
+            codex: codexConfiguration
         )
         self.runtime = DefaultAgentRuntime(
             adapterSet: adapterSet,
@@ -114,6 +123,7 @@ final class DemoModel: ObservableObject {
         providerSelectionBySession[id] = providerId
         modelSelectionBySession[id] = modelOptionID
         effortSelectionBySession[id] = defaultEffortOptionValue(providerId: providerId, modelOptionID: modelOptionID)
+        speedSelectionBySession[id] = .standard
         selectedSessionID = id
     }
 
@@ -133,6 +143,7 @@ final class DemoModel: ObservableObject {
                 let modelOptionID = defaultModelOptionID(providerId: fallbackProviderId)
                 modelSelectionBySession[session.id] = modelOptionID
                 effortSelectionBySession[session.id] = defaultEffortOptionValue(providerId: fallbackProviderId, modelOptionID: modelOptionID)
+                speedSelectionBySession[session.id] = .standard
             } else {
                 normalizeModelAndEffortSelection(for: session.id, providerId: selectedProviderId ?? fallbackProviderId)
             }
@@ -179,6 +190,7 @@ final class DemoModel: ObservableObject {
         providerSelectionBySession[sessionID] = providerId
         modelSelectionBySession[sessionID] = modelOptionID
         effortSelectionBySession[sessionID] = defaultEffortOptionValue(providerId: providerId, modelOptionID: modelOptionID)
+        speedSelectionBySession[sessionID] = .standard
     }
 
     func setModelOptionID(_ modelOptionID: String, for sessionID: AgentConversationID) {
@@ -329,7 +341,8 @@ final class DemoModel: ObservableObject {
                 providerId: providerId,
                 workingDirectory: workingDirectory,
                 model: selectedModelOption(for: sessionID, providerId: providerId)?.model,
-                effort: selectedEffortOptionValueForSpawn(for: sessionID)
+                effort: selectedEffortOptionValueForSpawn(for: sessionID),
+                speedMode: selectedSpeedMode(for: sessionID)
             )
         )
         spawnedSessionIDs.insert(sessionID)
@@ -436,6 +449,7 @@ extension DemoModel {
         providerSelectionBySession[sessionID] = nil
         modelSelectionBySession[sessionID] = nil
         effortSelectionBySession[sessionID] = nil
+        speedSelectionBySession[sessionID] = nil
         rowsBySession[sessionID] = nil
         turnStates[sessionID] = nil
         sessions.remove(at: index)

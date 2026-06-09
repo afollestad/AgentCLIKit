@@ -164,6 +164,50 @@ public struct StaticAgentProviderEnablementSource: AgentProviderEnablementSource
     }
 }
 
+/// Source of provider capabilities that may depend on detected executable state.
+public protocol AgentProviderCapabilitySource: Sendable {
+    /// Returns the effective capabilities for a detected provider.
+    func capabilities(for definition: AgentProviderDefinition, availability: AgentProviderAvailability?) async -> AgentProviderCapabilities
+}
+
+/// Static provider capability source that returns each definition's built-in capabilities.
+public struct StaticAgentProviderCapabilitySource: AgentProviderCapabilitySource {
+    /// Creates a static capability source.
+    public init() {}
+
+    /// Returns the definition's static capabilities.
+    public func capabilities(
+        for definition: AgentProviderDefinition,
+        availability: AgentProviderAvailability?
+    ) async -> AgentProviderCapabilities {
+        definition.capabilities
+    }
+}
+
+/// Built-in capability source that routes provider-specific dynamic checks.
+public struct DefaultAgentProviderCapabilitySource: AgentProviderCapabilitySource {
+    private let codexSource: any AgentProviderCapabilitySource
+
+    /// Creates the default capability source.
+    /// - Parameter codexSource: Dynamic capability source for Codex.
+    public init(codexSource: any AgentProviderCapabilitySource = CodexProviderCapabilitySource()) {
+        self.codexSource = codexSource
+    }
+
+    /// Returns effective capabilities from the matching provider-specific source.
+    public func capabilities(
+        for definition: AgentProviderDefinition,
+        availability: AgentProviderAvailability?
+    ) async -> AgentProviderCapabilities {
+        switch definition.id {
+        case .codex:
+            await codexSource.capabilities(for: definition, availability: availability)
+        case .claude:
+            definition.capabilities
+        }
+    }
+}
+
 /// Source of selectable provider model options.
 public protocol AgentModelOptionSource: Sendable {
     /// Returns model options for the provider.
@@ -266,6 +310,7 @@ public struct DefaultAgentProviderDiscoveryService: AgentProviderDiscoveryServic
     private let setupMap: [AgentProviderID: any AgentProviderSetup]
     private let enablementSource: any AgentProviderEnablementSource
     private let modelOptionSource: any AgentModelOptionSource
+    private let capabilitySource: any AgentProviderCapabilitySource
 
     /// Creates a provider discovery service.
     public init(
@@ -274,7 +319,8 @@ public struct DefaultAgentProviderDiscoveryService: AgentProviderDiscoveryServic
         projectTrustService: (any AgentProjectTrustService)? = nil,
         providerSetups: [any AgentProviderSetup] = [],
         enablementSource: any AgentProviderEnablementSource = StaticAgentProviderEnablementSource(),
-        modelOptionSource: any AgentModelOptionSource = DefaultAgentModelOptionSource()
+        modelOptionSource: any AgentModelOptionSource = DefaultAgentModelOptionSource(),
+        capabilitySource: any AgentProviderCapabilitySource = DefaultAgentProviderCapabilitySource()
     ) {
         self.providerRegistry = providerRegistry
         self.executableDetector = executableDetector
@@ -282,6 +328,7 @@ public struct DefaultAgentProviderDiscoveryService: AgentProviderDiscoveryServic
         self.setupMap = Dictionary(providerSetups.map { ($0.providerId, $0) }, uniquingKeysWith: { _, new in new })
         self.enablementSource = enablementSource
         self.modelOptionSource = modelOptionSource
+        self.capabilitySource = capabilitySource
     }
 
     /// Returns statuses for all registered providers.
@@ -334,9 +381,10 @@ public struct DefaultAgentProviderDiscoveryService: AgentProviderDiscoveryServic
         let setup = await setupReadiness(providerId: providerId)
         let diagnostics = await diagnostics(definition: definition, availability: availability, setup: setup)
         let modelOptions = await modelOptions(for: providerId)
+        let capabilities = await capabilitySource.capabilities(for: definition, availability: availability)
         return AgentProviderStatus(
             providerId: providerId,
-            definition: definition,
+            definition: definition.withCapabilities(capabilities),
             installation: installationState(availability),
             availability: availability,
             isEnabled: await enablementSource.isProviderEnabled(providerId),

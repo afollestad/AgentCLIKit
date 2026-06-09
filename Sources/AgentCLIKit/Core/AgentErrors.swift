@@ -16,6 +16,8 @@ public enum AgentErrorCode: String, Codable, Hashable, Sendable {
     case sessionStoreFailed
     /// The host sent input that is not valid for the current session state.
     case invalidInput
+    /// The host requested a provider capability that is not currently supported.
+    case unsupportedCapability
 }
 
 /// Errors thrown by generic AgentCLIKit services.
@@ -34,6 +36,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
     case sessionStoreFailed(String)
     /// The host sent input that is not valid for the current session state.
     case invalidInput(String)
+    /// The host requested a provider capability that is not currently supported.
+    case unsupportedCapability(providerId: AgentProviderID, capability: String)
 
     /// Stable machine-readable code for host UI mapping and telemetry.
     public var code: AgentErrorCode {
@@ -52,6 +56,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             .sessionStoreFailed
         case .invalidInput:
             .invalidInput
+        case .unsupportedCapability:
+            .unsupportedCapability
         }
     }
 
@@ -73,6 +79,11 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             ["argument_string": .string(argumentString)]
         case let .sessionStoreFailed(message), let .invalidInput(message):
             ["message": .string(message)]
+        case let .unsupportedCapability(providerId, capability):
+            [
+                "provider_id": .string(providerId.rawValue),
+                "capability": .string(capability)
+            ]
         }
     }
 
@@ -93,6 +104,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             "Session store failed: \(message)"
         case let .invalidInput(message):
             "Invalid agent input: \(message)"
+        case let .unsupportedCapability(providerId, capability):
+            "Provider '\(providerId.rawValue)' does not support \(capability)."
         }
     }
 }

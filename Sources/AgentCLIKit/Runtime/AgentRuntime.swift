@@ -22,6 +22,11 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     /// value means the host is not overriding the provider's collaboration mode.
     /// Active turns cannot be mutated in place; providers apply changes to the next turn.
     public let collaborationMode: AgentCollaborationMode?
+    /// Optional provider speed mode override.
+    ///
+    /// A `nil` value leaves provider behavior unchanged. Hosts should inspect
+    /// `AgentProviderCapabilities.supportsSpeedMode` before sending `.fast`.
+    public let speedMode: AgentSpeedMode?
     /// Whether a resumed provider session should fork instead of continuing in-place.
     public let forkSession: Bool
     /// Optional initial prompt sent by the provider launch command.
@@ -37,6 +42,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         effort: String? = nil,
         permissionMode: String? = nil,
         collaborationMode: AgentCollaborationMode? = nil,
+        speedMode: AgentSpeedMode? = nil,
         forkSession: Bool = false,
         initialPrompt: String? = nil
     ) {
@@ -48,6 +54,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.effort = effort
         self.permissionMode = permissionMode
         self.collaborationMode = collaborationMode
+        self.speedMode = speedMode
         self.forkSession = forkSession
         self.initialPrompt = initialPrompt
     }
@@ -63,6 +70,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.effort = try container.decodeIfPresent(String.self, forKey: .effort)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
+        self.speedMode = try container.decodeIfPresent(AgentSpeedMode.self, forKey: .speedMode)
         self.forkSession = try container.decodeIfPresent(Bool.self, forKey: .forkSession) ?? false
         self.initialPrompt = try container.decodeIfPresent(String.self, forKey: .initialPrompt)
     }
@@ -74,6 +82,14 @@ public enum AgentCollaborationMode: String, Codable, Equatable, Sendable {
     case `default`
     /// Planning mode, where supported by the provider.
     case plan
+}
+
+/// Provider-neutral speed mode for an agent session.
+public enum AgentSpeedMode: String, Codable, Equatable, Sendable {
+    /// Normal provider behavior.
+    case standard
+    /// Faster provider behavior, where supported by the provider.
+    case fast
 }
 
 /// Runtime status for a host conversation.

@@ -18,7 +18,7 @@ actor CodexAppServerClient {
         var continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation?
     }
 
-    private let configuration: CodexProviderAdapter.Configuration
+    let configuration: CodexProviderAdapter.Configuration
     var transport: (any CodexAppServerTransport)?
     private var incomingTask: Task<Void, Never>?
     private var incomingTaskID: UUID?
@@ -32,40 +32,6 @@ actor CodexAppServerClient {
 
     init(configuration: CodexProviderAdapter.Configuration) {
         self.configuration = configuration
-    }
-
-    func bootstrapThread(spawnConfig: AgentSpawnConfig, resumedSession: AgentSessionRecord?) async throws -> CodexThreadBootstrap {
-        let transport = try await initializedTransport()
-        let method = resumedSession == nil ? "thread/start" : "thread/resume"
-        let response = try await transport.sendRequest(
-            method: method,
-            params: threadParams(spawnConfig: spawnConfig, resumedSession: resumedSession)
-        )
-        guard let threadId = response.threadResponseId else {
-            throw CodexAppServerError.missingThreadID(method: method)
-        }
-        return CodexThreadBootstrap(
-            threadId: AgentSessionID(rawValue: threadId),
-            name: response.threadResponseName,
-            preview: response.threadResponsePreview,
-            continuity: resumedSession == nil ? .fresh : .resumed
-        )
-    }
-
-    func archiveThread(_ threadId: AgentSessionID) async throws {
-        let transport = try await initializedTransport()
-        _ = try await transport.sendRequest(
-            method: "thread/archive",
-            params: threadActionParams(threadId)
-        )
-    }
-
-    func unarchiveThread(_ threadId: AgentSessionID) async throws {
-        let transport = try await initializedTransport()
-        _ = try await transport.sendRequest(
-            method: "thread/unarchive",
-            params: threadActionParams(threadId)
-        )
     }
 
     func shutdown() async {
@@ -256,9 +222,15 @@ actor CodexAppServerClient {
             throw AgentCLIError.invalidInput("Codex App Server thread is unavailable.")
         }
         let transport = try await initializedTransport()
+        let supportsFastMode = try await speedModeSupportForSettings(spawnConfig: binding.spawnConfig)
         let response = try await transport.sendRequest(
             method: "turn/start",
-            params: try turnStartParams(message: message, binding: binding, includeSettings: true)
+            params: try turnStartParams(
+                message: message,
+                binding: binding,
+                includeSettings: true,
+                supportsFastMode: supportsFastMode
+            )
         )
         guard let turnId = response.turnResponseId else {
             return
@@ -411,31 +383,6 @@ actor CodexAppServerClient {
                 "requestAttestation": .bool(false)
             ])
         ])
-    }
-
-    private func threadParams(spawnConfig: AgentSpawnConfig, resumedSession: AgentSessionRecord?) -> JSONValue {
-        var params: [String: JSONValue] = [
-            "cwd": .string(spawnConfig.workingDirectory.path)
-        ]
-        if let resumedSession {
-            params["threadId"] = .string(resumedSession.providerSessionId.rawValue)
-        } else {
-            params["ephemeral"] = .bool(false)
-        }
-        if let model = spawnConfig.model {
-            params["model"] = .string(model)
-        }
-        if let permissionMode = spawnConfig.permissionMode {
-            params["approvalPolicy"] = .string(permissionMode)
-        }
-        if let effort = spawnConfig.effort {
-            params["config"] = .object(["model_reasoning_effort": .string(effort)])
-        }
-        return .object(params)
-    }
-
-    private func threadActionParams(_ threadId: AgentSessionID) -> JSONValue {
-        .object(["threadId": .string(threadId.rawValue)])
     }
 
 }

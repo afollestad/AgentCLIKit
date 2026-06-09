@@ -64,6 +64,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsGroupedToolOutput: Bool
     /// Whether the provider supports provider-neutral plan/default collaboration mode.
     public let supportsPlanMode: Bool
+    /// Whether the provider supports provider-neutral standard/fast speed mode.
+    public let supportsSpeedMode: Bool
     /// Whether the provider emits task-list or todo snapshots.
     public let supportsTaskLists: Bool
     /// Whether the provider emits sub-agent activity events.
@@ -96,6 +98,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         supportsToolEvents: Bool = false,
         supportsGroupedToolOutput: Bool = false,
         supportsPlanMode: Bool = false,
+        supportsSpeedMode: Bool = false,
         supportsTaskLists: Bool = false,
         supportsSubagents: Bool = false,
         supportsPromptRequests: Bool = false,
@@ -116,6 +119,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsToolEvents = supportsToolEvents
         self.supportsGroupedToolOutput = supportsGroupedToolOutput
         self.supportsPlanMode = supportsPlanMode
+        self.supportsSpeedMode = supportsSpeedMode
         self.supportsTaskLists = supportsTaskLists
         self.supportsSubagents = supportsSubagents
         self.supportsPromptRequests = supportsPromptRequests
@@ -140,6 +144,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsToolEvents = try container.decodeIfPresent(Bool.self, forKey: .supportsToolEvents) ?? false
         self.supportsGroupedToolOutput = try container.decodeIfPresent(Bool.self, forKey: .supportsGroupedToolOutput) ?? false
         self.supportsPlanMode = try container.decodeIfPresent(Bool.self, forKey: .supportsPlanMode) ?? false
+        self.supportsSpeedMode = try container.decodeIfPresent(Bool.self, forKey: .supportsSpeedMode) ?? false
         self.supportsTaskLists = try container.decodeIfPresent(Bool.self, forKey: .supportsTaskLists) ?? false
         self.supportsSubagents = try container.decodeIfPresent(Bool.self, forKey: .supportsSubagents) ?? false
         self.supportsPromptRequests = try container.decodeIfPresent(Bool.self, forKey: .supportsPromptRequests) ?? false
@@ -165,6 +170,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         try container.encode(supportsToolEvents, forKey: .supportsToolEvents)
         try container.encode(supportsGroupedToolOutput, forKey: .supportsGroupedToolOutput)
         try container.encode(supportsPlanMode, forKey: .supportsPlanMode)
+        try container.encode(supportsSpeedMode, forKey: .supportsSpeedMode)
         try container.encode(supportsTaskLists, forKey: .supportsTaskLists)
         try container.encode(supportsSubagents, forKey: .supportsSubagents)
         try container.encode(supportsPromptRequests, forKey: .supportsPromptRequests)
@@ -187,6 +193,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         case supportsToolEvents
         case supportsGroupedToolOutput
         case supportsPlanMode
+        case supportsSpeedMode
         case supportsTaskLists
         case supportsSubagents
         case supportsPromptRequests
@@ -198,6 +205,46 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         case supportsModelListing
         case supportsSessionArchiving
         case supportsSessionUnarchiving
+    }
+}
+
+extension AgentProviderCapabilities {
+    func withSpeedModeSupport(_ supportsSpeedMode: Bool) -> AgentProviderCapabilities {
+        AgentProviderCapabilities(
+            supportsSessionResume: self.supportsSessionResume,
+            supportsHooks: self.supportsHooks,
+            supportsMCP: self.supportsMCP,
+            supportsApprovals: self.supportsApprovals,
+            supportsUsage: self.supportsUsage,
+            supportsMidTurnSteering: self.supportsMidTurnSteering,
+            supportsToolEvents: self.supportsToolEvents,
+            supportsGroupedToolOutput: self.supportsGroupedToolOutput,
+            supportsPlanMode: self.supportsPlanMode,
+            supportsSpeedMode: supportsSpeedMode,
+            supportsTaskLists: self.supportsTaskLists,
+            supportsSubagents: self.supportsSubagents,
+            supportsPromptRequests: self.supportsPromptRequests,
+            supportsContextWindow: self.supportsContextWindow,
+            supportsContextCompaction: self.supportsContextCompaction,
+            supportsNativeThreadFork: self.supportsNativeThreadFork,
+            supportsPermissionPrompts: self.supportsPermissionPrompts,
+            supportsModelOptions: self.supportsModelOptions,
+            supportsSessionArchiving: self.supportsSessionArchiving,
+            supportsSessionUnarchiving: self.supportsSessionUnarchiving
+        )
+    }
+}
+
+extension AgentProviderDefinition {
+    func withCapabilities(_ capabilities: AgentProviderCapabilities) -> AgentProviderDefinition {
+        AgentProviderDefinition(
+            id: id,
+            displayName: displayName,
+            executableNames: executableNames,
+            versionArguments: versionArguments,
+            capabilities: capabilities,
+            supportedPermissionModes: supportedPermissionModes
+        )
     }
 }
 

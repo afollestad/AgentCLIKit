@@ -131,6 +131,7 @@ struct ProviderChoice {
     let providerId: AgentProviderID
     let displayName: String
     let isReady: Bool
+    let supportsSpeedMode: Bool
     let modelLabels: [String]
     let defaultEffort: String?
 }
@@ -157,6 +158,7 @@ func loadProviderChoices(projectURL: URL) async -> [ProviderChoice] {
             providerId: providerId,
             displayName: status.definition?.displayName ?? providerId.rawValue,
             isReady: status.isReadyInProject,
+            supportsSpeedMode: status.definition?.capabilities.supportsSpeedMode ?? false,
             modelLabels: status.modelOptions.map(\.label),
             defaultEffort: status.modelOptions.first(where: \.isDefault)?
                 .defaultEffortOption?
@@ -168,11 +170,13 @@ func loadProviderChoices(projectURL: URL) async -> [ProviderChoice] {
 
 Use the selected `AgentModelOption.model` and effort option value in `AgentSpawnConfig.model` and `AgentSpawnConfig.effort`.
 If a model has no `supportedEffortOptions`, hide effort controls for that model.
+Use `supportsSpeedMode` before showing a Fast speed control.
 
-## Settings And Plan Mode
+## Settings, Plan Mode, And Speed
 
 **Skeleton.** Hosts can update settings for a started conversation by sending a complete replacement `AgentSpawnConfig`.
-Use `collaborationMode` for plan/default mode and keep `permissionMode` for approval policy.
+Use `collaborationMode` for plan/default mode, `speedMode` for standard/fast mode, and keep `permissionMode` for approval
+policy.
 
 ```swift
 func setPlanMode(
@@ -208,11 +212,43 @@ func setPlanMode(
 }
 ```
 
+To enable Codex fast mode, first check the current provider status:
+
+```swift
+func setFastMode(
+    enabled: Bool,
+    currentConfig: AgentSpawnConfig,
+    conversationId: AgentConversationID,
+    runtime: any AgentRuntime,
+    providerStatus: AgentProviderStatus
+) async throws {
+    guard providerStatus.definition?.capabilities.supportsSpeedMode == true else {
+        return
+    }
+    let updatedConfig = AgentSpawnConfig(
+        providerId: currentConfig.providerId,
+        workingDirectory: currentConfig.workingDirectory,
+        arguments: currentConfig.arguments,
+        environment: currentConfig.environment,
+        model: currentConfig.model,
+        effort: currentConfig.effort,
+        permissionMode: currentConfig.permissionMode,
+        collaborationMode: currentConfig.collaborationMode,
+        speedMode: enabled ? .fast : .standard,
+        forkSession: currentConfig.forkSession,
+        initialPrompt: nil
+    )
+    let result = try await runtime.reconfigure(conversationId: conversationId, config: updatedConfig)
+    handleReconfigureResult(result, updatedConfig)
+}
+```
+
 Codex plan/default collaboration settings require a concrete `AgentSpawnConfig.model`; pass the selected
 `AgentModelOption.model` before enabling plan mode. Keep `initialPrompt` nil for settings-only reconfigure requests so a
 replacement launch does not resend a one-shot prompt. Render plan-mode UI from `AgentRuntimeStatus.collaborationMode` or
 `AgentEvent.collaborationMode`, because providers can report collaboration changes after host actions such as
-`ExitPlanMode`.
+`ExitPlanMode`. Render speed UI from host state plus `AgentProviderCapabilities.supportsSpeedMode`; providers do not emit
+a dedicated speed status event.
 
 ## Project Trust
 

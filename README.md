@@ -9,7 +9,7 @@ It gives host apps a reusable layer for:
 - Receiving provider-neutral events for messages, tools, usage, tasks, session metadata, permission/collaboration state,
   context compaction, lifecycle, and interactions.
 - Persisting provider session IDs and provider-reported names so conversations can resume.
-- Checking provider readiness, project trust, model options, and model-scoped effort options.
+- Checking provider readiness, project trust, speed support, model options, and model-scoped effort options.
 
 Host apps still own UI, durable app data, queueing policy, notifications, and product-specific workflow decisions.
 AgentCLIKit owns process launch, provider sessions, stdin/stdout coordination, App Server transport, event replay, status,
@@ -131,7 +131,9 @@ Most apps build around a few reusable flows:
 
 Treat `AgentSpawnConfig` as the host-facing settings source of truth. `permissionMode` is approval policy. Plan/default
 collaboration uses `collaborationMode`: pass `.plan` to enter plan mode, `.default` to leave it, and `nil` when the host is
-not overriding provider collaboration state. Codex plan mode requires a concrete selected `model`.
+not overriding provider collaboration state. Speed uses `speedMode`: pass `.fast` only when
+`AgentProviderCapabilities.supportsSpeedMode` is true, `.standard` to force supported providers back to normal behavior,
+and `nil` to preserve provider defaults. Codex plan mode requires a concrete selected `model`.
 
 Use `runtime.reconfigure(conversationId:config:)` to apply changed settings to a started conversation. The result tells
 the host what happened:
@@ -172,8 +174,9 @@ let discovery = DefaultAgentProviderDiscoveryService(
 let statuses = await discovery.providerStatuses(projectURL: projectURL)
 ```
 
-`AgentProviderStatus` reports installation, enablement, setup readiness, project trust, selectable models, model-scoped
-effort options, and diagnostics. Use `AgentModelOption.supportedEffortOptions` and
+`AgentProviderStatus` reports installation, enablement, setup readiness, project trust, provider capabilities, selectable
+models, model-scoped effort options, and diagnostics. Use `AgentProviderDefinition.capabilities.supportsSpeedMode` before
+showing speed controls, and use `AgentModelOption.supportedEffortOptions` and
 `AgentModelOption.defaultEffortOption` before showing effort controls.
 
 Use `DefaultAgentProjectTrustService` when the user chooses to trust a project:
@@ -197,6 +200,7 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Interactions | Claude hook requests and stream events | App Server requests and notifications |
 | Models | Built-in `ClaudeModelOptionSource` | Static fallback or opt-in live `model/list` |
 | Plan mode | `collaborationMode: .plan` maps to Claude's internal `--permission-mode plan` | Idle threads use `thread/settings/update`; plan mode requires a concrete model |
+| Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `speedMode: .fast` when Codex reports `fast_mode` support |
 | Archive | Validated no-op | App Server `thread/archive` and `thread/unarchive` |
 
 Both built-in providers expose provider-neutral events, sessions, provider session metadata, usage, tool events, task
@@ -213,7 +217,7 @@ Run the macOS demo with:
 ./scripts/run-demo.sh
 ```
 
-The demo builds and launches `AgentCLIKitDemo`. It shows provider readiness, provider/model/effort selection, persisted
+The demo builds and launches `AgentCLIKitDemo`. It shows provider readiness, provider/model/effort/speed selection, persisted
 session records, live output rendering, status snapshots, cancellation, Claude prompt handling, and Codex live model
 loading through App Server.
 

@@ -12,6 +12,7 @@
 - **Keep `AgentSpawnConfig` authoritative:** Runtime reconfigure should pass the desired config to the provider hook first, then update `ConversationState.spawnConfig` only after in-place success or process replacement.
 - **Respect active turns:** Providers that cannot mutate the current turn should return `.nextTurnRequired`; host apps are expected to stage the new config for the next turn.
 - **Track collaboration separately:** Keep `collaborationMode` in runtime state/status and events separate from `permissionMode`, which is approval policy.
+- **Keep speed provider-reported:** Hosts choose `AgentSpawnConfig.speedMode`, but provider support comes from `AgentProviderCapabilities.supportsSpeedMode`; do not add runtime speed status unless a provider starts reporting it natively.
 
 ## Validation
 

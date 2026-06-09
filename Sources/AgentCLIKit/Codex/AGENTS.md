@@ -7,7 +7,8 @@
 - Keep live Codex `model/list` usage behind explicit model option sources; default provider discovery must not launch App Server unless a host injects a live Codex source.
 - `CodexProviderAdapter` owns one shared App Server transport per adapter instance; keep startup lazy and stop it from provider resource shutdown.
 - Surface Codex `Thread.name` and `Thread.preview` from bootstrap/resume and thread metadata notifications as provider-neutral `AgentEvent.sessionMetadata`.
-- Keep `turn/start` and `thread/settings/update` sticky settings in one shared builder for `cwd`, `model`, `approvalPolicy`, `effort`, and `collaborationMode`.
+- Keep `turn/start` and `thread/settings/update` sticky settings in one shared builder for `cwd`, `model`, `approvalPolicy`, `effort`, `collaborationMode`, and `speedMode`.
+- Probe fast-mode support with `codex features list`; do not start App Server from discovery and do not use App Server process-wide feature enablement for per-thread speed.
 - Apply collaboration-mode bootstrap settings before an initial prompt turn; `thread/start` cannot carry every sticky setting.
 - After successful in-place `thread/settings/update`, update the binding `spawnConfig` so later turns use the same settings.
 - Return `.nextTurnRequired` instead of sending `thread/settings/update` while a turn is active.

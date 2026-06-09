@@ -55,6 +55,81 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(threadStartParams.objectValue?["config"], .object(["model_reasoning_effort": .string("high")]))
     }
 
+    func testFastModeBootstrapAddsFeatureConfigWhenSupported() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: true)
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                effort: "high",
+                speedMode: .fast
+            ),
+            resumedSession: nil
+        )
+
+        let requestParams = await transport.requestParams
+        let threadStartParams = try XCTUnwrap(requestParams["thread/start"])
+        XCTAssertEqual(threadStartParams.objectValue?["config"], .object([
+            "model_reasoning_effort": .string("high"),
+            "features": .object(["fast_mode": .bool(true)])
+        ]))
+    }
+
+    func testStandardSpeedBootstrapForcesFastOffOnlyWhenSupported() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: true)
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                speedMode: .standard
+            ),
+            resumedSession: nil
+        )
+
+        let requestParams = await transport.requestParams
+        let threadStartParams = try XCTUnwrap(requestParams["thread/start"])
+        XCTAssertEqual(threadStartParams.objectValue?["config"], .object([
+            "features": .object(["fast_mode": .bool(false)])
+        ]))
+    }
+
+    func testUnsupportedFastModeFailsBeforeStartingTransport() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false)
+        ))
+
+        do {
+            _ = try await adapter.makeLaunchConfiguration(
+                spawnConfig: AgentSpawnConfig(
+                    providerId: .codex,
+                    workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                    speedMode: .fast
+                ),
+                resumedSession: nil
+            )
+            XCTFail("Expected unsupported fast mode to fail.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .unsupportedCapability)
+            XCTAssertEqual(error.metadata["provider_id"], .string("codex"))
+            XCTAssertEqual(error.metadata["capability"], .string("fast mode"))
+        }
+
+        let startCount = await transport.startCount
+        XCTAssertEqual(startCount, 0)
+    }
+
     func testResumesSavedThreadId() async throws {
         let transport = FakeCodexAppServerTransport(
             threadIds: ["thread-existing"],
@@ -297,12 +372,14 @@ final class CodexProviderAdapterTests: XCTestCase {
         transport: FakeCodexAppServerTransport,
         executablePath: String = "/usr/bin/env",
         executableResolver: any AgentProviderExecutableResolving = RecordingExecutableResolver(path: nil),
-        recorder: CodexTransportConfigurationRecorder? = nil
+        recorder: CodexTransportConfigurationRecorder? = nil,
+        featureSupportChecker: any CodexFeatureSupportChecking = FixedCodexFeatureSupportChecker(supportsFastMode: false)
     ) -> CodexProviderAdapter.Configuration {
         CodexProviderAdapter.Configuration(
             executablePath: executablePath,
             requestTimeout: 0.1,
             probeTimeout: 0.1,
+            featureSupportChecker: featureSupportChecker,
             makeTransport: { configuration in
                 recorder?.record(configuration)
                 return transport

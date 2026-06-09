@@ -172,6 +172,10 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         spawnConfig: AgentSpawnConfig,
         resumedSession: AgentSessionRecord?
     ) async throws -> AgentLaunchConfiguration {
+        if spawnConfig.speedMode == .fast {
+            // Claude's fast-like `--bare` mode disables hooks, so reject Fast instead of mapping it to launch flags.
+            throw AgentCLIError.unsupportedCapability(providerId: Self.providerId, capability: "fast mode")
+        }
         let launchExecutable = await resolvedLaunchExecutable()
         var arguments = launchExecutable.arguments
         arguments.append(contentsOf: [

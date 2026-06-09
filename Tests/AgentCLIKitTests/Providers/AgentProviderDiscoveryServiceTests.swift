@@ -82,6 +82,21 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(options, AgentDefaultModelOptions.providerDefault(for: .codex))
     }
 
+    func testProviderStatusesOverlayDynamicCapabilities() async {
+        let service = DefaultAgentProviderDiscoveryService(
+            providerRegistry: AgentProviderRegistry(definitions: definitions),
+            executableDetector: DiscoveryDetector(availabilities: [
+                .codex: AgentProviderAvailability(providerId: .codex, executablePath: "/usr/bin/codex")
+            ]),
+            capabilitySource: DiscoveryCapabilities(speedProviderIds: [.codex])
+        )
+
+        let statuses = await service.providerStatuses(projectURL: nil)
+
+        XCTAssertTrue(statuses[.codex]?.definition?.capabilities.supportsSpeedMode == true)
+        XCTAssertFalse(statuses[.claude]?.definition?.capabilities.supportsSpeedMode == true)
+    }
+
     func testDefaultModelOptionSourceRoutesClaudeAndKeepsCodexStaticWithoutInjectedSource() async {
         let source = DefaultAgentModelOptionSource()
 
@@ -152,6 +167,17 @@ private struct DiscoveryModelOptions: AgentModelOptionSource {
 
     func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] {
         options[providerId] ?? []
+    }
+}
+
+private struct DiscoveryCapabilities: AgentProviderCapabilitySource {
+    let speedProviderIds: Set<AgentProviderID>
+
+    func capabilities(
+        for definition: AgentProviderDefinition,
+        availability: AgentProviderAvailability?
+    ) async -> AgentProviderCapabilities {
+        definition.capabilities.withSpeedModeSupport(speedProviderIds.contains(definition.id))
     }
 }
 

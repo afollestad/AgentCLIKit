@@ -92,6 +92,7 @@ struct DemoShellView: View {
                 selectedModelOptionID: model.selectedModelOptionID(for: session.id),
                 effortOptions: model.effortOptions(for: session.id),
                 selectedEffortOptionValue: model.selectedEffortOptionValue(for: session.id),
+                selectedSpeedMode: model.selectedSpeedMode(for: session.id),
                 providerStatuses: model.providerStatuses,
                 providerOrdering: model.providerOrdering,
                 canEditProviderSelection: model.canEditProviderSelection(for: session.id),
@@ -102,6 +103,7 @@ struct DemoShellView: View {
                 onProviderChange: { model.setProvider($0, for: session.id) },
                 onModelChange: { model.setModelOptionID($0, for: session.id) },
                 onEffortChange: { model.setEffortOptionValue($0, for: session.id) },
+                onSpeedChange: { model.setSpeedMode($0, for: session.id) },
                 onTrustProject: { model.trustProject(for: session.id) },
                 onRefreshProviders: {
                     Task {
@@ -124,6 +126,7 @@ private struct ChatDetailView: View {
     let selectedModelOptionID: String
     let effortOptions: [AgentProviderOption]
     let selectedEffortOptionValue: String
+    let selectedSpeedMode: AgentSpeedMode
     let providerStatuses: [AgentProviderID: AgentProviderStatus]
     let providerOrdering: [AgentProviderID]
     let canEditProviderSelection: Bool
@@ -134,6 +137,7 @@ private struct ChatDetailView: View {
     var onProviderChange: (AgentProviderID) -> Void
     var onModelChange: (String) -> Void
     var onEffortChange: (String) -> Void
+    var onSpeedChange: (AgentSpeedMode) -> Void
     var onTrustProject: () -> Void
     var onRefreshProviders: () -> Void
 
@@ -174,12 +178,14 @@ private struct ChatDetailView: View {
                 selectedModelOptionID: selectedModelOptionID,
                 effortOptions: effortOptions,
                 selectedEffortOptionValue: selectedEffortOptionValue,
+                selectedSpeedMode: selectedSpeedMode,
                 providerStatuses: providerStatuses,
                 providerOrdering: providerOrdering,
                 canEditProviderSelection: canEditProviderSelection,
                 onProviderChange: onProviderChange,
                 onModelChange: onModelChange,
                 onEffortChange: onEffortChange,
+                onSpeedChange: onSpeedChange,
                 onTrustProject: onTrustProject,
                 onRefreshProviders: onRefreshProviders
             )

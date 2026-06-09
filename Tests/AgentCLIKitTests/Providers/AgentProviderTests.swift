@@ -139,6 +139,7 @@ final class AgentProviderTests: XCTestCase {
                 supportsToolEvents: true,
                 supportsGroupedToolOutput: true,
                 supportsPlanMode: true,
+                supportsSpeedMode: true,
                 supportsTaskLists: true,
                 supportsSubagents: true,
                 supportsPromptRequests: true,
@@ -169,6 +170,7 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertTrue(decoded.capabilities.supportsPromptRequests)
         XCTAssertTrue(decoded.capabilities.supportsContextCompaction)
         XCTAssertTrue(decoded.capabilities.supportsModelOptions)
+        XCTAssertTrue(decoded.capabilities.supportsSpeedMode)
         XCTAssertTrue(decoded.capabilities.supportsSessionArchiving)
         XCTAssertTrue(decoded.capabilities.supportsSessionUnarchiving)
         assertLegacyProviderDefinitionDefaults(legacy)
@@ -391,6 +393,7 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertFalse(legacy.capabilities.supportsToolEvents)
         XCTAssertFalse(legacy.capabilities.supportsGroupedToolOutput)
         XCTAssertFalse(legacy.capabilities.supportsPlanMode)
+        XCTAssertFalse(legacy.capabilities.supportsSpeedMode)
         XCTAssertFalse(legacy.capabilities.supportsTaskLists)
         XCTAssertFalse(legacy.capabilities.supportsSubagents)
         XCTAssertFalse(legacy.capabilities.supportsPromptRequests)

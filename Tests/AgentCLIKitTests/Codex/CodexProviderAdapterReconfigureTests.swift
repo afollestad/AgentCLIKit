@@ -78,6 +78,77 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
         XCTAssertEqual(turnStartParams["collaborationMode"], settingsParams["collaborationMode"])
     }
 
+    func testReconfigureAndNextTurnCarrySpeedModeSettingsWhenSupported() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: true)
+        ))
+        let spawnConfig = AgentSpawnConfig(
+            providerId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project")
+        )
+        let updatedConfig = AgentSpawnConfig(
+            providerId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            speedMode: .standard
+        )
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        _ = stream
+        try await waitForBinding()
+        let result = try await adapter.reconfigure(context: reconfigureContext(currentConfig: spawnConfig, newConfig: updatedConfig))
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Start work")),
+            context: inputContext(threadId: "thread-123", spawnConfig: updatedConfig, isTurnActive: false)
+        )
+
+        let requestLog = await transport.requestLog
+        let settingsParams = try XCTUnwrap(requestLog.first { $0.method == "thread/settings/update" }?.params?.objectValue)
+        let turnStartParams = try XCTUnwrap(requestLog.first { $0.method == "turn/start" }?.params?.objectValue)
+
+        XCTAssertEqual(result, .appliedInPlace)
+        XCTAssertEqual(settingsParams["config"], .object([
+            "features": .object(["fast_mode": .bool(false)])
+        ]))
+        XCTAssertEqual(turnStartParams["config"], settingsParams["config"])
+    }
+
+    func testUnsupportedFastModeReconfigureFailsWithoutSettingsUpdate() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false)
+        ))
+        let spawnConfig = AgentSpawnConfig(
+            providerId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project")
+        )
+        let updatedConfig = AgentSpawnConfig(
+            providerId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            speedMode: .fast
+        )
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        _ = stream
+        try await waitForBinding()
+
+        do {
+            _ = try await adapter.reconfigure(context: reconfigureContext(currentConfig: spawnConfig, newConfig: updatedConfig))
+            XCTFail("Expected unsupported fast mode to fail.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .unsupportedCapability)
+            XCTAssertEqual(error.metadata["provider_id"], .string("codex"))
+            XCTAssertEqual(error.metadata["capability"], .string("fast mode"))
+        }
+
+        let requestLog = await transport.requestLog
+        XCTAssertNil(requestLog.first { $0.method == "thread/settings/update" })
+    }
+
     func testReconfigureActiveTurnReturnsNextTurnRequiredWithoutSettingsUpdate() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
@@ -167,10 +238,14 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
         }
     }
 
-    private func configuration(transport: FakeCodexAppServerTransport) -> CodexProviderAdapter.Configuration {
+    private func configuration(
+        transport: FakeCodexAppServerTransport,
+        featureSupportChecker: any CodexFeatureSupportChecking = FixedCodexFeatureSupportChecker(supportsFastMode: false)
+    ) -> CodexProviderAdapter.Configuration {
         CodexProviderAdapter.Configuration(
             requestTimeout: 0.1,
             probeTimeout: 0.1,
+            featureSupportChecker: featureSupportChecker,
             makeTransport: { _ in transport },
             executableResolver: RecordingExecutableResolver(path: nil)
         )

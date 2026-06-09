@@ -6,12 +6,14 @@ struct ProviderComposerControls: View {
     let selectedModelOptionID: String
     let effortOptions: [AgentProviderOption]
     let selectedEffortOptionValue: String
+    let selectedSpeedMode: AgentSpeedMode
     let providerStatuses: [AgentProviderID: AgentProviderStatus]
     let providerOrdering: [AgentProviderID]
     let canEditProviderSelection: Bool
     var onProviderChange: (AgentProviderID) -> Void
     var onModelChange: (String) -> Void
     var onEffortChange: (String) -> Void
+    var onSpeedChange: (AgentSpeedMode) -> Void
     var onTrustProject: () -> Void
     var onRefreshProviders: () -> Void
 
@@ -48,6 +50,17 @@ struct ProviderComposerControls: View {
                 .frame(width: 110)
                 .disabled(!canEditProviderSelection || effortOptions.count <= 1)
                 .help(selectedEffortDescription)
+            }
+
+            if supportsSpeedMode {
+                Picker("Speed", selection: speedBinding) {
+                    Text("Standard").tag(AgentSpeedMode.standard)
+                    Text("Fast").tag(AgentSpeedMode.fast)
+                }
+                .pickerStyle(.menu)
+                .frame(width: 105)
+                .disabled(!canEditProviderSelection)
+                .help("Select Codex speed mode")
             }
 
             Text(statusText)
@@ -95,6 +108,13 @@ struct ProviderComposerControls: View {
         )
     }
 
+    private var speedBinding: Binding<AgentSpeedMode> {
+        Binding(
+            get: { selectedSpeedMode },
+            set: { newValue in onSpeedChange(newValue) }
+        )
+    }
+
     private var orderedProviderIds: [AgentProviderID] {
         let extras = providerStatuses.keys.filter { !providerOrdering.contains($0) }.sorted { $0.rawValue < $1.rawValue }
         return providerOrdering + extras
@@ -115,6 +135,10 @@ struct ProviderComposerControls: View {
 
     private var isReady: Bool {
         providerStatuses[providerId]?.isReadyInProject == true
+    }
+
+    private var supportsSpeedMode: Bool {
+        providerStatuses[providerId]?.definition?.capabilities.supportsSpeedMode == true
     }
 
     private var shouldShowTrustButton: Bool {

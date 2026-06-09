@@ -14,6 +14,7 @@ Host apps should generally depend on:
 - `AgentRuntime`
 - `AgentSpawnConfig`
 - `AgentCollaborationMode`
+- `AgentSpeedMode`
 - `AgentEventEnvelope`
 - `AgentEvent`
 - `AgentInput`
@@ -31,6 +32,10 @@ and `nil` means the host is not overriding collaboration state. `runtime.reconfi
 `.appliedInPlace`, `.restarted`, or `.nextTurnRequired`; active turns are never mutated in place and should receive staged
 settings before the next turn.
 
+Provider-neutral speed lives in `speedMode`: `.fast` requests faster provider behavior, `.standard` requests normal
+behavior, and `nil` means the host is not overriding speed. Inspect
+`AgentProviderCapabilities.supportsSpeedMode` before showing or sending `.fast`.
+
 ## Capability Summary
 
 Inspect `AgentProviderDefinition.capabilities` before showing provider-specific UI.
@@ -46,6 +51,7 @@ Inspect `AgentProviderDefinition.capabilities` before showing provider-specific 
 | Prompt requests | Supported through hooks and stream events | Supported through App Server requests |
 | Approvals | Supported through hooks | Supported through App Server requests |
 | Plan/default collaboration | `AgentSpawnConfig.collaborationMode`; Claude maps plan to internal `--permission-mode plan` | `AgentSpawnConfig.collaborationMode`; requires a concrete model |
+| Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `AgentSpawnConfig.speedMode` when Codex reports `fast_mode` support |
 | Runtime reconfigure | Process replacement or resume path | Idle threads use `thread/settings/update`; active turns require next-turn staging |
 | Context compaction | Supported through hooks and stream frames | Supported through App Server notifications and items |
 | MCP | Supported | Supported |
@@ -81,6 +87,9 @@ stdout compaction signals so consumers receive stable `AgentEvent.contextCompact
 
 Claude model options come from `ClaudeModelOptionSource`.
 
+Claude speed mode is intentionally unsupported. The Claude CLI exposes `--bare`, but that disables hooks and other host
+integration surfaces, so AgentCLIKit does not map it to `AgentSpeedMode.fast`.
+
 ## Codex
 
 Codex support uses Codex App Server JSON-RPC. `CodexProviderAdapter` starts the App Server lazily for Codex runtime work,
@@ -91,13 +100,20 @@ thread metadata notifications, the adapter emits `AgentEvent.sessionMetadata`; t
 and `AgentSessionRecord.providerSessionPreview`.
 
 Codex uses the same `AgentSpawnConfig.collaborationMode` API. `turn/start` and idle-thread `thread/settings/update`
-share the same sticky settings payload for `cwd`, `model`, `approvalPolicy`, `effort`, and `collaborationMode`. If a
+share the same sticky settings payload for `cwd`, `model`, `approvalPolicy`, `effort`, `collaborationMode`, and
+`speedMode`. If a
 started thread is idle, `runtime.reconfigure` applies those settings in place and updates future turns. If a turn is active,
 it returns `.nextTurnRequired` so the host can stage the config for the next turn. During bootstrap or resume, settings that
 `thread/start` cannot carry, especially collaboration mode, are applied before an initial prompt turn starts.
 
 Codex collaboration-mode payloads require a concrete `AgentSpawnConfig.model`. Hosts that use live Codex model options
 should pass the selected `AgentModelOption.model` before enabling plan mode.
+
+Codex fast mode is gated by `codex features list`. `DefaultAgentProviderDiscoveryService` overlays
+`supportsSpeedMode == true` for Codex only when the configured executable reports a `fast_mode` row. Discovery uses this
+short-lived CLI probe rather than starting App Server. Runtime requests use per-thread config
+`config.features.fast_mode`; AgentCLIKit does not call App Server `experimentalFeature/enablement/set` and does not launch
+App Server with global `--enable fast_mode`.
 
 Codex runtime cancellation maps to `turn/interrupt` when Codex reports an active turn. Mid-turn user input uses
 `turn/steer`.

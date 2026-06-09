@@ -25,6 +25,8 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         public let shutdownTimeout: TimeInterval
         /// Transport family used by this adapter.
         public let transportKind: CodexAppServerTransportKind
+        /// Checker used for Codex feature support probes.
+        public let featureSupportChecker: any CodexFeatureSupportChecking
         /// Factory used to create the transport lazily.
         public let makeTransport: @Sendable (Configuration) -> any CodexAppServerTransport
 
@@ -38,6 +40,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         ///   - probeTimeout: Maximum time to wait for App Server startup or probe requests.
         ///   - shutdownTimeout: Maximum time to wait for App Server shutdown.
         ///   - transportKind: Transport family used by this adapter.
+        ///   - featureSupportChecker: Checker used for Codex feature support probes.
         ///   - makeTransport: Factory used to create the transport lazily.
         ///   - executableResolver: Resolver used when `executablePath` is `/usr/bin/env`.
         public init(
@@ -49,6 +52,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
             probeTimeout: TimeInterval = 10,
             shutdownTimeout: TimeInterval = 5,
             transportKind: CodexAppServerTransportKind = .stdio,
+            featureSupportChecker: any CodexFeatureSupportChecking = DefaultCodexFeatureSupportChecker(),
             makeTransport: (@Sendable (Configuration) -> any CodexAppServerTransport)? = nil,
             executableResolver: any AgentProviderExecutableResolving = DefaultAgentProviderExecutableResolver()
         ) {
@@ -61,6 +65,7 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
             self.probeTimeout = probeTimeout
             self.shutdownTimeout = shutdownTimeout
             self.transportKind = transportKind
+            self.featureSupportChecker = featureSupportChecker
             self.makeTransport = makeTransport ?? { CodexStdioAppServerTransport(configuration: $0) }
         }
     }
@@ -210,8 +215,34 @@ extension CodexProviderAdapter.Configuration {
             probeTimeout: probeTimeout,
             shutdownTimeout: shutdownTimeout,
             transportKind: transportKind,
+            featureSupportChecker: featureSupportChecker,
             makeTransport: makeTransport,
             executableResolver: executableResolver
         )
+    }
+
+    func resolvingExecutableIfNeeded(
+        for definition: AgentProviderDefinition,
+        availability: AgentProviderAvailability?
+    ) async -> Self {
+        guard executablePath == "/usr/bin/env" else {
+            return self
+        }
+        if let executablePath = availability?.executablePath, !executablePath.isEmpty {
+            return Self(
+                executablePath: executablePath,
+                codexHomeDirectory: codexHomeDirectory,
+                environment: environment,
+                experimentalAPIEnabled: experimentalAPIEnabled,
+                requestTimeout: requestTimeout,
+                probeTimeout: probeTimeout,
+                shutdownTimeout: shutdownTimeout,
+                transportKind: transportKind,
+                featureSupportChecker: featureSupportChecker,
+                makeTransport: makeTransport,
+                executableResolver: executableResolver
+            )
+        }
+        return await resolvingExecutableIfNeeded(for: definition)
     }
 }
