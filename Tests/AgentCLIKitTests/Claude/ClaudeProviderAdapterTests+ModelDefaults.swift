@@ -39,6 +39,14 @@ extension ClaudeProviderAdapterTests {
             ),
             resumedSession: nil
         )
+        let fableLaunch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                model: "fable"
+            ),
+            resumedSession: nil
+        )
         let haikuLaunch = try await adapter.makeLaunchConfiguration(
             spawnConfig: AgentSpawnConfig(
                 providerId: .claude,
@@ -58,6 +66,8 @@ extension ClaudeProviderAdapterTests {
         )
 
         XCTAssertEqual(opusLaunch.arguments.effortArgumentValue, "high")
+        XCTAssertEqual(fableLaunch.arguments.modelArgumentValue, "fable")
+        XCTAssertEqual(fableLaunch.arguments.effortArgumentValue, "high")
         XCTAssertEqual(haikuLaunch.arguments.effortArgumentValue, "medium")
         XCTAssertEqual(explicitMediumLaunch.arguments.effortArgumentValue, "medium")
     }
@@ -92,10 +102,21 @@ extension ClaudeProviderAdapterTests {
             ),
             resumedSession: nil
         )
+        let fableLaunch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                model: "fable",
+                effort: "xhigh"
+            ),
+            resumedSession: nil
+        )
 
         XCTAssertEqual(sonnetLaunch.arguments.effortArgumentValue, "high")
         XCTAssertEqual(haikuLaunch.arguments.effortArgumentValue, "medium")
         XCTAssertEqual(opusLaunch.arguments.effortArgumentValue, "xhigh")
+        XCTAssertEqual(fableLaunch.arguments.modelArgumentValue, "fable")
+        XCTAssertEqual(fableLaunch.arguments.effortArgumentValue, "xhigh")
     }
 }
 

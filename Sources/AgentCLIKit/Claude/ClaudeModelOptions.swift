@@ -11,6 +11,7 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
             return AgentDefaultModelOptions.providerDefault(for: providerId)
         }
         let sonnetEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: ClaudeModelAliases.defaultModel))
+        let fableEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: "fable"))
         let opusEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: "opus"))
         let haikuEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: "haiku"))
         return [
@@ -22,6 +23,15 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
                 description: "Use Claude's Sonnet model alias.",
                 isDefault: true,
                 supportedEffortOptions: sonnetEfforts,
+                defaultEffortOption: Self.effortOption("high")
+            ),
+            AgentModelOption(
+                providerId: providerId,
+                id: "fable",
+                model: "fable",
+                label: "Fable",
+                description: "Use Claude's Fable model alias.",
+                supportedEffortOptions: fableEfforts,
                 defaultEffortOption: Self.effortOption("high")
             ),
             AgentModelOption(
@@ -99,7 +109,7 @@ enum ClaudeModelAliases {
         switch model.lowercased() {
         case "haiku":
             return ["low", "medium", "high"]
-        case "opus":
+        case "fable", "opus":
             return ["low", "medium", "high", "xhigh", "max"]
         case "sonnet":
             return ["low", "medium", "high", "max"]
@@ -112,7 +122,7 @@ enum ClaudeModelAliases {
         switch model.lowercased() {
         case "haiku":
             return "medium"
-        case "opus", "sonnet":
+        case "fable", "opus", "sonnet":
             return "high"
         default:
             return nil

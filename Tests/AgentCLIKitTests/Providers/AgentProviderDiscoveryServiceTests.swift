@@ -103,13 +103,20 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
         let claudeOptions = await source.modelOptions(for: .claude)
         let codexOptions = await source.modelOptions(for: .codex)
 
-        XCTAssertEqual(claudeOptions.map(\.id), ["sonnet", "opus", "haiku"])
-        XCTAssertEqual(claudeOptions.map(\.label), ["Sonnet", "Opus", "Haiku"])
+        XCTAssertEqual(claudeOptions.map(\.id), ["sonnet", "fable", "opus", "haiku"])
+        XCTAssertEqual(claudeOptions.map(\.label), ["Sonnet", "Fable", "Opus", "Haiku"])
         XCTAssertEqual(claudeOptions.first?.isDefault, true)
         XCTAssertEqual(claudeOptions.first(where: { $0.id == "sonnet" })?.supportedEffortOptions.map(\.value), [
             "low",
             "medium",
             "high",
+            "max"
+        ])
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "fable" })?.supportedEffortOptions.map(\.value), [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
             "max"
         ])
         XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.supportedEffortOptions.map(\.value), [
@@ -125,11 +132,12 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
             "high"
         ])
         XCTAssertEqual(claudeOptions.first(where: { $0.id == "sonnet" })?.defaultEffortOption?.value, "high")
+        XCTAssertEqual(claudeOptions.first(where: { $0.id == "fable" })?.defaultEffortOption?.value, "high")
         XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.defaultEffortOption?.value, "high")
         XCTAssertEqual(claudeOptions.first(where: { $0.id == "haiku" })?.defaultEffortOption?.value, "medium")
         XCTAssertEqual(
             claudeOptions
-                .first(where: { $0.id == "opus" })?
+                .first(where: { $0.id == "fable" })?
                 .supportedEffortOptions
                 .first(where: { $0.value == "xhigh" })?
                 .label,
