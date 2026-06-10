@@ -47,6 +47,39 @@ final class AgentSessionPreviewGeneratorTests: XCTestCase {
         XCTAssertNil(AgentSessionPreviewGenerator.preview(fromInitialPrompt: "<p>Fix it</p>"))
     }
 
+    func testCompactsMarkdownImagesAndFlattensMarkdownLinks() {
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(
+                fromInitialPrompt: "Review ![diagram](file:///tmp/diagram.png) and [PLAN.md](file:///Users/me/PLAN.md) today"
+            ),
+            "Review (Image) and PLAN.md today"
+        )
+    }
+
+    func testFlattensLeadingMarkdownLinkInsteadOfTruncatingMidURL() {
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(
+                fromInitialPrompt: "[PLAN.md](file:///Users/me/Development/project/PLAN.md) implement the next phase"
+            ),
+            "PLAN.md implement the next phase"
+        )
+    }
+
+    func testRejectsShortPromptAfterFlatteningMarkdownLink() {
+        XCTAssertNil(
+            AgentSessionPreviewGenerator.preview(
+                fromInitialPrompt: "[PLAN.md](file:///Users/me/Development/project/PLAN.md)"
+            )
+        )
+    }
+
+    func testPreservesMarkdownLinkSyntaxInsideCode() {
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: "Fix `[label](url)` parsing in markdown links"),
+            "Fix `[label](url)` parsing in markdown links"
+        )
+    }
+
     func testPreservesHTMLLikeTextInsideInlineAndFencedCode() {
         XCTAssertEqual(
             AgentSessionPreviewGenerator.preview(fromInitialPrompt: "Fix `<img>` handling in parser now"),

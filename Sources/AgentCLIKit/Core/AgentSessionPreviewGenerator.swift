@@ -5,7 +5,8 @@ public enum AgentSessionPreviewGenerator {
     /// Generates a user-facing preview from an initial prompt.
     ///
     /// The preview is intentionally conservative: very short prompts, confirmations, and slash commands return `nil`.
-    /// HTML image tags are compacted to `(Image)`, other HTML tags are stripped outside Markdown code spans and fences,
+    /// HTML and Markdown image tags are compacted to `(Image)`, Markdown links are flattened to their label text,
+    /// other HTML tags are stripped outside Markdown code spans and fences,
     /// and long prompts are truncated to a readable 50-character prefix.
     public static func preview(fromInitialPrompt prompt: String) -> String? {
         let initialPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -13,7 +14,7 @@ public enum AgentSessionPreviewGenerator {
             return nil
         }
 
-        let compactedPrompt = stripHTMLTagsOutsideCode(in: compactHTMLImagesOutsideCode(in: initialPrompt))
+        let compactedPrompt = compactRichText(in: initialPrompt)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard compactedPrompt.count >= 10 || compactedPrompt.contains(Self.imagePlaceholder) else {
             return nil
@@ -41,6 +42,34 @@ public enum AgentSessionPreviewGenerator {
             return String(prefix[..<lastSpace]) + "..."
         }
         return prefix + "..."
+    }
+
+    /// Compacts image markup to `(Image)` and flattens Markdown links so previews never show raw link syntax,
+    /// which truncation would otherwise cut mid-URL. Markdown images compact before links so the link pattern
+    /// cannot match an image's `[alt](url)` tail and leave a stray `!`.
+    private static func compactRichText(in text: String) -> String {
+        let compactedImages = compactMarkdownImagesOutsideCode(in: compactHTMLImagesOutsideCode(in: text))
+        return stripHTMLTagsOutsideCode(in: flattenMarkdownLinksOutsideCode(in: compactedImages))
+    }
+
+    private static func compactMarkdownImagesOutsideCode(in text: String) -> String {
+        replaceOutsideCode(in: text) { segment in
+            segment.replacingOccurrences(
+                of: #"!\[[^\[\]]*\]\([^()]*\)"#,
+                with: imagePlaceholder,
+                options: .regularExpression
+            )
+        }
+    }
+
+    private static func flattenMarkdownLinksOutsideCode(in text: String) -> String {
+        replaceOutsideCode(in: text) { segment in
+            segment.replacingOccurrences(
+                of: #"\[([^\[\]]*)\]\([^()]*\)"#,
+                with: "$1",
+                options: .regularExpression
+            )
+        }
     }
 
     private static func compactHTMLImagesOutsideCode(in text: String) -> String {
