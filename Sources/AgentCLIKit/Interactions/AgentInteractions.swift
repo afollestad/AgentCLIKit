@@ -92,6 +92,11 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         sessionApprovalRequest?.supportedSessionApprovalScopes ?? []
     }
 
+    /// Session approval scope that is safe to preselect for this request, when available.
+    public var recommendedSessionApprovalScope: AgentToolApprovalSessionScope? {
+        sessionApprovalRequest?.recommendedSessionApprovalScope
+    }
+
     /// Provider-neutral session approval request for this approval when enough metadata is available.
     public var sessionApprovalRequest: AgentSessionApprovalRequest? {
         guard let providerSessionId else {

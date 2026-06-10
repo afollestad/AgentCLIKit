@@ -19,9 +19,9 @@ final class ClaudeHookInvalidationTests: XCTestCase {
             await server.handle(request)
         }
 
-        try await Self.value(of: Task { await decisionProvider.waitUntilStarted() }, timeoutNanoseconds: 500_000_000)
+        try await ClaudeHookTestTask.value(of: Task { await decisionProvider.waitUntilStarted() }, timeoutNanoseconds: 500_000_000)
         await server.invalidateToken(token.value)
-        let response = try await Self.value(of: responseTask, timeoutNanoseconds: 500_000_000)
+        let response = try await ClaudeHookTestTask.value(of: responseTask, timeoutNanoseconds: 500_000_000)
         let record = await interactionStore.record(id: "tool-1")
 
         XCTAssertEqual(response.statusCode, 200)
@@ -45,10 +45,10 @@ final class ClaudeHookInvalidationTests: XCTestCase {
             await server.handle(request)
         }
 
-        try await Self.value(of: Task { await interactionStore.waitUntilSaveStarted() }, timeoutNanoseconds: 500_000_000)
+        try await ClaudeHookTestTask.value(of: Task { await interactionStore.waitUntilSaveStarted() }, timeoutNanoseconds: 500_000_000)
         await server.invalidateToken(token.value)
         await interactionStore.releaseSave()
-        let response = try await Self.value(of: responseTask, timeoutNanoseconds: 500_000_000)
+        let response = try await ClaudeHookTestTask.value(of: responseTask, timeoutNanoseconds: 500_000_000)
         let hasStarted = await decisionProvider.hasStarted()
 
         XCTAssertEqual(response.statusCode, 200)
@@ -69,50 +69,6 @@ final class ClaudeHookInvalidationTests: XCTestCase {
                 "tool_input": .object([:])
             ])
         )
-    }
-
-    private static func value<T: Sendable>(of task: Task<T, Never>, timeoutNanoseconds: UInt64) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
-            let race = TestTaskRace(task: task, continuation: continuation)
-            Task {
-                let value = await task.value
-                race.succeed(value)
-            }
-            Task {
-                try? await Task.sleep(nanoseconds: timeoutNanoseconds)
-                race.fail(TestTimeout())
-            }
-        }
-    }
-}
-
-private struct TestTimeout: Error {}
-
-private final class TestTaskRace<T: Sendable>: @unchecked Sendable {
-    private let lock = NSLock()
-    private let task: Task<T, Never>
-    private var continuation: CheckedContinuation<T, Error>?
-
-    init(task: Task<T, Never>, continuation: CheckedContinuation<T, Error>) {
-        self.task = task
-        self.continuation = continuation
-    }
-
-    func succeed(_ value: T) {
-        takeContinuation()?.resume(returning: value)
-    }
-
-    func fail(_ error: Error) {
-        task.cancel()
-        takeContinuation()?.resume(throwing: error)
-    }
-
-    private func takeContinuation() -> CheckedContinuation<T, Error>? {
-        lock.withLock {
-            let current = continuation
-            continuation = nil
-            return current
-        }
     }
 }
 

@@ -118,6 +118,16 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
         }
     }
 
+    /// Session approval scope that is safe to preselect for this request, when available.
+    public var recommendedSessionApprovalScope: AgentToolApprovalSessionScope? {
+        switch toolName {
+        case "Bash":
+            return recommendedBashCommandGroup == nil ? nil : .group
+        default:
+            return nil
+        }
+    }
+
     /// Builds a durable grant for a supported session approval scope.
     public func sessionApprovalGrant(for scope: AgentToolApprovalSessionScope) -> AgentSessionApprovalGrant? {
         switch (toolName, scope) {
@@ -152,88 +162,10 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
         )
     }
 
-    private var normalizedBashCommand: String? {
-        stringInput("command")?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-    }
-
     private var normalizedApprovalPath: String? {
         (stringInput("file_path") ?? stringInput("path") ?? stringInput("notebook_path"))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
-    }
-
-    private var bashCommandGroup: String? {
-        guard let command = normalizedBashCommand else {
-            return nil
-        }
-        guard !Self.containsShellControlOperator(command) else {
-            return nil
-        }
-
-        let tokens = (try? ShellArgumentParser.parse(command)).flatMap { $0.isEmpty ? nil : $0 } ?? Self.fallbackCommandTokens(command)
-        guard let executable = tokens.first?.nilIfEmpty, tokens.count >= 2 else {
-            return nil
-        }
-
-        let groupToken = tokens[1]
-        guard Self.isCommandGroupToken(groupToken) else {
-            return nil
-        }
-        return [executable, groupToken].joined(separator: " ").nilIfEmpty
-    }
-
-    private func stringInput(_ key: String) -> String? {
-        guard case let .object(object) = toolInput,
-              case let .string(value)? = object[key] else {
-            return nil
-        }
-        return value
-    }
-
-    private static func fallbackCommandTokens(_ command: String) -> [String] {
-        command
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-    }
-
-    private static func isCommandGroupToken(_ token: String) -> Bool {
-        guard !token.isEmpty, !token.hasPrefix("-") else {
-            return false
-        }
-        return token.rangeOfCharacter(from: CharacterSet(charactersIn: "./")) == nil
-    }
-
-    private static func containsShellControlOperator(_ command: String) -> Bool {
-        let controlCharacters = CharacterSet(charactersIn: "&;|<>")
-        var activeQuote: Character?
-        var isEscaping = false
-
-        for character in command {
-            if isEscaping {
-                isEscaping = false
-                continue
-            }
-            if character == "\\" {
-                isEscaping = true
-                continue
-            }
-            if character == "\"" || character == "'" {
-                if activeQuote == character {
-                    activeQuote = nil
-                } else if activeQuote == nil {
-                    activeQuote = character
-                }
-                continue
-            }
-            guard activeQuote == nil else {
-                continue
-            }
-            if let scalar = character.unicodeScalars.first,
-               controlCharacters.contains(scalar) {
-                return true
-            }
-        }
-        return false
     }
 }
 

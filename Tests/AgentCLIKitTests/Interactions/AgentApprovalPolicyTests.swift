@@ -22,6 +22,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
     func testSessionApprovalRequestBuildsConservativeBashGroupGrant() {
         let request = bashRequest(command: "swift test --filter ClaudeAdapterTests")
 
+        XCTAssertNil(request.recommendedSessionApprovalScope)
         XCTAssertEqual(
             request.sessionApprovalGrant(for: .group),
             AgentSessionApprovalGrant(
@@ -36,7 +37,71 @@ final class AgentApprovalPolicyTests: XCTestCase {
 
     func testBashGroupRejectsCompoundCommandAndLeadingOption() {
         XCTAssertEqual(bashRequest(command: "git add file.swift && git push").supportedSessionApprovalScopes, [.exact])
-        XCTAssertEqual(bashRequest(command: "git -C repo status").supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(bashRequest(command: "git -c alias.status=status status").supportedSessionApprovalScopes, [.exact])
+    }
+
+    func testBashApprovalRecommendationForReadOnlySQLite() {
+        let first = bashRequest(command: "sqlite3 -readonly ~/Library/App.store \"SELECT 1\"")
+        let second = bashRequest(command: "sqlite3 --readonly ~/Library/App.store \"SELECT 2\"")
+        let writable = bashRequest(command: "sqlite3 ~/Library/App.store \"SELECT 1\"")
+
+        XCTAssertEqual(first.supportedSessionApprovalScopes, [.exact, .group])
+        XCTAssertEqual(first.recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(first.sessionApprovalGrant(for: .group)?.matchValue, "sqlite3 -readonly ~/Library/App.store")
+        XCTAssertEqual(second.sessionApprovalGrant(for: .group)?.matchValue, "sqlite3 -readonly ~/Library/App.store")
+        XCTAssertNil(writable.recommendedSessionApprovalScope)
+    }
+
+    func testBashApprovalRecommendationForReadOnlyGit() {
+        let status = bashRequest(command: "git -C repo status --short")
+        let branch = bashRequest(command: "git branch --list")
+        let deleteBranch = bashRequest(command: "git branch -D feature")
+        let add = bashRequest(command: "git add Sources/App.swift")
+
+        XCTAssertEqual(status.supportedSessionApprovalScopes, [.exact, .group])
+        XCTAssertEqual(status.recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(status.sessionApprovalGrant(for: .group)?.matchValue, "git status")
+        XCTAssertEqual(branch.recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(branch.sessionApprovalGrant(for: .group)?.matchValue, "git branch")
+        XCTAssertNil(deleteBranch.recommendedSessionApprovalScope)
+        XCTAssertNil(add.recommendedSessionApprovalScope)
+        XCTAssertEqual(add.sessionApprovalGrant(for: .group)?.matchValue, "git add")
+    }
+
+    func testBashApprovalRecommendationForSearchAndListCommands() {
+        XCTAssertEqual(bashRequest(command: "rg token Sources").sessionApprovalGrant(for: .group)?.matchValue, "rg Sources")
+        XCTAssertEqual(bashRequest(command: "grep -R token Tests").sessionApprovalGrant(for: .group)?.matchValue, "grep Tests")
+        XCTAssertEqual(bashRequest(command: "ls -la Sources").sessionApprovalGrant(for: .group)?.matchValue, "ls Sources")
+        XCTAssertEqual(bashRequest(command: "wc -l README.md").sessionApprovalGrant(for: .group)?.matchValue, "wc README.md")
+        XCTAssertEqual(bashRequest(command: "pwd").sessionApprovalGrant(for: .group)?.matchValue, "pwd")
+
+        XCTAssertEqual(bashRequest(command: "rg token Sources").recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(bashRequest(command: "grep -R token Tests").recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(bashRequest(command: "ls -la Sources").recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(bashRequest(command: "wc -l README.md").recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(bashRequest(command: "pwd").recommendedSessionApprovalScope, .group)
+    }
+
+    func testBashApprovalRecommendationRejectsExecutionConstructsAndBroadReaders() {
+        XCTAssertNil(bashRequest(command: "rg token Sources | xargs rm").recommendedSessionApprovalScope)
+        XCTAssertNil(bashRequest(command: "git status > out.txt").recommendedSessionApprovalScope)
+        XCTAssertNil(bashRequest(command: "rg $(echo token) Sources").recommendedSessionApprovalScope)
+        XCTAssertNil(bashRequest(command: "find . -delete").recommendedSessionApprovalScope)
+        XCTAssertNil(bashRequest(command: "sed -i '' s/a/b/g file.txt").recommendedSessionApprovalScope)
+        XCTAssertNil(bashRequest(command: "cat README.md").recommendedSessionApprovalScope)
+        XCTAssertNil(bashRequest(command: "rg \"unterminated Sources").recommendedSessionApprovalScope)
+    }
+
+    func testBashApprovalIdentityStripsUnquotedRTKWrapper() {
+        let wrapped = bashRequest(command: "rtk git log --oneline")
+        let direct = bashRequest(command: "git log --oneline")
+        let quoted = bashRequest(command: "\"rtk\" git log --oneline")
+
+        XCTAssertEqual(wrapped.sessionApprovalGrant(for: .exact)?.matchValue, direct.sessionApprovalGrant(for: .exact)?.matchValue)
+        XCTAssertEqual(wrapped.sessionApprovalGrant(for: .group)?.matchValue, direct.sessionApprovalGrant(for: .group)?.matchValue)
+        XCTAssertEqual(wrapped.recommendedSessionApprovalScope, .group)
+        XCTAssertNotEqual(quoted.sessionApprovalGrant(for: .exact)?.matchValue, direct.sessionApprovalGrant(for: .exact)?.matchValue)
+        XCTAssertNil(quoted.recommendedSessionApprovalScope)
     }
 
     func testSessionApprovalRequestBuildsExactFilePathGrant() {
@@ -156,6 +221,20 @@ final class AgentApprovalPolicyTests: XCTestCase {
         )
 
         XCTAssertTrue(matchesOther)
+    }
+
+    func testAgentApprovalRequestForwardsRecommendedSessionApprovalScope() {
+        let request = AgentApprovalRequest(
+            id: "approval",
+            providerId: .claude,
+            conversationId: "conversation",
+            providerSessionId: "session",
+            operation: "Bash",
+            reason: "Approve Bash command",
+            input: .object(["command": .string("git log --oneline")])
+        )
+
+        XCTAssertEqual(request.recommendedSessionApprovalScope, .group)
     }
 
     private func bashRequest(command: String) -> AgentSessionApprovalRequest {
