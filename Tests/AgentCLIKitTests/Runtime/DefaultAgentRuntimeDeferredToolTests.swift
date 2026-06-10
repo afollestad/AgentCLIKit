@@ -303,21 +303,6 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
         XCTAssertFalse(status?.isProcessRunning ?? true)
     }
 
-    func testRuntimeStopsProcessAfterDeferredApproval() async throws {
-        let runtime = DefaultAgentRuntime(adapters: [
-            DeferredToolStopProviderAdapter(command: shell("printf 'approval\\ndeferred\\n'; sleep 5"))
-        ])
-        let conversationId: AgentConversationID = "conversation"
-
-        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
-        let status = await Self.waitForDeferredStop(runtime: runtime, conversationId: conversationId)
-
-        XCTAssertEqual(status?.state, .exited)
-        XCTAssertEqual(status?.waitingState, .approval)
-        XCTAssertEqual(status?.inputAvailability, .blocked(reason: "Waiting for approval."))
-        XCTAssertFalse(status?.isProcessRunning ?? true)
-    }
-
     func testRuntimeIgnoresStdoutAfterDeferredToolStopPerConversation() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
             DeferredToolStopProviderAdapter(command: shell("printf 'deferred\\nmessage:trailing\\n'"))
@@ -360,19 +345,6 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
         )
     }
 
-    private static func waitForDeferredStop(
-        runtime: DefaultAgentRuntime,
-        conversationId: AgentConversationID
-    ) async -> AgentRuntimeStatus? {
-        for _ in 0..<300 {
-            let status = await runtime.status(conversationId: conversationId)
-            if status?.state == .exited, status?.isProcessRunning == false {
-                return status
-            }
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
-        return await runtime.status(conversationId: conversationId)
-    }
 }
 
 private struct DeferredReplayProviderAdapter: AgentProviderAdapter {

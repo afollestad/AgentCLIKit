@@ -330,7 +330,8 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(data.last, 0x0A)
     }
 
-    func testInputEncoderPreservesInteractionResolutionMetadata() throws {
+    func testInputEncoderEncodesInteractionResolutionAsEmptyData() throws {
+        // The Claude CLI has no stdin message type for interaction resolutions; they resolve via hooks instead.
         let resolution = AgentInteractionResolution(
             id: "tool-1",
             outcome: .approved,
@@ -339,15 +340,8 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         )
 
         let data = try ClaudeInputEncoder().encode(.interactionResolution(resolution))
-        let json = try JSONSerialization.jsonObject(with: data.dropLast()) as? [String: Any]
-        let encodedResolution = json?["resolution"] as? [String: Any]
-        let metadata = encodedResolution?["metadata"] as? [String: Any]
-        let updatedInput = metadata?["updated_input"] as? [String: Any]
 
-        XCTAssertEqual(json?["type"] as? String, "interaction_resolution")
-        XCTAssertEqual(encodedResolution?["id"] as? String, "tool-1")
-        XCTAssertEqual(encodedResolution?["responseText"] as? String, "approved")
-        XCTAssertEqual(updatedInput?["plan"] as? String, "Ship it")
+        XCTAssertTrue(data.isEmpty)
     }
 
     func testSessionIDExtractsClaudeSystemSession() async throws {

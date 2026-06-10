@@ -17,3 +17,4 @@
 - `EnterPlanMode` should not create a host approval; `ExitPlanMode` should remain a host-resolved plan-mode approval.
 - Hook approval interaction IDs must reuse Claude's `tool_use_id` / `toolUseId` / `toolUseID` when available; missing IDs need a stable fallback so retries can consume the same host decision.
 - Keep Claude transcript inspection helpers here. Host apps should use `ClaudeHookTranscriptReader` for restored hook approval state instead of parsing Claude JSONL session files themselves.
+- Stdin interaction resolutions are a Claude no-op: the CLI has no such message type, so `ClaudeInputEncoder` encodes them as empty data. Claude interactions resolve through hook decisions plus deferred-tool resume; a resume re-runs a deferred tool only when the transcript has its `hook_deferred_tool` marker (`ClaudeHookTranscriptReader.hasDeferredToolMarker`).

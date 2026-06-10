@@ -11,6 +11,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     let now: @Sendable () -> Date
     let sleep: AgentRuntimeSleep
     let outputDrainTimeoutNanoseconds: UInt64
+    let deferredStopKillGraceNanoseconds: UInt64
     var states: [AgentConversationID: ConversationState] = [:]
     var startTokens: [AgentConversationID: UUID] = [:]
     var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
@@ -37,7 +38,8 @@ public actor DefaultAgentRuntime: AgentRuntime {
             processFactory: defaultAgentRuntimeProcessFactory,
             now: Date.init,
             sleep: defaultAgentRuntimeSleep,
-            outputDrainTimeoutNanoseconds: 500_000_000
+            outputDrainTimeoutNanoseconds: 500_000_000,
+            deferredStopKillGraceNanoseconds: Self.defaultDeferredStopKillGraceNanoseconds
         )
     }
 
@@ -62,7 +64,8 @@ public actor DefaultAgentRuntime: AgentRuntime {
             processFactory: defaultAgentRuntimeProcessFactory,
             now: Date.init,
             sleep: defaultAgentRuntimeSleep,
-            outputDrainTimeoutNanoseconds: 500_000_000
+            outputDrainTimeoutNanoseconds: 500_000_000,
+            deferredStopKillGraceNanoseconds: Self.defaultDeferredStopKillGraceNanoseconds
         )
     }
 
@@ -74,7 +77,8 @@ public actor DefaultAgentRuntime: AgentRuntime {
         processFactory: @escaping AgentRuntimeProcessFactory = defaultAgentRuntimeProcessFactory,
         now: @escaping @Sendable () -> Date = Date.init,
         sleep: @escaping AgentRuntimeSleep = defaultAgentRuntimeSleep,
-        outputDrainTimeoutNanoseconds: UInt64 = 500_000_000
+        outputDrainTimeoutNanoseconds: UInt64 = 500_000_000,
+        deferredStopKillGraceNanoseconds: UInt64 = DefaultAgentRuntime.defaultDeferredStopKillGraceNanoseconds
     ) {
         self.adapters = Dictionary(adapters.map { ($0.definition.id, $0) }, uniquingKeysWith: { _, new in new })
         self.sessionStore = sessionStore
@@ -84,7 +88,12 @@ public actor DefaultAgentRuntime: AgentRuntime {
         self.now = now
         self.sleep = sleep
         self.outputDrainTimeoutNanoseconds = outputDrainTimeoutNanoseconds
+        self.deferredStopKillGraceNanoseconds = deferredStopKillGraceNanoseconds
     }
+
+    /// Grace period a deferred-tool-stopped provider gets to exit on its own before it is force killed.
+    /// Long enough to flush deferred-tool session records; short enough that a wedged provider cannot linger.
+    static let defaultDeferredStopKillGraceNanoseconds: UInt64 = 5_000_000_000
 
     /// Spawns or replaces the provider process for a conversation.
     public func spawn(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws {
@@ -210,7 +219,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         publishStatus(conversationId: conversationId)
     }
 
-    /// Resolves a pending interaction and sends the resolution to the provider process.
+    /// Resolves a pending interaction and forwards the resolution to providers that accept one over input.
     public func resolveInteraction(_ resolution: AgentInteractionResolution, conversationId: AgentConversationID) async throws {
         guard states[conversationId]?.stdinWriter != nil else {
             throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")

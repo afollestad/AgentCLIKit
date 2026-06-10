@@ -6,6 +6,7 @@
 - **Preserve compaction lifecycle:** Runtime compaction guards should deduplicate by `id` plus phase, synthesize a `started` event before terminal compaction events when providers omit the start, and synthesize a failed terminal event when a process is cancelled or exits with an open compaction.
 - **Do not hide runtime events:** Lifecycle, session-continuity, diagnostics, and fresh-session output must remain visible.
 - **Do not reopen resolved interactions:** Late or replayed provider interaction frames whose IDs already resolved must not emit new pending interaction events or return the runtime to a waiting state.
+- **Tear down deferred stops gracefully:** On a deferred-tool stop, close stdin and let the provider exit on its own; force kill only after `deferredStopKillGraceNanoseconds`. An immediate kill races the provider's deferred-tool transcript writes, and a resume without that marker never re-runs the deferred tool.
 
 ## Reconfigure And Collaboration Mode
 

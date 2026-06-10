@@ -6,15 +6,19 @@ public struct ClaudeInputEncoder: Sendable {
     public init() {}
 
     /// Encodes one generic input value for Claude stdin.
+    ///
+    /// Interaction resolutions encode as empty data: the Claude CLI has no stdin message type for them.
+    /// Claude interactions resolve through hook decisions and deferred-tool resume instead, so the runtime's
+    /// resolution bookkeeping proceeds without writing anything to the provider process.
     public func encode(_ input: AgentInput) throws -> Data {
         let payload: ClaudeInputPayload
         switch input {
         case let .userMessage(message):
             payload = ClaudeInputPayload.user(text: message.text)
         case .interrupt:
-            payload = ClaudeInputPayload(type: "interrupt", message: nil, resolution: nil)
-        case let .interactionResolution(resolution):
-            payload = ClaudeInputPayload.resolution(resolution)
+            payload = ClaudeInputPayload(type: "interrupt", message: nil)
+        case .interactionResolution:
+            return Data()
         }
         var data = try JSONEncoder().encode(payload)
         data.append(0x0A)
@@ -25,26 +29,11 @@ public struct ClaudeInputEncoder: Sendable {
 private struct ClaudeInputPayload: Codable {
     let type: String
     let message: ClaudeInputMessage?
-    let resolution: ClaudeInputResolution?
 
     static func user(text: String) -> ClaudeInputPayload {
         ClaudeInputPayload(
             type: "user",
-            message: ClaudeInputMessage(role: "user", content: [ClaudeInputContent(type: "text", text: text)]),
-            resolution: nil
-        )
-    }
-
-    static func resolution(_ resolution: AgentInteractionResolution) -> ClaudeInputPayload {
-        ClaudeInputPayload(
-            type: "interaction_resolution",
-            message: nil,
-            resolution: ClaudeInputResolution(
-                id: resolution.id.rawValue,
-                outcome: resolution.outcome.rawValue,
-                responseText: resolution.responseText,
-                metadata: resolution.metadata
-            )
+            message: ClaudeInputMessage(role: "user", content: [ClaudeInputContent(type: "text", text: text)])
         )
     }
 }
@@ -57,11 +46,4 @@ private struct ClaudeInputMessage: Codable {
 private struct ClaudeInputContent: Codable {
     let type: String
     let text: String
-}
-
-private struct ClaudeInputResolution: Codable {
-    let id: String
-    let outcome: String
-    let responseText: String?
-    let metadata: [String: JSONValue]
 }

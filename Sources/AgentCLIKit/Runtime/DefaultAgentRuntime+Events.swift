@@ -150,11 +150,37 @@ extension DefaultAgentRuntime {
     }
 
     private func stopProcessAfterDeferredToolStop(conversationId: AgentConversationID) {
-        // The provider is waiting on host fallback approval; stop it before it can retry the tool or emit fallback text.
-        states[conversationId]?.hasDeferredToolStop = true
-        states[conversationId]?.stdin = nil
-        states[conversationId]?.stdinWriter = nil
-        forceKill(states[conversationId]?.process)
+        // The provider is waiting on host fallback approval. Close stdin so it exits on its own after flushing
+        // deferred-tool session records; an immediate kill can race those writes and strip the transcript marker
+        // a later resume needs to re-run the deferred tool. `hasDeferredToolStop` already drops trailing stdout.
+        guard var state = states[conversationId] else {
+            return
+        }
+        state.hasDeferredToolStop = true
+        let stdin = state.stdin
+        let processToken = state.processToken
+        state.stdin = nil
+        state.stdinWriter = nil
+        states[conversationId] = state
+        try? stdin?.close()
+        Task { [weak self] in
+            await self?.killDeferredStopProcessAfterGracePeriod(
+                conversationId: conversationId,
+                processToken: processToken
+            )
+        }
+    }
+
+    private func killDeferredStopProcessAfterGracePeriod(
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async {
+        await sleep(deferredStopKillGraceNanoseconds)
+        // Escalate only for the same process; a replaced or already exited process must not be touched.
+        guard let state = states[conversationId], state.processToken == processToken else {
+            return
+        }
+        forceKill(state.process)
     }
 
     private func isDeferredToolStop(_ event: AgentEvent) -> Bool {

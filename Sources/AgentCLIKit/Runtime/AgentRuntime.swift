@@ -248,7 +248,7 @@ public protocol AgentRuntime: Sendable {
     func markPersisted(conversationId: AgentConversationID, generation: Int, upTo index: Int) async
     /// Sends input to the provider process.
     func send(_ input: AgentInput, conversationId: AgentConversationID) async throws
-    /// Resolves a pending interaction and sends the resolution to the provider process.
+    /// Resolves a pending interaction and forwards the resolution to providers that accept one over input.
     func resolveInteraction(_ resolution: AgentInteractionResolution, conversationId: AgentConversationID) async throws
     /// Sends an interrupt request and terminates the provider process.
     func cancel(conversationId: AgentConversationID) async

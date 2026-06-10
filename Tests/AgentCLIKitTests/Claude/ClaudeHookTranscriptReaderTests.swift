@@ -253,6 +253,56 @@ final class ClaudeHookTranscriptReaderTests: XCTestCase {
         XCTAssertEqual(resolution, .permissionDecision(.allow))
     }
 
+    func testFindsDeferredToolMarkerFromWorkingDirectoryPathOverload() throws {
+        let homeDirectory = try temporaryDirectory()
+        let workingDirectory = try temporaryDirectory()
+        let sessionId = AgentSessionID(rawValue: "session-1")
+        let sessionFileURL = ClaudePathEncoder.sessionFileURL(
+            sessionId: sessionId,
+            workingDirectory: workingDirectory,
+            homeDirectory: homeDirectory
+        )
+        try writeSessionFile([
+            attachmentLine(type: "hook_deferred_tool", toolUseId: "tool-1")
+        ], to: sessionFileURL)
+
+        let reader = ClaudeHookTranscriptReader(homeDirectory: homeDirectory)
+
+        XCTAssertTrue(reader.hasDeferredToolMarker(
+            forToolUseId: AgentInteractionID(rawValue: "tool-1"),
+            sessionId: sessionId,
+            workingDirectoryPath: workingDirectory.path
+        ))
+        XCTAssertFalse(reader.hasDeferredToolMarker(
+            forToolUseId: AgentInteractionID(rawValue: "tool-2"),
+            sessionId: sessionId,
+            workingDirectoryPath: workingDirectory.path
+        ))
+    }
+
+    func testDeferredToolMarkerIgnoresOtherAttachmentsAndMissingFiles() throws {
+        let sessionFileURL = try temporaryDirectory().appendingPathComponent("session.jsonl")
+        try writeSessionFile([
+            "not json",
+            attachmentLine(
+                type: "hook_success",
+                toolUseId: "tool-1",
+                stdout: #"{"hookSpecificOutput":{"permissionDecision":"defer"}}"#
+            )
+        ], to: sessionFileURL)
+
+        let reader = ClaudeHookTranscriptReader()
+
+        XCTAssertFalse(reader.hasDeferredToolMarker(
+            forToolUseId: AgentInteractionID(rawValue: "tool-1"),
+            sessionFileURL: sessionFileURL
+        ))
+        XCTAssertFalse(reader.hasDeferredToolMarker(
+            forToolUseId: AgentInteractionID(rawValue: "tool-1"),
+            sessionFileURL: sessionFileURL.deletingLastPathComponent().appendingPathComponent("missing.jsonl")
+        ))
+    }
+
     private func temporaryDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

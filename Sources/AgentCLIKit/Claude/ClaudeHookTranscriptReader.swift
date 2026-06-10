@@ -60,6 +60,45 @@ public struct ClaudeHookTranscriptReader: Sendable {
         )
     }
 
+    /// Returns whether Claude persisted a deferred-tool marker for a tool use in a session and working directory path.
+    ///
+    /// Claude re-runs a deferred tool on `--resume` only when its transcript contains this marker. A deferral whose
+    /// process died before flushing the marker resumes as a plain idle session, so hosts should check this before
+    /// relying on a respawn to complete a deferred approval. The path may include `~`; it is canonicalized using
+    /// `homeDirectory`. Missing or malformed transcript data returns `false`.
+    public func hasDeferredToolMarker(
+        forToolUseId toolUseId: AgentInteractionID,
+        sessionId: AgentSessionID,
+        workingDirectoryPath: String
+    ) -> Bool {
+        hasDeferredToolMarker(
+            forToolUseId: toolUseId,
+            sessionFileURL: ClaudePathEncoder.sessionFileURL(
+                sessionId: sessionId,
+                workingDirectoryPath: workingDirectoryPath,
+                homeDirectory: homeDirectory
+            )
+        )
+    }
+
+    /// Returns whether Claude persisted a deferred-tool marker for a tool use in an explicit JSONL session file.
+    public func hasDeferredToolMarker(
+        forToolUseId toolUseId: AgentInteractionID,
+        sessionFileURL: URL
+    ) -> Bool {
+        guard let contents = try? String(contentsOf: sessionFileURL, encoding: .utf8) else {
+            return false
+        }
+        return contents.split(whereSeparator: \.isNewline).contains { line in
+            guard let event = Self.transcriptEvent(from: String(line)),
+                  event.type == "attachment",
+                  let attachment = event.attachment else {
+                return false
+            }
+            return attachment.type == "hook_deferred_tool" && attachment.toolUseId == toolUseId.rawValue
+        }
+    }
+
     /// Returns a restored hook resolution for a tool use from an explicit Claude JSONL session file.
     ///
     /// Lines are scanned in transcript order. The first matching terminal result is returned; a matching deferred
