@@ -27,7 +27,7 @@ final class ClaudeStreamDecoderTests: XCTestCase {
             model: "sonnet",
             inputTokens: 10,
             outputTokens: 5,
-            isTerminal: false
+            isTerminal: true
         )) })
     }
 
@@ -46,6 +46,27 @@ final class ClaudeStreamDecoderTests: XCTestCase {
                 isTerminal: true,
                 metadata: [
                     "stop_reason": .string("end_turn"),
+                    "duration_ms": .number(50)
+                ]
+            ))
+        ])
+    }
+
+    func testResultWithUsageAndNilStopReasonStillEmitsTerminalUsage() throws {
+        let decoder = ClaudeStreamDecoder()
+
+        let result = try decoder.decodeLine(
+            #"{"type":"result","subtype":"success","duration_ms":50,"usage":{"input_tokens":0,"output_tokens":0}}"#
+        )
+
+        XCTAssertEqual(result, [
+            .usage(AgentUsageEvent(
+                model: nil,
+                inputTokens: 0,
+                outputTokens: 0,
+                durationMs: 50,
+                isTerminal: true,
+                metadata: [
                     "duration_ms": .number(50)
                 ]
             ))

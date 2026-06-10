@@ -147,6 +147,29 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
+    func testTerminalNilStopUsageKeepsTurnInactiveAfterLateInterimUsageUpdate() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("printf 'usage-terminal:nil\\nusage:usage_update\\n'; sleep 1"))
+        ])
+
+        try await runtime.spawn(
+            conversationId: "conversation",
+            config: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: FileManager.default.temporaryDirectory,
+                initialPrompt: "Run tools"
+            )
+        )
+        let status = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.lastEventIndex >= 2
+        }
+
+        XCTAssertFalse(status?.isTurnActive == true)
+        XCTAssertTrue(status?.isProcessRunning == true)
+
+        await runtime.shutdown()
+    }
+
     func testStatusUsesProviderOwnedActivityEvents() async throws {
         let activitySource = ProviderActivitySource()
         let runtime = DefaultAgentRuntime(adapters: [
@@ -288,6 +311,14 @@ private struct StatusReportingProviderAdapter: AgentProviderAdapter {
         }
         if line == "interaction:prompt" {
             return [.interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?"))]
+        }
+        if line == "usage-terminal:nil" {
+            return [.usage(AgentUsageEvent(
+                model: nil,
+                inputTokens: 0,
+                outputTokens: 0,
+                isTerminal: true
+            ))]
         }
         if line.hasPrefix("usage:") {
             let stopReason = String(line.dropFirst("usage:".count))

@@ -242,11 +242,14 @@ public struct ClaudeStreamDecoder: Sendable {
             if let contextWindow = matchedModelUsage?.contextWindow {
                 metadata["context_window"] = .number(Double(contextWindow))
             }
+            // Result frames end the turn even when Claude omits stop_reason, so never let
+            // stop-reason inference downgrade this usage event to interim.
             events.append(usageEvent(
                 usage,
                 model: matchedModelUsage?.modelId ?? envelope.model,
                 extraMetadata: metadata,
-                permissionDenials: envelope.permissionDenials.map(\.summary)
+                permissionDenials: envelope.permissionDenials.map(\.summary),
+                isTerminal: true
             ))
         } else if !envelope.resultMetadata.isEmpty {
             var metadata = envelope.resultMetadata
@@ -310,7 +313,8 @@ public struct ClaudeStreamDecoder: Sendable {
         model: String?,
         extraMetadata: [String: JSONValue],
         permissionDenials: [AgentPermissionDenialSummary] = [],
-        defaultStopReason: String? = nil
+        defaultStopReason: String? = nil,
+        isTerminal terminalOverride: Bool? = nil
     ) -> AgentEvent {
         var metadata = usage.metadata
         metadata.merge(extraMetadata) { _, new in new }
@@ -333,7 +337,7 @@ public struct ClaudeStreamDecoder: Sendable {
             costUSD: costUSD,
             contextWindow: contextWindow,
             stopReason: stopReason,
-            isTerminal: stopReason != nil && stopReason != AgentUsageEvent.interimUsageStopReason,
+            isTerminal: terminalOverride ?? (stopReason != nil && stopReason != AgentUsageEvent.interimUsageStopReason),
             isError: boolValue(metadata["is_error"]) ?? false,
             permissionDenials: permissionDenials,
             metadata: metadata
