@@ -176,7 +176,7 @@ Use `supportsSpeedMode` before showing a Fast speed control.
 
 **Skeleton.** Hosts can update settings for a started conversation by sending a complete replacement `AgentSpawnConfig`.
 Use `collaborationMode` for plan/default mode, `speedMode` for standard/fast mode, and keep `permissionMode` for approval
-policy.
+policy. For Claude, selecting `bypassPermissions` is the explicit opt-in to bypass all permission checks.
 
 ```swift
 func setPlanMode(

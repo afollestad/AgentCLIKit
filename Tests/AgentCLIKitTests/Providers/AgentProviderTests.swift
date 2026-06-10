@@ -33,7 +33,7 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertTrue(definitions[1].capabilities.supportsSessionArchiving)
         XCTAssertTrue(definitions[1].capabilities.supportsSessionUnarchiving)
         XCTAssertTrue(definitions[1].capabilities.supportsContextCompaction)
-        XCTAssertEqual(definitions[0].supportedPermissionModes?.map(\.value), ["default", "acceptEdits", "auto"])
+        XCTAssertEqual(definitions[0].supportedPermissionModes?.map(\.value), ["default", "acceptEdits", "auto", "bypassPermissions"])
         XCTAssertEqual(definitions[1].supportedPermissionModes?.map(\.value), ["untrusted", "on-request", "never"])
     }
 
@@ -55,6 +55,11 @@ final class AgentProviderTests: XCTestCase {
                     value: "auto",
                     label: "Automatic",
                     description: "Automatically approve most actions with safety checks."
+                ),
+                AgentProviderOption(
+                    value: "bypassPermissions",
+                    label: "Bypass permissions",
+                    description: "Bypass all permission checks. Recommended only for sandboxed environments with no internet access."
                 )
             ]
         )

@@ -73,6 +73,11 @@ approval `permissionMode` is selected. When collaboration mode is `.default` or 
 permission mode. Claude may still report internal `"plan"` permission status; AgentCLIKit translates that to
 `AgentEvent.collaborationMode` so hosts can clear plan UI after `ExitPlanMode` succeeds.
 
+Claude permission modes are `default`, `acceptEdits`, `auto`, and `bypassPermissions`. `bypassPermissions` is a dangerous
+mode that bypasses all permission checks; AgentCLIKit launches it with `--allow-dangerously-skip-permissions` plus
+`--permission-mode bypassPermissions`. If Claude reports the legacy `dontAsk` alias, AgentCLIKit emits the host-facing
+permission mode as `bypassPermissions`.
+
 The hook flow covers:
 
 - Tool approvals for Bash/edit tools and MCP tools.

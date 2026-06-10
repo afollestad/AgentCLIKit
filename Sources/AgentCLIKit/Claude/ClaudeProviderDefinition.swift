@@ -44,6 +44,11 @@ public enum ClaudeProviderDefinition {
                 value: "auto",
                 label: "Automatic",
                 description: "Automatically approve most actions with safety checks."
+            ),
+            AgentProviderOption(
+                value: ClaudePermissionModes.bypassPermissions,
+                label: "Bypass permissions",
+                description: "Bypass all permission checks. Recommended only for sandboxed environments with no internet access."
             )
         ]
     )

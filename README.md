@@ -133,7 +133,9 @@ Treat `AgentSpawnConfig` as the host-facing settings source of truth. `permissio
 collaboration uses `collaborationMode`: pass `.plan` to enter plan mode, `.default` to leave it, and `nil` when the host is
 not overriding provider collaboration state. Speed uses `speedMode`: pass `.fast` only when
 `AgentProviderCapabilities.supportsSpeedMode` is true, `.standard` to force supported providers back to normal behavior,
-and `nil` to preserve provider defaults. Codex plan mode requires a concrete selected `model`.
+and `nil` to preserve provider defaults. Claude exposes `bypassPermissions` as an explicit dangerous approval policy;
+AgentCLIKit unlocks that mode for the launch without using `--dangerously-skip-permissions`. Codex plan mode requires a
+concrete selected `model`.
 
 Use `runtime.reconfigure(conversationId:config:)` to apply changed settings to a started conversation. The result tells
 the host what happened:

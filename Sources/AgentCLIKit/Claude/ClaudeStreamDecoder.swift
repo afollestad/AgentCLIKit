@@ -52,9 +52,10 @@ public struct ClaudeStreamDecoder: Sendable {
         var events: [AgentEvent] = []
         let metadata = systemMetadata(from: envelope)
         if let permissionMode = envelope.permissionMode {
+            let permissionMode = ClaudePermissionModes.canonicalHostMode(permissionMode)
             events.append(.permissionMode(AgentPermissionModeEvent(mode: permissionMode, metadata: metadata)))
             events.append(.collaborationMode(AgentCollaborationModeEvent(
-                mode: permissionMode == "plan" ? .plan : .default,
+                mode: permissionMode == ClaudePermissionModes.plan ? .plan : .default,
                 metadata: metadata
             )))
         }

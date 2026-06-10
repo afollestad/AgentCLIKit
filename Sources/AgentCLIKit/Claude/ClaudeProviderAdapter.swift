@@ -188,6 +188,9 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             "--include-partial-messages"
         ])
         if let permissionMode = effectivePermissionMode(for: spawnConfig) {
+            if ClaudePermissionModes.requiresDangerousModeUnlock(permissionMode) {
+                arguments.append("--allow-dangerously-skip-permissions")
+            }
             arguments.append(contentsOf: ["--permission-mode", permissionMode])
         }
         arguments.append(contentsOf: ["--model", ClaudeModelAliases.normalizedModel(spawnConfig.model)])
@@ -346,7 +349,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
 
     /// Updates provider-owned hook state from streamed permission-mode status.
     public func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async {
-        await hookCoordinator?.updatePermissionMode(mode, for: conversationId)
+        await hookCoordinator?.updatePermissionMode(mode.map(ClaudePermissionModes.canonicalHostMode), for: conversationId)
     }
 
     /// Stops the shared Claude hook listener and invalidates active launch tokens.
@@ -356,9 +359,9 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
 
     private func effectivePermissionMode(for spawnConfig: AgentSpawnConfig) -> String? {
         guard spawnConfig.collaborationMode != .plan else {
-            return "plan"
+            return ClaudePermissionModes.plan
         }
-        return spawnConfig.permissionMode
+        return spawnConfig.permissionMode.map(ClaudePermissionModes.canonicalHostMode)
     }
 }
 

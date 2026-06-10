@@ -67,7 +67,7 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         let config = AgentSpawnConfig(
             providerId: .claude,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
-            permissionMode: "acceptEdits",
+            permissionMode: "bypassPermissions",
             collaborationMode: .plan
         )
 
@@ -75,6 +75,7 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         let permissionModeIndex = try XCTUnwrap(launch.arguments.firstIndex(of: "--permission-mode"))
 
         XCTAssertEqual(launch.arguments[permissionModeIndex + 1], "plan")
+        XCTAssertFalse(launch.arguments.contains("--allow-dangerously-skip-permissions"))
     }
 
     func testLaunchConfigurationUsesPermissionModeWhenCollaborationModeIsDefault() async throws {

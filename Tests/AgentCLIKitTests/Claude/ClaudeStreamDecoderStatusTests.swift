@@ -222,6 +222,13 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         )) })
     }
 
+    func testDecodesDontAskPermissionModeAsBypassPermissions() throws {
+        let events = try ClaudeStreamDecoder().decodeLine(#"{"type":"system","subtype":"status","permissionMode":"dontAsk"}"#)
+
+        XCTAssertTrue(events.contains { $0 == .permissionMode(AgentPermissionModeEvent(mode: "bypassPermissions")) })
+        XCTAssertTrue(events.contains { $0 == .collaborationMode(AgentCollaborationModeEvent(mode: .default)) })
+    }
+
     func testRateLimitEventDecodesProviderStatus() throws {
         let events = try ClaudeStreamDecoder().decodeLine(Self.rateLimitLine)
 
