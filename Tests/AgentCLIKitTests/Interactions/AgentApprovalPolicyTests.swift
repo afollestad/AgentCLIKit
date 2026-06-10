@@ -61,6 +61,47 @@ final class AgentApprovalPolicyTests: XCTestCase {
         )
     }
 
+    func testSessionApprovalRequestBuildsExactNativeReadOnlyPathGrants() {
+        let read = sessionApprovalRequest(
+            toolName: "Read",
+            toolInput: .object(["file_path": .string("/tmp/project/README.md")])
+        )
+        let list = sessionApprovalRequest(
+            toolName: "LS",
+            toolInput: .object(["path": .string("/tmp/project/Sources")])
+        )
+        let notebookRead = sessionApprovalRequest(
+            toolName: "NotebookRead",
+            toolInput: .object(["notebook_path": .string("/tmp/project/Analysis.ipynb")])
+        )
+
+        XCTAssertEqual(read.supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(list.supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(notebookRead.supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(read.sessionApprovalGrant(for: .exact)?.matchValue, "/tmp/project/README.md")
+        XCTAssertEqual(list.sessionApprovalGrant(for: .exact)?.matchValue, "/tmp/project/Sources")
+        XCTAssertEqual(notebookRead.sessionApprovalGrant(for: .exact)?.matchValue, "/tmp/project/Analysis.ipynb")
+        XCTAssertEqual(read.sessionApprovalGrant(for: .exact)?.matchKind, .filePathExact)
+        XCTAssertEqual(list.sessionApprovalGrant(for: .exact)?.matchKind, .filePathExact)
+        XCTAssertEqual(notebookRead.sessionApprovalGrant(for: .exact)?.matchKind, .filePathExact)
+    }
+
+    func testSessionApprovalRequestDoesNotBuildGrepOrGlobGrants() {
+        let grep = sessionApprovalRequest(
+            toolName: "Grep",
+            toolInput: .object(["pattern": .string("token"), "path": .string("/tmp/project")])
+        )
+        let glob = sessionApprovalRequest(
+            toolName: "Glob",
+            toolInput: .object(["pattern": .string("/tmp/project/**/*.swift")])
+        )
+
+        XCTAssertEqual(grep.supportedSessionApprovalScopes, [])
+        XCTAssertEqual(glob.supportedSessionApprovalScopes, [])
+        XCTAssertNil(grep.sessionApprovalGrant(for: .exact))
+        XCTAssertNil(glob.sessionApprovalGrant(for: .exact))
+    }
+
     func testInMemoryPolicyRecordsMatchesAndRemovesSessionApprovals() async throws {
         let store = InMemoryAgentApprovalPolicyStore()
         let request = bashRequest(command: "git add foo.swift")
@@ -118,12 +159,19 @@ final class AgentApprovalPolicyTests: XCTestCase {
     }
 
     private func bashRequest(command: String) -> AgentSessionApprovalRequest {
+        sessionApprovalRequest(
+            toolName: "Bash",
+            toolInput: .object(["command": .string(command)])
+        )
+    }
+
+    private func sessionApprovalRequest(toolName: String, toolInput: JSONValue) -> AgentSessionApprovalRequest {
         AgentSessionApprovalRequest(
             providerId: .claude,
             conversationId: "conversation",
             sessionId: "session",
-            toolName: "Bash",
-            toolInput: .object(["command": .string(command)])
+            toolName: toolName,
+            toolInput: toolInput
         )
     }
 }

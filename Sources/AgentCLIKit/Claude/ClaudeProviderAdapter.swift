@@ -317,7 +317,9 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             let hooks = try await hookCoordinator.prepareLaunch(
                 conversationId: conversationId,
                 processToken: processToken,
-                permissionMode: effectivePermissionMode(for: spawnConfig)
+                permissionMode: effectivePermissionMode(for: spawnConfig),
+                workingDirectory: launch.workingDirectory ?? spawnConfig.workingDirectory,
+                homeDirectory: homeDirectory
             )
             var arguments = launch.arguments
             arguments.append(contentsOf: hooks.arguments)

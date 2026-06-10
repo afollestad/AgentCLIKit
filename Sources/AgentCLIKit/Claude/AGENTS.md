@@ -15,6 +15,7 @@
 - Correlate Claude compact stdout and hook events with the process token so consumers see stable `contextCompaction` IDs for start and terminal phases.
 - Keep live hook continuations, listener state, launch tokens, and decision races internal; persist only durable interaction/session/policy records through generic stores.
 - `EnterPlanMode` should not create a host approval; `ExitPlanMode` should remain a host-resolved plan-mode approval.
+- Native read-only tools (`Read`, `Grep`, `Glob`, `LS`, `NotebookRead`) should be hook-matched but return no-decision when the path stays inside the launch working directory; only escaping or unprovable paths should defer to the host.
 - Hook approval interaction IDs must reuse Claude's `tool_use_id` / `toolUseId` / `toolUseID` when available; missing IDs need a stable fallback so retries can consume the same host decision.
 - Keep Claude transcript inspection helpers here. Host apps should use `ClaudeHookTranscriptReader` for restored hook approval state instead of parsing Claude JSONL session files themselves.
 - Stdin interaction resolutions are a Claude no-op: the CLI has no such message type, so `ClaudeInputEncoder` encodes them as empty data. Claude interactions resolve through hook decisions plus deferred-tool resume; a resume re-runs a deferred tool only when the transcript has its `hook_deferred_tool` marker (`ClaudeHookTranscriptReader.hasDeferredToolMarker`).

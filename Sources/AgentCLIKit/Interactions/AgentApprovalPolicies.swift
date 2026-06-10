@@ -111,7 +111,7 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
                 scopes.append(.group)
             }
             return scopes
-        case "Write", "Edit", "MultiEdit", "NotebookEdit":
+        case "Write", "Edit", "MultiEdit", "NotebookEdit", "Read", "LS", "NotebookRead":
             return sessionApprovalGrant(for: .exact) == nil ? [] : [.exact]
         default:
             return []
@@ -131,7 +131,8 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
                 return nil
             }
             return grant(matchKind: .bashCommandGroup, matchValue: commandGroup)
-        case ("Write", .exact), ("Edit", .exact), ("MultiEdit", .exact), ("NotebookEdit", .exact):
+        case ("Write", .exact), ("Edit", .exact), ("MultiEdit", .exact), ("NotebookEdit", .exact),
+             ("Read", .exact), ("LS", .exact), ("NotebookRead", .exact):
             guard let path = normalizedApprovalPath else {
                 return nil
             }

@@ -54,25 +54,14 @@ public actor ClaudeHookCoordinator {
         conversationId: AgentConversationID,
         processToken: UUID,
         permissionMode: String? = nil,
+        workingDirectory: URL? = nil,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
         timeoutSeconds: Int = ClaudeHookPolicy.defaultHookTimeoutSeconds
     ) async throws -> ClaudeHookLaunchConfiguration {
         let port = try await ensureListenerPort()
         let token = await tokenStore.issueProcessScoped()
         let settingsURL = settingsURL(processToken: processToken)
-        guard let endpoint = endpointURL(
-            path: "/claude/hooks/pre-tool-use",
-            port: port,
-            conversationId: conversationId,
-            processToken: processToken
-        ),
-        let preCompactEndpoint = endpointURL(
-            path: "/claude/hooks/pre-compact",
-            port: port,
-            conversationId: conversationId,
-            processToken: processToken
-        ),
-        let postCompactEndpoint = endpointURL(
-            path: "/claude/hooks/post-compact",
+        guard let endpoints = endpointURLs(
             port: port,
             conversationId: conversationId,
             processToken: processToken
@@ -81,10 +70,10 @@ public actor ClaudeHookCoordinator {
             throw AgentCLIError.invalidInput("Could not build Claude hook endpoint URL.")
         }
         let settings = ClaudeHookSettings(
-            endpointURL: endpoint,
+            endpointURL: endpoints.preToolUse,
             includePreToolUse: ClaudeHookPolicy.shouldEnableHooks(permissionMode: permissionMode),
-            preCompactEndpointURL: preCompactEndpoint,
-            postCompactEndpointURL: postCompactEndpoint,
+            preCompactEndpointURL: endpoints.preCompact,
+            postCompactEndpointURL: endpoints.postCompact,
             timeoutSeconds: timeoutSeconds
         )
         do {
@@ -95,10 +84,15 @@ public actor ClaudeHookCoordinator {
             try? fileManager.removeItem(at: settingsURL)
             throw error
         }
-        await server.updatePermissionMode(permissionMode, for: conversationId)
-        await server.registerCompactHooks(processToken: processToken, token: token.value)
-        launchTokens[processToken] = token.value
-        launchSettingsFiles[processToken] = settingsURL
+        await registerLaunchState(ClaudeHookLaunchRegistration(
+            token: token.value,
+            processToken: processToken,
+            settingsURL: settingsURL,
+            conversationId: conversationId,
+            permissionMode: permissionMode,
+            workingDirectory: workingDirectory,
+            homeDirectory: homeDirectory
+        ))
         return ClaudeHookLaunchConfiguration(
             arguments: ["--settings", settingsURL.path],
             environment: [settings.tokenEnvironmentVariable: token.value],
@@ -167,6 +161,44 @@ public actor ClaudeHookCoordinator {
         supportDirectory.appendingPathComponent("claude-hooks-\(processToken.uuidString).json")
     }
 
+    private func registerLaunchState(_ registration: ClaudeHookLaunchRegistration) async {
+        await server.updatePermissionMode(registration.permissionMode, for: registration.conversationId)
+        await server.registerCompactHooks(processToken: registration.processToken, token: registration.token)
+        if let workingDirectory = registration.workingDirectory {
+            await server.registerLaunchContext(
+                processToken: registration.processToken,
+                workingDirectory: workingDirectory,
+                homeDirectory: registration.homeDirectory
+            )
+        }
+        launchTokens[registration.processToken] = registration.token
+        launchSettingsFiles[registration.processToken] = registration.settingsURL
+    }
+
+    private func endpointURLs(port: Int, conversationId: AgentConversationID, processToken: UUID) -> ClaudeHookEndpointURLs? {
+        guard let preToolUse = endpointURL(
+            path: "/claude/hooks/pre-tool-use",
+            port: port,
+            conversationId: conversationId,
+            processToken: processToken
+        ),
+        let preCompact = endpointURL(
+            path: "/claude/hooks/pre-compact",
+            port: port,
+            conversationId: conversationId,
+            processToken: processToken
+        ),
+        let postCompact = endpointURL(
+            path: "/claude/hooks/post-compact",
+            port: port,
+            conversationId: conversationId,
+            processToken: processToken
+        ) else {
+            return nil
+        }
+        return ClaudeHookEndpointURLs(preToolUse: preToolUse, preCompact: preCompact, postCompact: postCompact)
+    }
+
     private func endpointURL(path: String, port: Int, conversationId: AgentConversationID, processToken: UUID) -> URL? {
         var components = URLComponents()
         components.scheme = "http"
@@ -186,6 +218,22 @@ public actor ClaudeHookCoordinator {
         }
         try? fileManager.removeItem(at: url)
     }
+}
+
+private struct ClaudeHookEndpointURLs {
+    let preToolUse: URL
+    let preCompact: URL
+    let postCompact: URL
+}
+
+private struct ClaudeHookLaunchRegistration {
+    let token: String
+    let processToken: UUID
+    let settingsURL: URL
+    let conversationId: AgentConversationID
+    let permissionMode: String?
+    let workingDirectory: URL?
+    let homeDirectory: URL
 }
 
 /// Transport used by `ClaudeHookCoordinator` to accept hook requests.

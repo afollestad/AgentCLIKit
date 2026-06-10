@@ -94,6 +94,36 @@ final class ClaudeHookCoordinatorTests: XCTestCase {
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "Bash")
     }
 
+    func testCoordinatorSeedsLaunchPathContextForReadOnlyToolDecisions() async throws {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+        let supportDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: supportDirectory) }
+        let coordinator = ClaudeHookCoordinator(
+            tokenStore: tokenStore,
+            server: server,
+            supportDirectory: supportDirectory,
+            makeListener: { _, _ in StubHookTransport(port: 4567) }
+        )
+        let processToken = UUID()
+
+        let launch = try await coordinator.prepareLaunch(
+            conversationId: "conversation",
+            processToken: processToken,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true),
+            homeDirectory: URL(fileURLWithPath: "/Users/example", isDirectory: true)
+        )
+        let safeRead = await server.handle(preToolUse(
+            token: launch.token,
+            toolName: "Read",
+            toolInput: .object(["file_path": .string("Sources/App.swift")]),
+            processToken: processToken
+        ))
+
+        XCTAssertEqual(safeRead, .noDecision)
+    }
+
     func testCoordinatorClearsStaleLaunchPermissionMode() async throws {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
@@ -170,7 +200,9 @@ private func preToolUse(
     token: String?,
     toolName: String,
     toolUseId: String = "tool-1",
-    sessionId: String = "session-123"
+    sessionId: String = "session-123",
+    toolInput: JSONValue = .object([:]),
+    processToken: UUID? = nil
 ) -> ClaudeHookRequest {
     ClaudeHookRequest(
         bearerToken: token,
@@ -180,9 +212,10 @@ private func preToolUse(
             "hook_event_name": .string("PreToolUse"),
             "session_id": .string(sessionId),
             "tool_name": .string(toolName),
-            "tool_input": .object([:]),
+            "tool_input": toolInput,
             "tool_use_id": .string(toolUseId)
-        ])
+        ]),
+        processToken: processToken
     )
 }
 

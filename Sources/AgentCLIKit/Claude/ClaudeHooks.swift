@@ -11,6 +11,7 @@ public actor ClaudeHookServer {
     private var pendingDecisionRaces: [String: [UUID: ClaudeHookDecisionRace]] = [:]
     private var permissionModes: [AgentConversationID: String] = [:]
     private var compactHookTokensByProcess: [UUID: String] = [:]
+    private var launchContextsByProcess: [UUID: ClaudeHookLaunchContext] = [:]
     private var compactHookContinuations: [UUID: AsyncStream<AgentProviderRuntimeEvent>.Continuation] = [:]
     private var pendingCompactHookEvents: [UUID: [AgentProviderRuntimeEvent]] = [:]
 
@@ -84,6 +85,7 @@ public actor ClaudeHookServer {
         }
         for processToken in invalidatedProcessTokens {
             compactHookTokensByProcess[processToken] = nil
+            launchContextsByProcess[processToken] = nil
             compactHookContinuations[processToken]?.finish()
             compactHookContinuations[processToken] = nil
             pendingCompactHookEvents[processToken] = nil
@@ -94,6 +96,14 @@ public actor ClaudeHookServer {
     /// Registers a compact hook token for one process generation.
     public func registerCompactHooks(processToken: UUID, token: String) {
         compactHookTokensByProcess[processToken] = token
+    }
+
+    /// Registers path context for one process generation so native read-only hooks can preserve Claude's project boundary.
+    public func registerLaunchContext(processToken: UUID, workingDirectory: URL, homeDirectory: URL) {
+        launchContextsByProcess[processToken] = ClaudeHookLaunchContext(
+            workingDirectory: workingDirectory,
+            homeDirectory: homeDirectory
+        )
     }
 
     /// Attaches a runtime event continuation for compact hook events.
@@ -134,7 +144,14 @@ public actor ClaudeHookServer {
         default:
             break
         }
-        guard ClaudeHookPolicy.shouldDefer(toolName: operation, permissionMode: permissionMode(for: request)) else {
+        let launchContext = launchContext(for: request)
+        guard ClaudeHookPolicy.shouldDeferToolUse(
+            toolName: operation,
+            toolInput: request.toolInput ?? .object([:]),
+            permissionMode: permissionMode(for: request),
+            workingDirectory: launchContext?.workingDirectory,
+            homeDirectory: launchContext?.homeDirectory ?? FileManager.default.homeDirectoryForCurrentUser
+        ) else {
             return .noDecision
         }
 
@@ -370,6 +387,14 @@ public actor ClaudeHookServer {
         request.permissionMode ?? permissionModes[request.conversationId]
     }
 
+    private func launchContext(for request: ClaudeHookRequest) -> ClaudeHookLaunchContext? {
+        guard let processToken = request.processToken,
+              compactHookTokensByProcess[processToken] == request.bearerToken else {
+            return nil
+        }
+        return launchContextsByProcess[processToken]
+    }
+
     private func resolveInteractionIfNeeded(
         _ decision: ClaudeHookDecision,
         interactionId: AgentInteractionID,
@@ -393,7 +418,15 @@ public actor ClaudeHookServer {
         ), updatedAt: Date())
     }
 
-    private func response(for decision: ClaudeHookDecision, interactionId: AgentInteractionID? = nil) -> AgentHookResponse {
+}
+
+private struct ClaudeHookLaunchContext {
+    let workingDirectory: URL
+    let homeDirectory: URL
+}
+
+private extension ClaudeHookServer {
+    func response(for decision: ClaudeHookDecision, interactionId: AgentInteractionID? = nil) -> AgentHookResponse {
         switch decision.approval {
         case .allow:
             AgentHookResponse(statusCode: 200, body: decisionBody(decision, permissionDecision: "allow", interactionId: interactionId))
@@ -404,7 +437,7 @@ public actor ClaudeHookServer {
         }
     }
 
-    private func decisionBody(
+    func decisionBody(
         _ decision: ClaudeHookDecision,
         permissionDecision: String,
         interactionId: AgentInteractionID? = nil

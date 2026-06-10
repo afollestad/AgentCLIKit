@@ -429,7 +429,8 @@ final class ClaudeHookTests: XCTestCase {
         toolName: String = "Edit",
         toolInput: JSONValue = .object([:]),
         sessionId: String = "session-123",
-        permissionMode: String? = nil
+        permissionMode: String? = nil,
+        processToken: UUID? = nil
     ) -> ClaudeHookRequest {
         var payload: [String: JSONValue] = [
             "hook_event_name": .string("PreToolUse"),
@@ -447,7 +448,8 @@ final class ClaudeHookTests: XCTestCase {
             bearerToken: token,
             hookName: "PreToolUse",
             conversationId: "conversation",
-            payload: .object(payload)
+            payload: .object(payload),
+            processToken: processToken
         )
     }
 
