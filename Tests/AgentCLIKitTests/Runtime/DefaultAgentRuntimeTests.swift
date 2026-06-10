@@ -287,14 +287,19 @@ final class DefaultAgentRuntimeTests: XCTestCase {
             shell("printf 'message:old\\n'"),
             shell("printf 'message:new\\n'")
         ])
+        // Gate the first process's decode open across the replacement instead of using a fixed decode
+        // delay; on slow runners a delay let the old decode finish while its token was still current,
+        // legitimately appending "old" and flaking the assertion.
+        let decodeGate = DecodeGate()
         let runtime = DefaultAgentRuntime(adapters: [
-            DelayedDecodingProviderAdapter(launchSequence: launchSequence)
+            GatedDecodingProviderAdapter(launchSequence: launchSequence, gate: decodeGate, gatedLine: "message:old")
         ])
         let conversationId: AgentConversationID = "conversation"
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
-        try await Task.sleep(nanoseconds: 20_000_000)
+        await decodeGate.waitUntilEntered()
         try await runtime.reconfigure(conversationId: conversationId, config: spawnConfig())
+        await decodeGate.release()
         _ = await waitForExit(runtime: runtime, conversationId: conversationId)
         try await Task.sleep(nanoseconds: 250_000_000)
         let status = await runtime.status(conversationId: conversationId)

@@ -151,9 +151,46 @@ struct SequencedProviderAdapter: AgentProviderAdapter {
     }
 }
 
-struct DelayedDecodingProviderAdapter: AgentProviderAdapter {
+/// Suspends decoding of one chosen line until the test releases it, so tests can order a decode
+/// completion strictly after a process replacement instead of approximating the race with sleeps.
+actor DecodeGate {
+    private var hasEntered = false
+    private var isReleased = false
+    private var enteredWaiters: [CheckedContinuation<Void, Never>] = []
+    private var releaseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    /// Marks the gated line as decoding, then suspends until `release()`.
+    func enter() async {
+        hasEntered = true
+        enteredWaiters.forEach { $0.resume() }
+        enteredWaiters.removeAll()
+        guard !isReleased else {
+            return
+        }
+        await withCheckedContinuation { releaseWaiters.append($0) }
+    }
+
+    /// Suspends until the gated line has started decoding.
+    func waitUntilEntered() async {
+        guard !hasEntered else {
+            return
+        }
+        await withCheckedContinuation { enteredWaiters.append($0) }
+    }
+
+    /// Lets the gated decode finish.
+    func release() {
+        isReleased = true
+        releaseWaiters.forEach { $0.resume() }
+        releaseWaiters.removeAll()
+    }
+}
+
+struct GatedDecodingProviderAdapter: AgentProviderAdapter {
     let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
+    let gate: DecodeGate
+    let gatedLine: String
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -163,8 +200,8 @@ struct DelayedDecodingProviderAdapter: AgentProviderAdapter {
     }
 
     func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
-        if line == "message:old" {
-            try await Task.sleep(nanoseconds: 200_000_000)
+        if line == gatedLine {
+            await gate.enter()
         }
         if let text = line.removingPrefix("message:") {
             return [.message(AgentMessageEvent(role: .assistant, text: text))]

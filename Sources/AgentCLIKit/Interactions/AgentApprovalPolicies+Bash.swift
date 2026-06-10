@@ -12,6 +12,12 @@ extension AgentSessionApprovalRequest {
         recommendedBashCommandGroup ?? genericBashCommandGroup
     }
 
+    /// A conservative command group that is safe to *preselect* for session approval.
+    ///
+    /// Stricter than ``bashCommandGroup``: it rejects every command-substitution and control
+    /// construct via ``containsShellExecutionConstruct`` rather than the looser operator-only
+    /// check used for offered-but-not-recommended generic groups. A recommended scope is
+    /// approved without further host scrutiny, so it must not let a wrapper smuggle execution.
     var recommendedBashCommandGroup: String? {
         guard let command = normalizedBashCommand else {
             return nil
@@ -58,6 +64,13 @@ extension AgentSessionApprovalRequest {
 }
 
 private extension AgentSessionApprovalRequest {
+    /// Normalizes a Bash command to the identity used for approval matching.
+    ///
+    /// Strips a leading unquoted `rtk` transparent-wrapper prefix so a wrapped command
+    /// (`rtk git log`) shares the same exact and group approval identity as the unwrapped
+    /// command (`git log`). The prefix is only stripped when it is a bare leading token
+    /// followed by whitespace; a quoted `"rtk"` keeps its own identity so an executable that
+    /// merely starts with `rtk` is not misattributed.
     static func approvalIdentityCommand(for command: String) -> String? {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("rtk") else {
@@ -251,6 +264,8 @@ private extension AgentSessionApprovalRequest {
         executableName(token) == "xargs"
     }
 
+    /// Loose gate for offered generic groups: flags only the control operators `&;|<>`.
+    /// Recommended groups use the stricter ``containsShellExecutionConstruct``.
     static func containsShellControlOperator(_ command: String) -> Bool {
         let controlCharacters = CharacterSet(charactersIn: "&;|<>")
         var activeQuote: Character?
@@ -284,6 +299,9 @@ private extension AgentSessionApprovalRequest {
         return false
     }
 
+    /// Strict gate for recommended groups: in addition to control operators, rejects newlines
+    /// and command substitution (`$( )` and backticks) outside single quotes, since either can
+    /// run a hidden command that a preselected approval would otherwise wave through.
     static func containsShellExecutionConstruct(_ command: String) -> Bool {
         let controlCharacters = CharacterSet(charactersIn: "&;|<>\n")
         var activeQuote: Character?
