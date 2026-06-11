@@ -129,6 +129,124 @@ extension ClaudeHookTests {
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
     }
 
+    func testPreToolUseReturnsNoDecisionForReadOnlyBashCommandsInsideWorkingDirectory() async {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let token = await tokenStore.issue(validFor: 60)
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+        let processToken = UUID()
+        await server.registerCompactHooks(processToken: processToken, token: token.value)
+        await server.registerLaunchContext(
+            processToken: processToken,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true),
+            homeDirectory: URL(fileURLWithPath: "/Users/example", isDirectory: true)
+        )
+
+        let commands = [
+            "pwd",
+            "ls Sources",
+            "wc -l Sources/App.swift",
+            "rg Token Sources",
+            "rg -e Token Sources",
+            "rg xargs Sources",
+            "grep -R Token Sources",
+            "grep -f Patterns.txt Sources",
+            "git status --short",
+            "git -C Sources status",
+            #"sqlite3 -readonly Data/App.sqlite "SELECT 1;""#,
+            "ls Sources && ls Tests"
+        ]
+
+        for command in commands {
+            let response = await server.handle(preToolUse(
+                token: token.value,
+                toolName: "Bash",
+                toolInput: .object(["command": .string(command)]),
+                permissionMode: "plan",
+                processToken: processToken
+            ))
+            XCTAssertEqual(response, .noDecision, command)
+        }
+
+        let pending = await interactionStore.pending(conversationId: "conversation")
+        XCTAssertEqual(pending, [])
+    }
+
+    func testPreToolUseDefersReadOnlyBashCommandsOutsideWorkingDirectory() async {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let token = await tokenStore.issue(validFor: 60)
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+        let processToken = UUID()
+        await server.registerCompactHooks(processToken: processToken, token: token.value)
+        await server.registerLaunchContext(
+            processToken: processToken,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true),
+            homeDirectory: URL(fileURLWithPath: "/Users/example", isDirectory: true)
+        )
+
+        let commands = [
+            "ls /tmp/other",
+            "ls ../other",
+            "grep Token /tmp/other/file.txt",
+            "rg -e Token /tmp/other",
+            "grep -f /tmp/patterns Sources",
+            "rg --files /tmp/other",
+            "git -C /tmp/other status",
+            "ls Sources && ls /tmp/other"
+        ]
+
+        for command in commands {
+            let response = await server.handle(preToolUse(
+                token: token.value,
+                toolName: "Bash",
+                toolInput: .object(["command": .string(command)]),
+                permissionMode: "plan",
+                processToken: processToken
+            ))
+            XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision, command)
+        }
+    }
+
+    func testPreToolUseDefersUnsafeBashSyntax() async {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let interactionStore = InMemoryAgentInteractionStore()
+        let token = await tokenStore.issue(validFor: 60)
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
+        let processToken = UUID()
+        await server.registerCompactHooks(processToken: processToken, token: token.value)
+        await server.registerLaunchContext(
+            processToken: processToken,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project", isDirectory: true),
+            homeDirectory: URL(fileURLWithPath: "/Users/example", isDirectory: true)
+        )
+
+        let commands = [
+            "ls Sources | cat",
+            "ls Sources > out.txt",
+            "ls Sources && rm -rf Sources",
+            "ls $(pwd)",
+            "ls $HOME",
+            "./ls Sources",
+            "rg --pre cat Token Sources",
+            "wc --files0-from=/tmp/list",
+            #"sqlite3 -readonly Data/App.sqlite ".shell rm -rf Sources""#,
+            #"sqlite3 -readonly Data/App.sqlite "SELECT 1; ATTACH '/tmp/other' AS other""#,
+            "rg token Sources | xargs rm"
+        ]
+
+        for command in commands {
+            let response = await server.handle(preToolUse(
+                token: token.value,
+                toolName: "Bash",
+                toolInput: .object(["command": .string(command)]),
+                permissionMode: "plan",
+                processToken: processToken
+            ))
+            XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision, command)
+        }
+    }
+
     func testPreToolUseReturnsNoDecisionForToolsInAutoBypassAndDontAskModes() async {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()

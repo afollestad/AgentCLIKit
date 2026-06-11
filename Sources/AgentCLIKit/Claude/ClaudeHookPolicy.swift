@@ -149,11 +149,25 @@ public enum ClaudeHookPolicy {
                     homeDirectory: homeDirectory
                 )
             }
+            if toolName == "Bash" {
+                return shouldDeferBashToolUse(
+                    toolInput: toolInput,
+                    workingDirectory: workingDirectory,
+                    homeDirectory: homeDirectory
+                )
+            }
             return toolName == "Bash" || isMutatingMCPTool(toolName)
         default:
             if nativeReadOnlyTools.contains(toolName) {
                 return shouldDeferNativeReadOnlyToolUse(
                     toolName: toolName,
+                    toolInput: toolInput,
+                    workingDirectory: workingDirectory,
+                    homeDirectory: homeDirectory
+                )
+            }
+            if toolName == "Bash" {
+                return shouldDeferBashToolUse(
                     toolInput: toolInput,
                     workingDirectory: workingDirectory,
                     homeDirectory: homeDirectory
@@ -217,6 +231,22 @@ public enum ClaudeHookPolicy {
         default:
             return false
         }
+    }
+
+    private static func shouldDeferBashToolUse(
+        toolInput: JSONValue,
+        workingDirectory: URL?,
+        homeDirectory: URL
+    ) -> Bool {
+        guard let command = pathString("command", in: toolInput),
+              ClaudeReadOnlyBashClassifier.isReadOnly(
+                command,
+                workingDirectory: workingDirectory,
+                homeDirectory: homeDirectory
+              ) else {
+            return true
+        }
+        return false
     }
 
     private static func pathString(_ key: String, in toolInput: JSONValue) -> String? {
