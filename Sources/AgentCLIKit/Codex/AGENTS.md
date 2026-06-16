@@ -16,4 +16,5 @@
 - Treat Codex permission-profile denial semantics as live-validated behavior; do not invent a decline enum for `item/permissions/requestApproval`.
 - Treat `thread/compact/start` as a client request only; map `thread/compacted`, `contextCompaction` items, and raw response compaction aliases to `AgentEvent.contextCompaction`.
 - Do not expose encrypted Codex compaction payloads as transcript summaries.
+- Map only observed model-visible Codex tool items or actually executed host requests to provider-neutral tool events; do not synthesize successful tool activity from final assistant text, warnings, or unsupported `item/tool/call` requests.
 - Map Codex `cachedInputTokens` to `AgentUsageEvent.cachedInputTokens`, not `cacheReadInputTokens`; it is a subset of `inputTokens` and must not be added again for context-window occupancy.
