@@ -401,6 +401,15 @@ final class CodexAppServerItemEventDecoderTests: XCTestCase {
         ])
     }
 
+    private func snakeCaseItemCompleted(item: [String: JSONValue]) -> CodexAppServerNotification {
+        notification(method: "item_completed", params: [
+            "thread_id": .string("thread-1"),
+            "turn_id": .string("turn-1"),
+            "completed_at_ms": .number(2),
+            "item": .object(item)
+        ])
+    }
+
     private func startedItemMetadata(
         itemId: String,
         type: String,
@@ -423,10 +432,11 @@ final class CodexAppServerItemEventDecoderTests: XCTestCase {
         itemId: String,
         type: String,
         status: String? = nil,
+        method: String = "item/completed",
         values: [String: JSONValue] = [:]
     ) -> [String: JSONValue] {
         itemMetadata(
-            method: "item/completed",
+            method: method,
             itemId: itemId,
             values: [
                 "codex_item_type": .string(type),

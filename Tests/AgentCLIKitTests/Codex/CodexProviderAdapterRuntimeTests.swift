@@ -341,6 +341,99 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         })
     }
 
+    func testRuntimeEventsMapSnakeCaseCompletedPlanItem() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        try await waitForBinding()
+        async let collectedEvents = Self.collect(stream, count: 1)
+
+        await transport.emitNotification(method: "item_completed", params: .object([
+            "thread_id": .string("thread-123"),
+            "turn_id": .string("turn-1"),
+            "completed_at_ms": .number(1_781_657_454_256),
+            "item": .object([
+                "id": .string("turn-1-plan"),
+                "type": .string("Plan"),
+                "text": .string(Self.planMarkdown)
+            ])
+        ]))
+
+        let events = await collectedEvents.map(\.event)
+
+        XCTAssertEqual(events, [
+            .message(AgentMessageEvent(
+                role: .assistant,
+                text: Self.planMarkdown,
+                metadata: [
+                    AgentPlanProposalMetadata.isProposal: .bool(true),
+                    AgentPlanProposalMetadata.proposalId: .string("turn-1-plan"),
+                    AgentPlanProposalMetadata.planMarkdown: .string(Self.planMarkdown),
+                    "codex_method": .string("item_completed"),
+                    "codex_thread_id": .string("thread-123"),
+                    "codex_turn_id": .string("turn-1"),
+                    "codex_item_id": .string("turn-1-plan"),
+                    "codex_item_type": .string("Plan"),
+                    "codex_item_phase": .string("completed"),
+                    "completed_at_ms": .number(1_781_657_454_256)
+                ]
+            ))
+        ])
+    }
+
+    func testRuntimeEventsRecoverCompletedPlanFromCodexSessionTranscript() async throws {
+        let codexHome = try temporaryDirectory()
+        try writeCodexSessionPlan(codexHome: codexHome, threadId: "thread-123")
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport, codexHomeDirectory: codexHome))
+        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        try await waitForBinding()
+        async let collectedEvents = Self.collect(stream, count: 3)
+
+        await transport.emitNotification(method: "thread/tokenUsage/updated", params: tokenUsageParams())
+        await transport.emitNotification(method: "thread/tokenUsage/updated", params: tokenUsageParams())
+
+        let events = await collectedEvents.map(\.event)
+        let messages = events.compactMap { event -> AgentMessageEvent? in
+            guard case let .message(message) = event else {
+                return nil
+            }
+            return message
+        }
+        let usageEvents = events.compactMap { event -> AgentUsageEvent? in
+            guard case let .usage(usage) = event else {
+                return nil
+            }
+            return usage
+        }
+
+        XCTAssertEqual(messages, [
+            AgentMessageEvent(
+                role: .assistant,
+                text: Self.planMarkdown,
+                metadata: [
+                    AgentPlanProposalMetadata.isProposal: .bool(true),
+                    AgentPlanProposalMetadata.proposalId: .string("turn-1-plan"),
+                    AgentPlanProposalMetadata.planMarkdown: .string(Self.planMarkdown),
+                    "codex_method": .string("item_completed"),
+                    "codex_source": .string("session_transcript"),
+                    "codex_turn_id": .string("turn-1"),
+                    "codex_item_id": .string("turn-1-plan"),
+                    "codex_item_type": .string("Plan"),
+                    "codex_item_phase": .string("completed"),
+                    "completed_at_ms": .number(1_781_660_055_673)
+                ]
+            )
+        ])
+        XCTAssertEqual(usageEvents.count, 2)
+    }
+
     func testRuntimeEventsStartInitialPromptTurn() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
@@ -366,8 +459,12 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         ])]))
     }
 
-    private func configuration(transport: FakeCodexAppServerTransport) -> CodexProviderAdapter.Configuration {
+    func configuration(
+        transport: FakeCodexAppServerTransport,
+        codexHomeDirectory: URL? = nil
+    ) -> CodexProviderAdapter.Configuration {
         CodexProviderAdapter.Configuration(
+            codexHomeDirectory: codexHomeDirectory,
             requestTimeout: 0.1,
             probeTimeout: 0.1,
             makeTransport: { _ in transport },
@@ -375,7 +472,7 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         )
     }
 
-    private func runtimeContext(threadId: AgentSessionID, spawnConfig: AgentSpawnConfig) -> AgentProviderRuntimeContext {
+    func runtimeContext(threadId: AgentSessionID, spawnConfig: AgentSpawnConfig) -> AgentProviderRuntimeContext {
         runtimeContext(
             threadId: threadId,
             spawnConfig: spawnConfig,
@@ -383,7 +480,7 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         )
     }
 
-    private func runtimeContext(
+    func runtimeContext(
         threadId: AgentSessionID,
         spawnConfig: AgentSpawnConfig,
         processToken: UUID
@@ -466,7 +563,9 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         ]
     }
 
-    private func waitForBinding() async throws {
+    private static let planMarkdown = "# UX Polish Pass\n\n- Tighten the hero.\n- Verify the gallery."
+
+    func waitForBinding() async throws {
         try await Task.sleep(nanoseconds: 20_000_000)
     }
 
@@ -495,7 +594,55 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         return await transport.incomingStreamCount
     }
 
-    private static func collect(_ stream: AsyncStream<AgentProviderRuntimeEvent>, count: Int) async -> [AgentProviderRuntimeEvent] {
+    func tokenUsageParams() -> JSONValue {
+        .object([
+            "threadId": .string("thread-123"),
+            "turnId": .string("turn-1"),
+            "tokenUsage": .object([
+                "total": .object([
+                    "inputTokens": .number(10),
+                    "outputTokens": .number(5),
+                    "cachedInputTokens": .number(3),
+                    "totalTokens": .number(15)
+                ]),
+                "last": .object([
+                    "inputTokens": .number(10),
+                    "outputTokens": .number(5),
+                    "cachedInputTokens": .number(3),
+                    "totalTokens": .number(15)
+                ]),
+                "modelContextWindow": .number(1000)
+            ])
+        ])
+    }
+
+    private func writeCodexSessionPlan(codexHome: URL, threadId: String) throws {
+        let sessionsDirectory = codexHome
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("2026", isDirectory: true)
+            .appendingPathComponent("06", isDirectory: true)
+            .appendingPathComponent("16", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionsDirectory, withIntermediateDirectories: true)
+        let fileURL = sessionsDirectory.appendingPathComponent("rollout-2026-06-16T20-33-05-\(threadId).jsonl")
+        let oldPlanLine =
+            "{\"type\":\"event_msg\",\"payload\":{\"type\":\"item_completed\",\"thread_id\":\"" + threadId +
+            "\",\"turn_id\":\"turn-0\",\"item\":{\"type\":\"Plan\",\"id\":\"turn-0-plan\",\"text\":\"# Old Plan\"}}}"
+        let completedPlanLine =
+            "{\"type\":\"event_msg\",\"payload\":{\"type\":\"item_completed\",\"thread_id\":\"" + threadId +
+            "\",\"turn_id\":\"turn-1\",\"item\":{\"type\":\"Plan\",\"id\":\"turn-1-plan\",\"text\":\"" +
+            Self.escapedPlanMarkdown + "\"},\"completed_at_ms\":1781660055673}}"
+        try [oldPlanLine, completedPlanLine]
+            .joined(separator: "\n")
+            .write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+
+    func temporaryDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    static func collect(_ stream: AsyncStream<AgentProviderRuntimeEvent>, count: Int) async -> [AgentProviderRuntimeEvent] {
         var events: [AgentProviderRuntimeEvent] = []
         for await event in stream {
             events.append(event)
@@ -505,4 +652,6 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         }
         return events
     }
+
+    private static let escapedPlanMarkdown = "# UX Polish Pass\\n\\n- Tighten the hero.\\n- Verify the gallery."
 }

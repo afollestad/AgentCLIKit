@@ -12,6 +12,7 @@ struct CodexPendingServerRequest: Sendable {
         case permissionProfileApproval
         case mcpElicitation
         case toolUserInput
+        case planModeExit
     }
 
     let requestId: JSONValue
@@ -58,6 +59,8 @@ struct CodexAppServerServerRequestMapper {
             return mcpElicitation(request, params: params, context: context)
         case "item/tool/requestUserInput":
             return toolUserInput(request, params: params, context: context)
+        case "item/tool/call":
+            return dynamicToolCall(request, params: params, context: context)
         default:
             return nil
         }
@@ -256,6 +259,9 @@ struct CodexAppServerServerRequestMapper {
             "codex_questions": params["questions"],
             "codex_default_question_id": defaultQuestionId.map(JSONValue.string)
         ])
+        metadata["session_id"] = .string(context.threadId.rawValue)
+        metadata["tool_name"] = .string("AskUserQuestion")
+        metadata["tool_input"] = request.params ?? .object(params)
         metadata["codex_available_actions"] = .array([.string("answer"), .string("cancel")])
         let pending = CodexPendingServerRequest(
             requestId: request.id,
@@ -276,6 +282,57 @@ struct CodexAppServerServerRequestMapper {
             kind: .prompt,
             prompt: prompt,
             promptOptions: promptOptions(from: firstQuestion),
+            metadata: metadata
+        )
+        return CodexMappedServerRequest(pending: pending, event: AgentProviderRuntimeEvent(event: .interaction(event)))
+    }
+
+    private func dynamicToolCall(
+        _ request: CodexAppServerRequest,
+        params: [String: JSONValue],
+        context: CodexServerRequestMappingContext
+    ) -> CodexMappedServerRequest? {
+        guard params["tool"]?.codexStringValue == "ExitPlanMode" else {
+            return nil
+        }
+
+        let interactionId = toolCallInteractionId(request, params: params)
+        let toolInput = toolCallInput(params: params)
+        let planMarkdown = planMarkdown(from: toolInput)
+        var metadata = approvalMetadata(
+            request,
+            params: params,
+            context: context,
+            operation: "ExitPlanMode",
+            values: [
+                "codex_prompt_kind": .string("toolExitPlanMode"),
+                "codex_tool_name": params["tool"],
+                "codex_tool_namespace": params["namespace"],
+                "codex_tool_call_id": params["callId"],
+                "codex_tool_arguments": params["arguments"],
+                "codex_available_actions": .array([.string("accept"), .string("decline")]),
+                "plan": planMarkdown.map(JSONValue.string)
+            ]
+        )
+        metadata["tool_input"] = toolInput
+
+        let pending = CodexPendingServerRequest(
+            requestId: request.id,
+            interactionId: interactionId,
+            method: request.method,
+            kind: .planModeExit,
+            conversationId: context.conversationId,
+            processToken: context.processToken,
+            threadId: context.threadId,
+            turnId: params["turnId"]?.codexStringValue,
+            itemId: params["callId"]?.codexStringValue ?? params["itemId"]?.codexStringValue,
+            defaultQuestionId: nil,
+            params: params
+        )
+        let event = AgentInteractionEvent(
+            id: interactionId,
+            kind: .planModeExit,
+            prompt: "ExitPlanMode",
             metadata: metadata
         )
         return CodexMappedServerRequest(pending: pending, event: AgentProviderRuntimeEvent(event: .interaction(event)))
@@ -375,10 +432,41 @@ struct CodexAppServerServerRequestMapper {
         AgentInteractionID(rawValue: "codex-\(request.method)-\(request.id.codexStableRequestID)")
     }
 
+    private func toolCallInteractionId(
+        _ request: CodexAppServerRequest,
+        params: [String: JSONValue]
+    ) -> AgentInteractionID {
+        if let callId = params["callId"]?.codexStringValue {
+            return AgentInteractionID(rawValue: callId)
+        }
+        if let itemId = params["itemId"]?.codexStringValue {
+            return AgentInteractionID(rawValue: itemId)
+        }
+        return interactionId(request)
+    }
+
+    private func toolCallInput(params: [String: JSONValue]) -> JSONValue {
+        params["arguments"] ?? params["input"] ?? .object([:])
+    }
+
+    private func planMarkdown(from value: JSONValue) -> String? {
+        guard case let .object(object) = value,
+              case let .string(plan)? = object["plan"] else {
+            return nil
+        }
+        return plan.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+    }
+
     private func compacted(_ values: [String: JSONValue?]) -> [String: JSONValue] {
         Dictionary(uniqueKeysWithValues: values.compactMap { key, value -> (String, JSONValue)? in
             value.map { (key, $0) }
         })
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
 

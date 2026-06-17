@@ -138,11 +138,7 @@ extension JSONValue {
 
 private extension [String: JSONValue] {
     var topLevelThreadId: String? {
-        guard case let .string(threadId)? = self["threadId"],
-              !threadId.isEmpty else {
-            return nil
-        }
-        return threadId
+        stringValue("threadId", "thread_id")
     }
 
     var nestedThreadId: String? {
@@ -152,5 +148,14 @@ private extension [String: JSONValue] {
             return nil
         }
         return threadId
+    }
+
+    func stringValue(_ keys: String...) -> String? {
+        keys.lazy.compactMap { key -> String? in
+            guard case let .string(value)? = self[key], !value.isEmpty else {
+                return nil
+            }
+            return value
+        }.first
     }
 }

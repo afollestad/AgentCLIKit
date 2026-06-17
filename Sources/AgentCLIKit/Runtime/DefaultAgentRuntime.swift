@@ -227,6 +227,10 @@ public actor DefaultAgentRuntime: AgentRuntime {
         guard states[conversationId]?.resolvedInteractions.contains(resolution.id) != true else {
             return
         }
+        if try await resolveRuntimePlanExit(resolution, conversationId: conversationId) {
+            return
+        }
+        let providerPlanExit = providerPlanExitInteraction(id: resolution.id, conversationId: conversationId)
         let previousWaitingState = states[conversationId]?.waitingState ?? .idle
         let previousInputAvailability = states[conversationId]?.inputAvailability ?? .available
         let previousResolvedInteractions = states[conversationId]?.resolvedInteractions ?? []
@@ -243,6 +247,20 @@ public actor DefaultAgentRuntime: AgentRuntime {
             states[conversationId]?.inputAvailability = previousInputAvailability
             publishStatus(conversationId: conversationId)
             throw error
+        }
+        guard let providerPlanExit,
+              resolution.outcome == .approved || resolution.outcome == .answered else {
+            return
+        }
+        do {
+            try stageApprovedPlanImplementation(
+                pending: providerPlanExit,
+                resolution: resolution,
+                conversationId: conversationId
+            )
+            try await drainPendingPlanImplementationIfReady(conversationId: conversationId)
+        } catch {
+            appendPlanImplementationFailure(error, conversationId: conversationId)
         }
     }
 

@@ -325,6 +325,8 @@ extension DefaultAgentRuntime {
         state.subscribers.values.forEach { $0.yield(envelope) }
         states[conversationId] = state
         publishStatus(conversationId: conversationId)
+        synthesizePlanModeExitIfNeeded(from: envelope, conversationId: conversationId)
+        schedulePendingPlanImplementationDrainIfNeeded(conversationId: conversationId)
     }
 
     private func eventForEnvelope(_ event: AgentEvent, state: inout ConversationState) -> AgentEvent {

@@ -27,11 +27,17 @@ actor CodexAppServerClient {
     var conversationByThreadId: [AgentSessionID: AgentConversationID] = [:]
     var pendingServerRequests: [AgentInteractionID: CodexPendingServerRequest] = [:]
     private let notificationDecoder = CodexAppServerNotificationDecoder()
+    private let transcriptPlanReader: CodexSessionTranscriptPlanReader
     let serverRequestMapper = CodexAppServerServerRequestMapper()
     let resolutionEncoder = CodexInteractionResolutionEncoder()
+    private var recoveredPlanKeysByConversation: [AgentConversationID: Set<CodexSessionTranscriptPlanRecoveryKey>] = [:]
+    private var transcriptPlanSessionFileURLsByThreadId: [AgentSessionID: URL] = [:]
 
     init(configuration: CodexProviderAdapter.Configuration) {
         self.configuration = configuration
+        self.transcriptPlanReader = CodexSessionTranscriptPlanReader(
+            codexHomeDirectory: configuration.codexHomeDirectory ?? CodexConfigStore.defaultCodexHomeDirectoryURL
+        )
     }
 
     func shutdown() async {
@@ -42,6 +48,8 @@ actor CodexAppServerClient {
         bindingsByConversation.removeAll()
         conversationByThreadId.removeAll()
         pendingServerRequests.removeAll()
+        recoveredPlanKeysByConversation.removeAll()
+        transcriptPlanSessionFileURLsByThreadId.removeAll()
         await transport?.shutdown()
         transport = nil
         isInitialized = false
@@ -101,6 +109,8 @@ actor CodexAppServerClient {
             return .restartRequired
         }
         guard !context.isTurnActive, binding.activeTurnId == nil else {
+            binding.spawnConfig = context.newConfig
+            bindingsByConversation[context.conversationId] = binding
             return .nextTurnRequired
         }
         try await updateThreadSettings(threadId: binding.threadId, spawnConfig: context.newConfig)
@@ -138,6 +148,9 @@ actor CodexAppServerClient {
                 conversationByThreadId[existing.threadId] = nil
                 existing.continuation?.finish()
                 pendingServerRequests = pendingServerRequests.filter { $0.value.conversationId != context.conversationId }
+                if existing.threadId != threadId {
+                    recoveredPlanKeysByConversation[context.conversationId] = nil
+                }
             }
             binding = ConversationBinding(
                 threadId: threadId,
@@ -299,6 +312,7 @@ actor CodexAppServerClient {
               var binding = bindingsByConversation[conversationId] else {
             return
         }
+        let recoveryTurnId = notification.transcriptPlanRecoveryTurnId ?? binding.activeTurnId
         if let startedTurnId = notification.startedTurnId {
             binding.activeTurnId = startedTurnId
             binding.isTurnSteerReady = true
@@ -318,9 +332,88 @@ actor CodexAppServerClient {
             clearPendingServerRequests(conversationId: conversationId, turnId: nil)
         }
         bindingsByConversation[conversationId] = binding
+        recordForwardedPlanItemIfNeeded(notification, conversationId: conversationId)
+        if notification.shouldRecoverTranscriptPlanItems {
+            recoverTranscriptPlanItems(
+                conversationId: conversationId,
+                expectedThreadId: binding.threadId,
+                targetTurnId: recoveryTurnId,
+                processToken: binding.processToken
+            )
+        }
         for event in notificationDecoder.decode(notification) {
             binding.continuation?.yield(event)
         }
+        if notification.shouldRecoverTranscriptPlanItems {
+            scheduleTranscriptPlanRecovery(
+                conversationId: conversationId,
+                expectedThreadId: binding.threadId,
+                targetTurnId: recoveryTurnId,
+                processToken: binding.processToken
+            )
+        }
+    }
+
+    private func scheduleTranscriptPlanRecovery(
+        conversationId: AgentConversationID,
+        expectedThreadId: AgentSessionID,
+        targetTurnId: String?,
+        processToken: UUID
+    ) {
+        Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            self.recoverTranscriptPlanItems(
+                conversationId: conversationId,
+                expectedThreadId: expectedThreadId,
+                targetTurnId: targetTurnId,
+                processToken: processToken
+            )
+        }
+    }
+
+    private func recoverTranscriptPlanItems(
+        conversationId: AgentConversationID,
+        expectedThreadId: AgentSessionID,
+        targetTurnId: String?,
+        processToken: UUID
+    ) {
+        guard let binding = bindingsByConversation[conversationId],
+              binding.threadId == expectedThreadId,
+              let targetTurnId,
+              binding.processToken == processToken,
+              let continuation = binding.continuation else {
+            return
+        }
+        let plans = completedTranscriptPlans(threadId: expectedThreadId).filter { $0.turnId == targetTurnId }
+        guard !plans.isEmpty else {
+            return
+        }
+        var recoveredPlanKeys = recoveredPlanKeysByConversation[conversationId] ?? []
+        for plan in plans where recoveredPlanKeys.insert(plan.recoveryKey).inserted {
+            continuation.yield(plan.runtimeEvent)
+        }
+        recoveredPlanKeysByConversation[conversationId] = recoveredPlanKeys
+    }
+
+    private func recordForwardedPlanItemIfNeeded(
+        _ notification: CodexAppServerNotification,
+        conversationId: AgentConversationID
+    ) {
+        guard let recoveryKey = notification.completedPlanRecoveryKey else {
+            return
+        }
+        recoveredPlanKeysByConversation[conversationId, default: []].insert(recoveryKey)
+    }
+
+    private func completedTranscriptPlans(threadId: AgentSessionID) -> [CodexSessionTranscriptPlan] {
+        if let sessionFileURL = transcriptPlanSessionFileURLsByThreadId[threadId] {
+            return transcriptPlanReader.completedPlans(threadId: threadId, sessionFileURL: sessionFileURL)
+        }
+        guard let sessionFileURL = transcriptPlanReader.sessionFileURL(threadId: threadId) else {
+            return []
+        }
+        transcriptPlanSessionFileURLsByThreadId[threadId] = sessionFileURL
+        return transcriptPlanReader.completedPlans(threadId: threadId, sessionFileURL: sessionFileURL)
     }
 
     private func binding(for conversationId: AgentConversationID, processToken: UUID) -> ConversationBinding? {

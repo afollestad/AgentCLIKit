@@ -148,6 +148,16 @@ public extension AgentEvent {
     }
 }
 
+/// Metadata keys for assistant messages that contain a proposed implementation plan.
+public enum AgentPlanProposalMetadata {
+    /// Boolean metadata key that marks an assistant message as an actionable plan proposal.
+    public static let isProposal = "agent_plan_proposal"
+    /// Optional stable provider/runtime identifier for the proposed plan.
+    public static let proposalId = "agent_plan_proposal_id"
+    /// Optional plan markdown. When omitted, runtimes should use the message text.
+    public static let planMarkdown = "agent_plan_markdown"
+}
+
 /// Role attached to a message event or message input.
 public enum AgentMessageRole: String, Codable, Hashable, Sendable {
     /// Host user input.
@@ -166,7 +176,7 @@ public struct AgentMessageEvent: Codable, Equatable, Sendable {
     public let role: AgentMessageRole
     /// Text content for the message.
     public let text: String
-    /// Provider-specific message metadata.
+    /// Provider or runtime metadata for the message.
     public let metadata: [String: JSONValue]
 
     /// Creates a message event.
@@ -454,6 +464,8 @@ public enum AgentDiagnosticCode: String, Codable, Hashable, Sendable {
     case codexAppServerResponseFailure
     /// Codex App Server shutdown timed out.
     case codexAppServerShutdownTimeout
+    /// The runtime could not start implementation after a plan-mode approval.
+    case planImplementationStartFailed
 }
 
 /// Severity for diagnostic events.

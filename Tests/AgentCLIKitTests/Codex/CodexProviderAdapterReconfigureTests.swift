@@ -173,11 +173,17 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
             newConfig: updatedConfig,
             isTurnActive: true
         ))
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Start work")),
+            context: inputContext(threadId: "thread-123", spawnConfig: updatedConfig, isTurnActive: false)
+        )
 
-        let requestMethods = await transport.requestMethods
+        let requestLog = await transport.requestLog
+        let turnStartParams = try XCTUnwrap(requestLog.first { $0.method == "turn/start" }?.params?.objectValue)
 
         XCTAssertEqual(result, .nextTurnRequired)
-        XCTAssertEqual(requestMethods, ["initialize", "thread/start"])
+        XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "turn/start"])
+        XCTAssertEqual(turnStartParams["collaborationMode"], Self.collaborationModeValue(mode: "plan", model: "model-a", effort: nil))
     }
 
     func testReconfigureBindingActiveTurnReturnsNextTurnRequiredWithoutSettingsUpdate() async throws {

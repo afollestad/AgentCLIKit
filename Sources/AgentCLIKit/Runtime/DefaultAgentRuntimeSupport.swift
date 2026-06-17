@@ -48,6 +48,10 @@ struct ConversationState {
     var waitingState: AgentRuntimeWaitingState
     var inputAvailability: AgentInputAvailability
     var resolvedInteractions: Set<AgentInteractionID>
+    var runtimePlanExitInteractions: [AgentInteractionID: RuntimePlanExitInteraction]
+    var pendingPlanImplementationStart: PendingPlanImplementationStart?
+    var completedPlanImplementationKeys: Set<String>
+    var synthesizedPlanExitProposalKeys: Set<String>
     var persistedIndex: Int
     var hasDeferredToolStop: Bool
     var providerResumeReplayGate: ProviderResumeReplayGate?
@@ -85,6 +89,21 @@ struct ConversationState {
             canCancel: lifecycleState == .starting || lifecycleState == .running
         )
     }
+}
+
+struct RuntimePlanExitInteraction: Sendable {
+    let id: AgentInteractionID
+    let proposalId: String
+    let planMarkdown: String
+}
+
+struct PendingPlanImplementationStart: Sendable {
+    let interactionId: AgentInteractionID
+    let implementationKey: String
+    let proposalId: String
+    let planMarkdown: String
+    let prompt: String
+    let targetConfig: AgentSpawnConfig
 }
 
 extension DefaultAgentRuntime {

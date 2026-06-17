@@ -14,6 +14,17 @@ extension CodexAppServerClient {
             )
             return
         }
+        let mappingContext = CodexServerRequestMappingContext(
+            conversationId: conversationId,
+            processToken: binding.processToken,
+            threadId: binding.threadId,
+            permissionMode: binding.spawnConfig.permissionMode
+        )
+        if let mapped = serverRequestMapper.map(request, context: mappingContext) {
+            pendingServerRequests[mapped.pending.interactionId] = mapped.pending
+            continuation.yield(mapped.event)
+            return
+        }
         if request.method == "item/tool/call" {
             do {
                 try await responseTransport().sendResponse(id: request.id, result: serverRequestMapper.unsupportedToolCallResponse)
@@ -23,20 +34,7 @@ extension CodexAppServerClient {
             }
             return
         }
-        guard let mapped = serverRequestMapper.map(
-            request,
-            context: CodexServerRequestMappingContext(
-                conversationId: conversationId,
-                processToken: binding.processToken,
-                threadId: binding.threadId,
-                permissionMode: binding.spawnConfig.permissionMode
-            )
-        ) else {
-            await sendUnsupportedServerRequest(request, threadId: threadId, conversationId: conversationId, continuation: continuation)
-            return
-        }
-        pendingServerRequests[mapped.pending.interactionId] = mapped.pending
-        continuation.yield(mapped.event)
+        await sendUnsupportedServerRequest(request, threadId: threadId, conversationId: conversationId, continuation: continuation)
     }
 
     func sendUnsupportedServerRequest(

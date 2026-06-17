@@ -53,6 +53,19 @@ public struct CodexAppServerNotification: Sendable {
     }
 }
 
+struct CodexAppServerRawEventNotificationParser {
+    func notification(from object: [String: JSONValue]) -> CodexAppServerNotification? {
+        guard object.codexStringValue("type") == "event_msg",
+              var payload = object["payload"]?.codexObjectValue,
+              let eventType = payload.removeValue(forKey: "type")?.codexStringValue,
+              eventType == "item_completed",
+              payload["item"]?.codexObjectValue?["type"]?.codexStringValue == "Plan" else {
+            return nil
+        }
+        return CodexAppServerNotification(method: eventType, params: .object(payload))
+    }
+}
+
 /// Codex App Server request payload.
 public struct CodexAppServerRequest: Sendable {
     /// JSON-RPC request identifier.
@@ -359,6 +372,10 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
             handleResponse(object, pending: pending)
             return
         }
+        if let notification = CodexAppServerRawEventNotificationParser().notification(from: object) {
+            publishIncoming(.notification(notification))
+            return
+        }
         guard case let .string(method)? = object["method"] else {
             return
         }
@@ -437,6 +454,20 @@ private struct CodexJSONRPCError {
 }
 
 private extension JSONValue {
+    var codexObjectValue: [String: JSONValue]? {
+        guard case let .object(value) = self else {
+            return nil
+        }
+        return value
+    }
+
+    var codexStringValue: String? {
+        guard case let .string(value) = self, !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+
     var intValue: Int? {
         switch self {
         case let .number(value):
@@ -460,5 +491,14 @@ private extension JSONValue {
             message = "Unknown JSON-RPC error."
         }
         return CodexJSONRPCError(code: code, message: message)
+    }
+}
+
+private extension [String: JSONValue] {
+    func codexStringValue(_ key: String) -> String? {
+        guard case let .string(value)? = self[key], !value.isEmpty else {
+            return nil
+        }
+        return value
     }
 }

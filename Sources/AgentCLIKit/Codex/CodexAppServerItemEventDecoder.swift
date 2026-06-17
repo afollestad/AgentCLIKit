@@ -14,7 +14,7 @@ struct CodexAppServerItemEventDecoder {
             decodeReasoningSummaryPartAdded(notification)
         case "item/started":
             decodeItemStarted(notification)
-        case "item/completed":
+        case "item/completed", "item_completed":
             decodeItemCompleted(notification)
         case "rawResponseItem/completed":
             decodeRawResponseItemCompleted(notification)
@@ -89,6 +89,12 @@ struct CodexAppServerItemEventDecoder {
             return messageEvent(role: .user, text: userMessageText(payload.item), metadata: payload.metadata)
         case "agentMessage":
             return messageEvent(role: .assistant, text: payload.item["text"]?.codexStringValue, metadata: payload.metadata)
+        case "Plan":
+            return messageEvent(
+                role: .assistant,
+                text: payload.item["text"]?.codexStringValue,
+                metadata: planProposalMetadata(payload)
+            )
         case "reasoning":
             return completedReasoningEvents(payload)
         case "commandExecution":
@@ -244,8 +250,8 @@ struct CodexAppServerItemEventDecoder {
 
     private func itemPayload(_ notification: CodexAppServerNotification, phase: String) -> ItemPayload? {
         guard let params = notification.params?.codexObjectValue,
-              let threadId = params["threadId"]?.codexStringValue,
-              let turnId = params["turnId"]?.codexStringValue,
+              let threadId = params.codexStringValue("threadId", "thread_id"),
+              let turnId = params.codexStringValue("turnId", "turn_id"),
               let item = params["item"]?.codexObjectValue,
               let id = item["id"]?.codexStringValue,
               let type = item["type"]?.codexStringValue else {
@@ -260,8 +266,8 @@ struct CodexAppServerItemEventDecoder {
                 "codex_item_type": .string(type),
                 "codex_item_phase": .string(phase),
                 "codex_status": item["status"],
-                "started_at_ms": params["startedAtMs"],
-                "completed_at_ms": params["completedAtMs"]
+                "started_at_ms": params.codexValue("startedAtMs", "started_at_ms"),
+                "completed_at_ms": params.codexValue("completedAtMs", "completed_at_ms")
             ]
         )
         return ItemPayload(id: id, type: type, item: item, metadata: itemMetadata)
@@ -332,6 +338,26 @@ struct CodexAppServerItemEventDecoder {
         default:
             return nil
         }
+    }
+
+    private func planProposalMetadata(_ payload: ItemPayload) -> [String: JSONValue] {
+        var metadata = payload.metadata
+        metadata[AgentPlanProposalMetadata.isProposal] = .bool(true)
+        metadata[AgentPlanProposalMetadata.proposalId] = .string(payload.id)
+        if let planMarkdown = payload.item["text"]?.codexStringValue {
+            metadata[AgentPlanProposalMetadata.planMarkdown] = .string(planMarkdown)
+        }
+        return metadata
+    }
+}
+
+private extension [String: JSONValue] {
+    func codexStringValue(_ keys: String...) -> String? {
+        keys.lazy.compactMap { self[$0]?.codexStringValue }.first
+    }
+
+    func codexValue(_ keys: String...) -> JSONValue? {
+        keys.lazy.compactMap { self[$0] }.first
     }
 }
 
