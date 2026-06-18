@@ -7,14 +7,14 @@ final class ClaudeStreamDecoderTaskOutputTests: XCTestCase {
         let events = try ClaudeStreamDecoder().decodeLine(Self.systemTaskNotificationLine)
 
         XCTAssertEqual(events, [
-            .task(AgentTaskEvent(
+            .subAgent(AgentSubAgentEvent(
                 id: "toolu_agent",
-                phase: .notification,
+                phase: .terminal,
                 description: "Agent completed",
+                status: "completed",
                 toolUses: 1,
                 totalTokens: 200,
                 durationMs: 300,
-                status: "completed",
                 metadata: [
                     "tool_use_id": .string("toolu_agent"),
                     "summary": .string("Agent completed"),

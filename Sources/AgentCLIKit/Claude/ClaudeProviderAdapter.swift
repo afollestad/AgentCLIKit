@@ -266,27 +266,34 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     }
 
     private func enrichCompletedTaskOutput(_ event: AgentEvent) -> AgentEvent {
-        guard case let .task(task) = event,
-              task.isCompletedNotification,
-              task.metadata.stringValue("result") == nil,
-              let outputFile = task.metadata.stringValue("output_file"),
+        guard case let .subAgent(subAgent) = event,
+              subAgent.phase == .terminal,
+              subAgent.result == nil,
+              let outputFile = subAgent.metadata.stringValue("output_file"),
               let result = taskOutputReader.resultText(from: URL(fileURLWithPath: outputFile))?.trimmingCharacters(in: .whitespacesAndNewlines),
               !result.isEmpty else {
             return event
         }
 
-        var metadata = task.metadata
+        var metadata = subAgent.metadata
         metadata["result"] = .string(result)
-        return .task(AgentTaskEvent(
-            id: task.id,
-            phase: task.phase,
-            description: task.description,
-            taskType: task.taskType,
-            lastToolName: task.lastToolName,
-            toolUses: task.toolUses,
-            totalTokens: task.totalTokens,
-            durationMs: task.durationMs,
-            status: task.status,
+        return .subAgent(AgentSubAgentEvent(
+            id: subAgent.id,
+            phase: subAgent.phase,
+            description: subAgent.description,
+            prompt: subAgent.prompt,
+            agentType: subAgent.agentType,
+            input: subAgent.input,
+            lastToolName: subAgent.lastToolName,
+            status: subAgent.status,
+            result: result,
+            toolUses: subAgent.toolUses,
+            totalTokens: subAgent.totalTokens,
+            durationMs: subAgent.durationMs,
+            parentToolUseId: subAgent.parentToolUseId,
+            callerAgent: subAgent.callerAgent,
+            parentSessionId: subAgent.parentSessionId,
+            childSessionIds: subAgent.childSessionIds,
             metadata: metadata
         ))
     }
@@ -450,12 +457,6 @@ public enum ClaudePathEncoder {
             workingDirectoryPath: workingDirectoryPath,
             homeDirectory: homeDirectory
         ).path)
-    }
-}
-
-private extension AgentTaskEvent {
-    var isCompletedNotification: Bool {
-        (phase == .notification && status == "completed") || phase == .completed
     }
 }
 

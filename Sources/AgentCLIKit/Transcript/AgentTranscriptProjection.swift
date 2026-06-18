@@ -12,8 +12,10 @@ public enum AgentTranscriptProjectionKind: String, Codable, Hashable, Sendable {
     case approval
     /// Host prompt request.
     case prompt
-    /// Provider task or sub-agent activity.
+    /// Provider task or todo activity.
     case task
+    /// Provider sub-agent activity.
+    case subAgent
     /// Provider task-list update.
     case taskList
     /// Centered note such as lifecycle, continuity, or interruption.
@@ -82,6 +84,8 @@ public struct AgentTranscriptProjector: Sendable {
             projectInteraction(interaction, envelope: envelope)
         case let .task(task):
             projectTask(task, envelope: envelope)
+        case let .subAgent(subAgent):
+            projectSubAgent(subAgent, envelope: envelope)
         case let .contextCompaction(compaction):
             projectContextCompaction(compaction, envelope: envelope)
         case let .lifecycle(lifecycle):
@@ -114,6 +118,15 @@ public struct AgentTranscriptProjector: Sendable {
             kind: isTaskList ? .taskList : .task,
             title: task.description ?? task.taskType ?? task.id,
             detail: task.status
+        )
+    }
+
+    private func projectSubAgent(_ subAgent: AgentSubAgentEvent, envelope: AgentEventEnvelope) -> AgentTranscriptProjection {
+        projection(
+            envelope,
+            kind: .subAgent,
+            title: subAgent.description ?? subAgent.agentType ?? subAgent.id,
+            detail: subAgent.status ?? subAgent.phase.rawValue
         )
     }
 

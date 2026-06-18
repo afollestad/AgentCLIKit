@@ -345,6 +345,11 @@ public actor DefaultAgentRuntime: AgentRuntime {
             reason: "cancelled",
             message: "Context compaction was interrupted by host cancellation."
         )
+        emitFailedSubAgentsForTerminalProcess(
+            conversationId: conversationId,
+            reason: "cancelled",
+            message: "Sub-agent was interrupted by host cancellation."
+        )
         emitLifecycle(.cancelled, conversationId: conversationId, exitCode: nil, message: "Cancelled by host.")
         states[conversationId]?.stdin = nil
         states[conversationId]?.stdinWriter = nil

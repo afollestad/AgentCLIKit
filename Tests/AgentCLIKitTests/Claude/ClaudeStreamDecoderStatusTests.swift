@@ -98,96 +98,6 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         })
     }
 
-    func testSystemTaskEventsExposeSubAgentMetadata() throws {
-        let events = try ClaudeStreamDecoder().decodeLine(Self.taskProgressLine)
-
-        XCTAssertEqual(events, [
-            .task(AgentTaskEvent(
-                id: "task-1",
-                phase: .progress,
-                description: "Review files",
-                lastToolName: "Read",
-                toolUses: 3,
-                totalTokens: 400,
-                durationMs: 250,
-                metadata: [
-                    "tool_use_id": .string("task-1"),
-                    "description": .string("Review files"),
-                    "last_tool_name": .string("Read"),
-                    "tool_uses": .number(3),
-                    "total_tokens": .number(400),
-                    "duration_ms": .number(250)
-                ]
-            ))
-        ])
-    }
-
-    func testTaskNotificationUserMessageEmitsSubAgentCompletionMetadata() throws {
-        let events = try ClaudeStreamDecoder().decodeLine(Self.taskNotificationLine())
-
-        XCTAssertEqual(events, [
-            .task(AgentTaskEvent(
-                id: "toolu_agent",
-                phase: .notification,
-                description: "Agent & docs completed",
-                toolUses: 2,
-                totalTokens: 1234,
-                durationMs: 5678,
-                status: "completed",
-                metadata: [
-                    "tool_use_id": .string("toolu_agent"),
-                    "task_id": .string("async-agent-1"),
-                    "summary": .string("Agent & docs completed"),
-                    "result": .string("""
-                    ## Result
-
-                    | Name | Value |
-                    |---|---|
-                    | HTML | <script>Tom & Jerry</script> |
-                    """),
-                    "output_file": .string("/tmp/async-agent-1.output"),
-                    "status": .string("completed"),
-                    "total_tokens": .number(1234),
-                    "tool_uses": .number(2),
-                    "duration_ms": .number(5678)
-                ]
-            ))
-        ])
-    }
-
-    func testTaskNotificationQueueOperationEmitsSubAgentCompletionMetadata() throws {
-        let events = try ClaudeStreamDecoder().decodeLine(Self.taskNotificationQueueOperationLine())
-
-        XCTAssertEqual(events, [
-            .task(AgentTaskEvent(
-                id: "toolu_agent",
-                phase: .notification,
-                description: "Agent & docs completed",
-                toolUses: 2,
-                totalTokens: 1234,
-                durationMs: 5678,
-                status: "completed",
-                metadata: [
-                    "tool_use_id": .string("toolu_agent"),
-                    "task_id": .string("async-agent-1"),
-                    "summary": .string("Agent & docs completed"),
-                    "result": .string("""
-                    ## Result
-
-                    | Name | Value |
-                    |---|---|
-                    | HTML | <script>Tom & Jerry</script> |
-                    """),
-                    "output_file": .string("/tmp/async-agent-1.output"),
-                    "status": .string("completed"),
-                    "total_tokens": .number(1234),
-                    "tool_uses": .number(2),
-                    "duration_ms": .number(5678)
-                ]
-            ))
-        ])
-    }
-
     func testTaskNotificationQueueOperationIgnoresDequeueBookkeeping() throws {
         let events = try ClaudeStreamDecoder().decodeLine(#"""
         {
@@ -333,7 +243,7 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
     }
     """#
 
-    private static let taskProgressLine = #"""
+    static let taskProgressLine = #"""
     {
       "type": "system",
       "subtype": "task_progress",
@@ -348,7 +258,7 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
     }
     """#
 
-    private static let taskNotificationContent = """
+    static let taskNotificationContent = """
     <task-notification>
     <task-id>async-agent-1</task-id>
     <tool-use-id>toolu_agent</tool-use-id>
@@ -368,7 +278,7 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
     </task-notification>
     """
 
-    private static func taskNotificationLine() throws -> String {
+    static func taskNotificationLine() throws -> String {
         let payload: [String: Any] = [
             "type": "user",
             "message": [
@@ -381,7 +291,7 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         return try XCTUnwrap(String(data: data, encoding: .utf8))
     }
 
-    private static func taskNotificationQueueOperationLine() throws -> String {
+    static func taskNotificationQueueOperationLine() throws -> String {
         let payload: [String: Any] = [
             "type": "queue-operation",
             "operation": "enqueue",

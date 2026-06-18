@@ -1,13 +1,17 @@
 import Foundation
 
 extension CodexAppServerItemEventDecoder {
-    func collabAgentTask(_ payload: ItemPayload, phase: AgentTaskPhase) -> AgentTaskEvent {
-        let tool = payload.item["tool"]?.codexStringValue
+    func collabAgentSubAgent(_ payload: ItemPayload, phase: AgentSubAgentPhase) -> AgentSubAgentEvent? {
+        guard let tool = payload.item["tool"]?.codexStringValue,
+              tool.normalizedCollabToolName == "spawnagent" else {
+            return nil
+        }
         let status = itemStatus(payload.item)
         let receiverThreadIds = payload.item["receiverThreadIds"]?.codexArrayValue ?? []
         let agentsStates = payload.item["agentsStates"]?.codexObjectValue
+        let prompt = payload.item["prompt"]?.codexStringValue
         let metadata = toolMetadata(payload, values: [
-            "codex_collab_tool": tool.map(JSONValue.string),
+            "codex_collab_tool": .string(tool),
             "sender_thread_id": payload.item["senderThreadId"],
             "receiver_thread_ids": receiverThreadIds.isEmpty ? nil : .array(receiverThreadIds),
             "agents_states": agentsStates.map(JSONValue.object),
@@ -15,13 +19,22 @@ extension CodexAppServerItemEventDecoder {
             "reasoning_effort": payload.item["reasoningEffort"],
             "prompt": payload.item["prompt"]
         ])
-        return AgentTaskEvent(
+        return AgentSubAgentEvent(
             id: payload.id,
-            phase: phase == .completed ? phaseForCompletedStatus(status) : phase,
-            description: collabDescription(tool: tool, receivers: receiverThreadIds, prompt: payload.item["prompt"]?.codexStringValue),
-            taskType: "collabAgentToolCall",
+            phase: phase == .terminal ? subAgentPhaseForCompletedStatus(status) : phase,
+            description: collabDescription(tool: tool, receivers: receiverThreadIds, prompt: prompt),
+            prompt: prompt,
+            agentType: "codex",
+            input: inputObject([
+                "description": .string(collabDescription(tool: tool, receivers: receiverThreadIds, prompt: prompt)),
+                "prompt": prompt.map(JSONValue.string),
+                "subagent_type": .string("codex"),
+                "codex_collab_tool": .string(tool)
+            ]),
             lastToolName: tool,
             status: status,
+            parentSessionId: payload.item["senderThreadId"]?.codexStringValue,
+            childSessionIds: receiverThreadIds.compactMap(\.codexStringValue),
             metadata: metadata
         )
     }
@@ -46,12 +59,12 @@ extension CodexAppServerItemEventDecoder {
         )
     }
 
-    private func phaseForCompletedStatus(_ status: String?) -> AgentTaskPhase {
+    private func subAgentPhaseForCompletedStatus(_ status: String?) -> AgentSubAgentPhase {
         switch status {
         case "inProgress":
             .progress
         default:
-            .completed
+            .terminal
         }
     }
 
@@ -66,6 +79,12 @@ extension CodexAppServerItemEventDecoder {
             }
         }
         return tool ?? "Collaboration agent activity"
+    }
+}
+
+private extension String {
+    var normalizedCollabToolName: String {
+        replacingOccurrences(of: "_", with: "").lowercased()
     }
 }
 

@@ -91,7 +91,7 @@ extension DefaultAgentRuntime {
         }
         var hasDeferredToolStop = false
         for decodedEvent in events {
-            let eventsToAppend = contextCompactionGuardedEvents(from: decodedEvent, conversationId: conversationId)
+            let eventsToAppend = lifecycleGuardedEvents(from: decodedEvent, conversationId: conversationId)
             for event in eventsToAppend {
                 await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
                 guard states[conversationId]?.processToken == processToken else {
@@ -220,6 +220,11 @@ extension DefaultAgentRuntime {
             conversationId: conversationId,
             reason: state.rawValue,
             message: "Context compaction did not finish before the provider process ended."
+        )
+        emitFailedSubAgentsForTerminalProcess(
+            conversationId: conversationId,
+            reason: state.rawValue,
+            message: "Sub-agent did not finish before the provider process ended."
         )
         emitLifecycle(state, conversationId: conversationId, exitCode: exitCode)
         states[conversationId]?.stdin = nil

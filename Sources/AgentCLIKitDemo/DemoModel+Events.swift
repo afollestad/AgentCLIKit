@@ -68,6 +68,8 @@ extension DemoModel {
             appendAgentEvent(.status("Collaboration: \(collaborationMode.mode.rawValue)"), envelope: envelope, sessionID: sessionID)
         case .task(let task):
             appendAgentEvent(.status(Self.taskSummary(task)), envelope: envelope, sessionID: sessionID)
+        case .subAgent(let subAgent):
+            appendAgentEvent(.status(Self.subAgentSummary(subAgent)), envelope: envelope, sessionID: sessionID)
         case .contextCompaction(let compaction):
             appendAgentEvent(.status(Self.contextCompactionSummary(compaction)), envelope: envelope, sessionID: sessionID)
         case .sessionContinuity(let continuity):

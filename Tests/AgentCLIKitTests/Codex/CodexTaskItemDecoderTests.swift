@@ -9,13 +9,22 @@ final class CodexTaskItemDecoderTests: XCTestCase {
         let events = decoder.decode(itemCompleted(item: collaborationItem())).map(\.event)
 
         XCTAssertEqual(events, [
-            .task(AgentTaskEvent(
+            .subAgent(AgentSubAgentEvent(
                 id: "collab-1",
-                phase: .completed,
+                phase: .terminal,
                 description: "Review the diff",
-                taskType: "collabAgentToolCall",
+                prompt: "Review the diff",
+                agentType: "codex",
+                input: .object([
+                    "description": .string("Review the diff"),
+                    "prompt": .string("Review the diff"),
+                    "subagent_type": .string("codex"),
+                    "codex_collab_tool": .string("spawnAgent")
+                ]),
                 lastToolName: "spawnAgent",
                 status: "completed",
+                parentSessionId: "thread-1",
+                childSessionIds: ["thread-child"],
                 metadata: itemMetadata(
                     phase: "completed",
                     itemId: "collab-1",
@@ -25,6 +34,73 @@ final class CodexTaskItemDecoderTests: XCTestCase {
                 )
             ))
         ])
+    }
+
+    func testDecodesCollaborationSpawnAgentStart() {
+        let camelEvents = decoder.decode(itemStarted(item: collaborationItem(tool: "spawnAgent", status: "inProgress"))).map(\.event)
+
+        XCTAssertEqual(camelEvents.first, .subAgent(AgentSubAgentEvent(
+            id: "collab-1",
+            phase: .started,
+            description: "Review the diff",
+            prompt: "Review the diff",
+            agentType: "codex",
+            input: .object([
+                "description": .string("Review the diff"),
+                "prompt": .string("Review the diff"),
+                "subagent_type": .string("codex"),
+                "codex_collab_tool": .string("spawnAgent")
+            ]),
+            lastToolName: "spawnAgent",
+            status: "inProgress",
+            parentSessionId: "thread-1",
+            childSessionIds: ["thread-child"],
+            metadata: itemMetadata(
+                phase: "started",
+                itemId: "collab-1",
+                type: "collabAgentToolCall",
+                status: "inProgress",
+                values: collaborationMetadata(statusTool: "spawnAgent")
+            )
+        )))
+    }
+
+    func testDecodesCollaborationSpawnAgentSnakeCaseStart() {
+        let snakeEvents = decoder.decode(itemStarted(item: collaborationItem(id: "collab-2", tool: "spawn_agent", status: "inProgress")))
+            .map(\.event)
+
+        XCTAssertEqual(snakeEvents.first, .subAgent(AgentSubAgentEvent(
+            id: "collab-2",
+            phase: .started,
+            description: "Review the diff",
+            prompt: "Review the diff",
+            agentType: "codex",
+            input: .object([
+                "description": .string("Review the diff"),
+                "prompt": .string("Review the diff"),
+                "subagent_type": .string("codex"),
+                "codex_collab_tool": .string("spawn_agent")
+            ]),
+            lastToolName: "spawn_agent",
+            status: "inProgress",
+            parentSessionId: "thread-1",
+            childSessionIds: ["thread-child"],
+            metadata: itemMetadata(
+                phase: "started",
+                itemId: "collab-2",
+                type: "collabAgentToolCall",
+                status: "inProgress",
+                values: collaborationMetadata(statusTool: "spawn_agent")
+            )
+        )))
+    }
+
+    func testIgnoresCollaborationWaitAndCloseItems() {
+        let waitEvents = decoder.decode(itemStarted(item: collaborationItem(tool: "waitAgent"))).map(\.event)
+        let closeEvents = decoder.decode(itemCompleted(item: collaborationItem(tool: "closeAgent"))).map(\.event)
+
+        XCTAssertEqual(waitEvents, [])
+        XCTAssertEqual(closeEvents, [])
     }
 
     func testDecodesContextCompactionItem() {
@@ -93,12 +169,16 @@ final class CodexTaskItemDecoderTests: XCTestCase {
         ])
     }
 
-    private func collaborationItem() -> [String: JSONValue] {
+    private func collaborationItem(
+        id: String = "collab-1",
+        tool: String = "spawnAgent",
+        status: String = "completed"
+    ) -> [String: JSONValue] {
         [
-            "id": .string("collab-1"),
+            "id": .string(id),
             "type": .string("collabAgentToolCall"),
-            "tool": .string("spawnAgent"),
-            "status": .string("completed"),
+            "tool": .string(tool),
+            "status": .string(status),
             "senderThreadId": .string("thread-1"),
             "receiverThreadIds": .array([.string("thread-child")]),
             "agentsStates": .object([
@@ -113,9 +193,9 @@ final class CodexTaskItemDecoderTests: XCTestCase {
         ]
     }
 
-    private func collaborationMetadata() -> [String: JSONValue] {
+    private func collaborationMetadata(statusTool tool: String = "spawnAgent") -> [String: JSONValue] {
         [
-            "codex_collab_tool": .string("spawnAgent"),
+            "codex_collab_tool": .string(tool),
             "sender_thread_id": .string("thread-1"),
             "receiver_thread_ids": .array([.string("thread-child")]),
             "agents_states": .object([

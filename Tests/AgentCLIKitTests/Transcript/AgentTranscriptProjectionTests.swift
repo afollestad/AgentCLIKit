@@ -46,6 +46,21 @@ final class AgentTranscriptProjectionTests: XCTestCase {
         XCTAssertEqual(projections.map(\.detail), [nil, "Retained recent context.", "Compaction failed."])
     }
 
+    func testProjectorMapsSubAgentEvents() {
+        let projections = AgentTranscriptProjector().project([
+            envelope(index: 0, event: .subAgent(AgentSubAgentEvent(
+                id: "agent-1",
+                phase: .started,
+                description: "Review docs",
+                status: "running"
+            )))
+        ])
+
+        XCTAssertEqual(projections.map(\.kind), [.subAgent])
+        XCTAssertEqual(projections.map(\.title), ["Review docs"])
+        XCTAssertEqual(projections.map(\.detail), ["running"])
+    }
+
     func testProjectorDoesNotRenderSessionMetadata() {
         let projections = AgentTranscriptProjector().project([
             envelope(index: 0, event: .sessionMetadata(AgentSessionMetadataEvent(

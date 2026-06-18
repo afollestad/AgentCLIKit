@@ -60,6 +60,11 @@ extension DemoModel {
         return "\(label): \(task.phase.rawValue)"
     }
 
+    static func subAgentSummary(_ subAgent: AgentSubAgentEvent) -> String {
+        let label = subAgent.description ?? subAgent.agentType ?? "Sub-agent"
+        return "\(label): \(subAgent.phase.rawValue)"
+    }
+
     static func statusSummary(_ status: AgentRuntimeStatus, current: DemoTurnState) -> String? {
         if case let .blocked(reason) = status.inputAvailability {
             return reason
@@ -124,6 +129,8 @@ extension DemoModel {
             return "collaboration_mode mode=\(collaborationMode.mode.rawValue)"
         case .task(let task):
             return "task phase=\(task.phase.rawValue) id=\(task.id)"
+        case .subAgent(let subAgent):
+            return "sub_agent phase=\(subAgent.phase.rawValue) id=\(subAgent.id)"
         case .contextCompaction(let compaction):
             return "context_compaction phase=\(compaction.phase.rawValue) id=\(compaction.id)"
         case .sessionContinuity(let continuity):

@@ -6,8 +6,8 @@ It gives host apps a reusable layer for:
 
 - Launching Claude Code or Codex App Server.
 - Sending user messages and steering active turns.
-- Receiving provider-neutral events for messages, tools, usage, tasks, session metadata, permission/collaboration state,
-  context compaction, lifecycle, and interactions.
+- Receiving provider-neutral events for messages, tools, usage, tasks, sub-agent lifecycle, session metadata,
+  permission/collaboration state, context compaction, lifecycle, and interactions.
 - Persisting provider session IDs and provider-reported names so conversations can resume.
 - Checking provider readiness, project trust, speed support, model options, and model-scoped effort options.
 
@@ -73,6 +73,8 @@ func runAgentConversation(
                 print("Tool: \(toolCall.name)")
             case .contextCompaction(let compaction):
                 print("Compaction \(compaction.id): \(compaction.phase.rawValue)")
+            case .subAgent(let subAgent):
+                print("Sub-agent: \(subAgent.phase.rawValue) \(subAgent.description ?? subAgent.id)")
             case .sessionMetadata(let metadata):
                 if let name = metadata.name {
                     print("Session name: \(name)")
@@ -206,8 +208,8 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Archive | Validated no-op | App Server `thread/archive` and `thread/unarchive` |
 
 Both built-in providers expose provider-neutral events, sessions, provider session metadata, usage, tool events, task
-events, permission/collaboration state, prompt/approval interactions, MCP support, and context compaction lifecycle events. Inspect
-`AgentProviderDefinition.capabilities` before showing provider-specific UI.
+events, typed sub-agent lifecycle, permission/collaboration state, prompt/approval interactions, MCP support, and
+context compaction lifecycle events. Inspect `AgentProviderDefinition.capabilities` before showing provider-specific UI.
 
 For detailed provider behavior, see [docs/provider-reference.md](docs/provider-reference.md).
 

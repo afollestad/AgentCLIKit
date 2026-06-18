@@ -29,7 +29,7 @@ extension DefaultAgentRuntime {
         guard states[conversationId]?.processToken == processToken else {
             return
         }
-        for event in contextCompactionGuardedEvents(from: providerEvent.event, conversationId: conversationId) {
+        for event in lifecycleGuardedEvents(from: providerEvent.event, conversationId: conversationId) {
             await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
             guard states[conversationId]?.processToken == processToken else {
                 return

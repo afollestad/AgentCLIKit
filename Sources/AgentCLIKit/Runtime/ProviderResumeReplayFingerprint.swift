@@ -11,6 +11,7 @@ enum ProviderResumeReplayFingerprint: Equatable {
     case permissionMode(String)
     case collaborationMode(AgentCollaborationMode)
     case task(ProviderResumeTaskFingerprint)
+    case subAgent(ProviderResumeSubAgentFingerprint)
     case contextCompaction(ProviderResumeCompactionFingerprint)
     case interaction(kind: AgentInteractionKind, prompt: String, metadata: [ProviderResumeMetadataEntry])
     case rawOutput(text: String, isComplete: Bool)
@@ -88,6 +89,8 @@ enum ProviderResumeReplayFingerprint: Equatable {
             self = .collaborationMode(collaborationMode.mode)
         case .task(let task):
             self = .task(ProviderResumeTaskFingerprint(task))
+        case .subAgent(let subAgent):
+            self = .subAgent(ProviderResumeSubAgentFingerprint(subAgent))
         case .contextCompaction(let compaction):
             self = .contextCompaction(ProviderResumeCompactionFingerprint(compaction))
         case .interaction(let interaction):
@@ -186,6 +189,36 @@ struct ProviderResumeTaskFingerprint: Equatable {
         taskType = task.taskType
         lastToolName = task.lastToolName
         status = task.status
+    }
+}
+
+struct ProviderResumeSubAgentFingerprint: Equatable {
+    let id: String
+    let phase: AgentSubAgentPhase
+    let description: String?
+    let prompt: String?
+    let agentType: String?
+    let lastToolName: String?
+    let status: String?
+    let result: String?
+    let parentToolUseId: String?
+    let callerAgent: String?
+    let parentSessionId: String?
+    let childSessionIds: [String]
+
+    init(_ subAgent: AgentSubAgentEvent) {
+        id = subAgent.id
+        phase = subAgent.phase
+        description = subAgent.description
+        prompt = subAgent.prompt
+        agentType = subAgent.agentType
+        lastToolName = subAgent.lastToolName
+        status = subAgent.status
+        result = subAgent.result
+        parentToolUseId = subAgent.parentToolUseId
+        callerAgent = subAgent.callerAgent
+        parentSessionId = subAgent.parentSessionId
+        childSessionIds = subAgent.childSessionIds
     }
 }
 

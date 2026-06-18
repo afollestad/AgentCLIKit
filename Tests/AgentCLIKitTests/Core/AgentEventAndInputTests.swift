@@ -109,6 +109,39 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(legacyCompaction.metadata, [:])
     }
 
+    func testSubAgentEventRoundTripsThroughJSONAndDefaultsAdditiveFields() throws {
+        let event = AgentEvent.subAgent(AgentSubAgentEvent(
+            id: "agent-1",
+            phase: .terminal,
+            description: "Review docs",
+            prompt: "Check README",
+            agentType: "general-purpose",
+            input: .object(["prompt": .string("Check README")]),
+            lastToolName: "Agent",
+            status: "completed",
+            result: "Done",
+            toolUses: 2,
+            totalTokens: 100,
+            durationMs: 250,
+            parentToolUseId: "parent-tool",
+            callerAgent: "planner",
+            parentSessionId: "parent-session",
+            childSessionIds: ["child-session"],
+            metadata: ["provider": .string("claude")]
+        ))
+
+        let data = try JSONEncoder().encode(event)
+        let decoded = try JSONDecoder().decode(AgentEvent.self, from: data)
+        let legacySubAgent = try JSONDecoder().decode(
+            AgentSubAgentEvent.self,
+            from: Data(#"{"id":"agent-1","phase":"started"}"#.utf8)
+        )
+
+        XCTAssertEqual(decoded, event)
+        XCTAssertEqual(legacySubAgent.childSessionIds, [])
+        XCTAssertEqual(legacySubAgent.metadata, [:])
+    }
+
     func testSessionMetadataEventRoundTripsThroughJSONAndDefaultsMetadata() throws {
         let event = AgentEvent.sessionMetadata(AgentSessionMetadataEvent(
             providerSessionId: "session-1",

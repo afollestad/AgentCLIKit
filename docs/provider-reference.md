@@ -139,8 +139,8 @@ Codex App Server requests map into provider-neutral interactions:
 - User-input requests.
 
 Codex emits provider-neutral events for messages, reasoning, tool calls/results, diffs, usage, context-window metadata,
-session metadata, context compaction, tasks/todos, sub-agent activity, permission-mode changes, collaboration-mode
-changes, diagnostics, and lifecycle.
+session metadata, context compaction, tasks/todos, typed sub-agent lifecycle, permission-mode changes,
+collaboration-mode changes, diagnostics, and lifecycle.
 
 Host-defined Codex custom tool execution is not a v1 host API.
 

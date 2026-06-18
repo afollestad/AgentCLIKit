@@ -29,6 +29,33 @@ struct FakeProviderAdapter: AgentProviderAdapter {
         if line == "compact:completed" {
             return [.contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .completed, summary: "Retained recent context."))]
         }
+        if line == "subagent:started" {
+            return [.subAgent(AgentSubAgentEvent(id: "agent-1", phase: .started, description: "Review docs"))]
+        }
+        if line == "subagent:progress" {
+            return [.subAgent(AgentSubAgentEvent(id: "agent-1", phase: .progress, description: "Review docs", status: "running"))]
+        }
+        if line == "subagent:progress-metadata" {
+            return [.subAgent(AgentSubAgentEvent(
+                id: "agent-1",
+                phase: .progress,
+                description: "Review docs",
+                status: "running",
+                metadata: ["agents_states": .object(["agent-1": .object(["message": .string("Writing")])])]
+            ))]
+        }
+        if line == "subagent:progress2" {
+            return [.subAgent(AgentSubAgentEvent(id: "agent-1", phase: .progress, description: "Review docs", status: "writing"))]
+        }
+        if line == "subagent:terminal" {
+            return [.subAgent(AgentSubAgentEvent(
+                id: "agent-1",
+                phase: .terminal,
+                description: "Review docs",
+                status: "completed",
+                result: "Done"
+            ))]
+        }
         return [.rawOutput(AgentRawOutputEvent(text: line, isComplete: true))]
     }
 

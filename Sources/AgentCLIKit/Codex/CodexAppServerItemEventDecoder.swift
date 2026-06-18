@@ -71,7 +71,7 @@ struct CodexAppServerItemEventDecoder {
         case "webSearch":
             return [runtimeEvent(webSearchToolCall(payload))]
         case "collabAgentToolCall":
-            return [runtimeEvent(.task(collabAgentTask(payload, phase: .started)))]
+            return collabAgentSubAgent(payload, phase: .started).map { [runtimeEvent(.subAgent($0))] } ?? []
         case "contextCompaction":
             return [runtimeEvent(.contextCompaction(contextCompactionEvent(payload, phase: .started)))]
         default:
@@ -108,7 +108,7 @@ struct CodexAppServerItemEventDecoder {
         case "webSearch":
             return [runtimeEvent(webSearchToolResult(payload))]
         case "collabAgentToolCall":
-            return [runtimeEvent(.task(collabAgentTask(payload, phase: .completed)))]
+            return collabAgentSubAgent(payload, phase: .terminal).map { [runtimeEvent(.subAgent($0))] } ?? []
         case "contextCompaction":
             return [runtimeEvent(.contextCompaction(contextCompactionEvent(payload, phase: .completed)))]
         default:

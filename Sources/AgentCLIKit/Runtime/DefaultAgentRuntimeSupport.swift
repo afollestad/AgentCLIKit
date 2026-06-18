@@ -59,6 +59,10 @@ struct ConversationState {
     var contextCompactionOpenIds: Set<String>
     var contextCompactionTerminalIds: Set<String>
     var contextCompactionPhaseKeys: Set<String>
+    var subAgentStartedIds: Set<String>
+    var subAgentOpenIds: Set<String>
+    var subAgentTerminalIds: Set<String>
+    var subAgentPhaseKeys: Set<String>
     var outputPumps: [OutputLinePump]
     var providerEventTasks: [Task<Void, Never>]
 
@@ -110,6 +114,7 @@ extension DefaultAgentRuntime {
     static func contextCompactionPhaseKey(_ compaction: AgentContextCompactionEvent) -> String {
         "\(compaction.id)\u{1F}\(compaction.phase.rawValue)"
     }
+
 }
 
 struct ProviderResumeReplayGate {
@@ -211,7 +216,7 @@ extension AgentEvent {
     var isProviderResumeReplayCandidate: Bool {
         switch self {
         case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode,
-             .collaborationMode, .task, .contextCompaction, .interaction, .rawOutput:
+             .collaborationMode, .task, .subAgent, .contextCompaction, .interaction, .rawOutput:
             true
         case .activity, .sessionMetadata, .sessionContinuity, .lifecycle, .diagnostic:
             false

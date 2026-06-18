@@ -112,14 +112,15 @@ final class ClaudeStreamDecoderAttachmentTests: XCTestCase {
         let events = try decoder.decodeLine(line)
 
         XCTAssertEqual(events, [
-            .task(AgentTaskEvent(
+            .subAgent(AgentSubAgentEvent(
                 id: "toolu_agent",
-                phase: .notification,
+                phase: .terminal,
                 description: "Agent completed",
+                status: "completed",
+                result: "Found <script> tags & images.",
                 toolUses: 3,
                 totalTokens: 14816,
                 durationMs: 9929,
-                status: "completed",
                 metadata: [
                     "tool_use_id": .string("toolu_agent"),
                     "task_id": .string("async-agent-1"),

@@ -9,6 +9,8 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentActivityEvent.self)
         assertSendable(AgentContextCompactionEvent.self)
         assertSendable(AgentContextCompactionPhase.self)
+        assertSendable(AgentSubAgentEvent.self)
+        assertSendable(AgentSubAgentPhase.self)
         assertSendable(AgentSessionMetadataEvent.self)
         assertSendable(AgentEventEnvelope.self)
         assertSendable(AgentEventSubscription.self)

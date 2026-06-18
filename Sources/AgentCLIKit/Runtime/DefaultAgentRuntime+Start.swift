@@ -328,6 +328,10 @@ private extension DefaultAgentRuntime {
             contextCompactionOpenIds: Self.contextCompactionOpenIds(from: previous, generation: input.generation),
             contextCompactionTerminalIds: Self.contextCompactionTerminalIds(from: previous, generation: input.generation),
             contextCompactionPhaseKeys: Self.contextCompactionPhaseKeys(from: previous, generation: input.generation),
+            subAgentStartedIds: Self.subAgentStartedIds(from: previous, generation: input.generation),
+            subAgentOpenIds: Self.subAgentOpenIds(from: previous, generation: input.generation),
+            subAgentTerminalIds: Self.subAgentTerminalIds(from: previous, generation: input.generation),
+            subAgentPhaseKeys: Self.subAgentPhaseKeys(from: previous, generation: input.generation),
             outputPumps: [],
             providerEventTasks: []
         )
@@ -386,6 +390,55 @@ private extension DefaultAgentRuntime {
                 return nil
             }
             return Self.contextCompactionPhaseKey(compaction)
+        } ?? [])
+    }
+
+    private static func subAgentStartedIds(from previous: ConversationState?, generation: Int) -> Set<String> {
+        Set(previous?.events.compactMap { envelope -> String? in
+            guard envelope.generation == generation,
+                  case let .subAgent(subAgent) = envelope.event,
+                  subAgent.phase == .started else {
+                return nil
+            }
+            return subAgent.id
+        } ?? [])
+    }
+
+    private static func subAgentOpenIds(from previous: ConversationState?, generation: Int) -> Set<String> {
+        var openIds = Set<String>()
+        for envelope in previous?.events ?? [] {
+            guard envelope.generation == generation,
+                  case let .subAgent(subAgent) = envelope.event else {
+                continue
+            }
+            switch subAgent.phase {
+            case .started, .progress:
+                openIds.insert(subAgent.id)
+            case .terminal:
+                openIds.remove(subAgent.id)
+            }
+        }
+        return openIds
+    }
+
+    private static func subAgentTerminalIds(from previous: ConversationState?, generation: Int) -> Set<String> {
+        Set(previous?.events.compactMap { envelope -> String? in
+            guard envelope.generation == generation,
+                  case let .subAgent(subAgent) = envelope.event,
+                  subAgent.phase.isTerminal else {
+                return nil
+            }
+            return subAgent.id
+        } ?? [])
+    }
+
+    private static func subAgentPhaseKeys(from previous: ConversationState?, generation: Int) -> Set<String> {
+        Set(previous?.events.compactMap { envelope -> String? in
+            guard envelope.generation == generation,
+                  case let .subAgent(subAgent) = envelope.event else {
+                return nil
+            }
+            return Self.subAgentPhaseKey(subAgent)
         } ?? [])
     }
 

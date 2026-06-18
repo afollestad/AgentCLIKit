@@ -79,8 +79,10 @@ public enum AgentEvent: Codable, Equatable, Sendable {
     case permissionMode(AgentPermissionModeEvent)
     /// Provider-neutral collaboration mode changed.
     case collaborationMode(AgentCollaborationModeEvent)
-    /// Provider task or sub-agent activity.
+    /// Provider task or todo activity.
     case task(AgentTaskEvent)
+    /// Provider-neutral sub-agent lifecycle activity.
+    case subAgent(AgentSubAgentEvent)
     /// Provider context compaction lifecycle event.
     case contextCompaction(AgentContextCompactionEvent)
     /// Provider session metadata changed.

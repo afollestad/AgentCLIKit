@@ -127,14 +127,15 @@ public struct ClaudeStreamDecoder: Sendable {
             metadata["duration_ms"] = .number(Double(durationMs))
         }
 
-        return [.task(AgentTaskEvent(
+        return [.subAgent(AgentSubAgentEvent(
             id: notification.toolUseId,
-            phase: .notification,
+            phase: .terminal,
             description: notification.summary,
+            status: notification.status,
+            result: notification.result,
             toolUses: notification.toolUses,
             totalTokens: notification.totalTokens,
             durationMs: notification.durationMs,
-            status: notification.status,
             metadata: metadata
         ))]
     }
@@ -185,11 +186,15 @@ public struct ClaudeStreamDecoder: Sendable {
                 message: "Malformed Claude event: missing tool_use id or name in assistant block"
             ))]
         }
+        let metadata = metadata.merging(content.callerMetadata) { _, new in new }
+        if name == "Agent" {
+            return [.subAgent(subAgentStartedEvent(id: id, input: content.input, metadata: metadata))]
+        }
         return [.toolCall(AgentToolCallEvent(
             id: id,
             name: name,
             input: content.input ?? .object([:]),
-            metadata: metadata.merging(content.callerMetadata) { _, new in new }
+            metadata: metadata
         ))]
     }
 
@@ -347,23 +352,49 @@ public struct ClaudeStreamDecoder: Sendable {
 
     private func taskEvent(from envelope: ClaudeStreamEnvelope, metadata: [String: JSONValue]) -> AgentEvent? {
         guard let subtype = envelope.subtype,
-              let phase = AgentTaskPhase(claudeSubtype: subtype),
+              let phase = AgentSubAgentPhase(claudeSubtype: subtype),
               let id = envelope.toolUseId,
               !id.isEmpty else {
             return nil
         }
-        return .task(AgentTaskEvent(
+        return .subAgent(AgentSubAgentEvent(
             id: id,
             phase: phase,
             description: envelope.description ?? envelope.summary,
-            taskType: envelope.taskType,
+            agentType: envelope.taskType,
             lastToolName: envelope.lastToolName,
+            status: envelope.status,
             toolUses: envelope.usage?.toolUses,
             totalTokens: envelope.usage?.totalTokens,
             durationMs: envelope.usage?.durationMs,
-            status: envelope.status,
+            parentSessionId: envelope.sessionId,
             metadata: metadata
         ))
+    }
+
+    private func subAgentStartedEvent(
+        id: String,
+        input: JSONValue?,
+        metadata: [String: JSONValue]
+    ) -> AgentSubAgentEvent {
+        let inputObject = input?.streamObjectValue ?? [:]
+        let description = inputObject.nonEmptyStringValue("description")
+            ?? inputObject.nonEmptyStringValue("prompt")
+            ?? "Agent"
+        let prompt = inputObject.nonEmptyStringValue("prompt")
+        let agentType = inputObject.nonEmptyStringValue("subagent_type") ?? inputObject.nonEmptyStringValue("agentType")
+        return AgentSubAgentEvent(
+            id: id,
+            phase: .started,
+            description: description,
+            prompt: prompt,
+            agentType: agentType,
+            input: input ?? .object([:]),
+            lastToolName: "Agent",
+            parentToolUseId: metadata.nonEmptyStringValue("parent_tool_use_id"),
+            callerAgent: metadata.nonEmptyStringValue("caller_agent"),
+            metadata: metadata
+        )
     }
 
     private func deferredToolInteraction(from envelope: ClaudeStreamEnvelope) -> AgentEvent? {
@@ -402,20 +433,37 @@ extension ClaudeStreamDecoder {
     }
 }
 
-private extension AgentTaskPhase {
+private extension AgentSubAgentPhase {
     init?(claudeSubtype: String) {
         switch claudeSubtype {
         case "task_started":
             self = .started
         case "task_progress":
             self = .progress
-        case "task_notification":
-            self = .notification
-        case "task_completed":
-            self = .completed
+        case "task_notification", "task_completed":
+            self = .terminal
         default:
             return nil
         }
+    }
+}
+
+private extension JSONValue {
+    var streamObjectValue: [String: JSONValue]? {
+        guard case let .object(value) = self else {
+            return nil
+        }
+        return value
+    }
+}
+
+private extension [String: JSONValue] {
+    func nonEmptyStringValue(_ key: String) -> String? {
+        guard case let .string(value)? = self[key],
+              !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return value
     }
 }
 

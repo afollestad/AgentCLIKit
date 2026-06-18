@@ -68,7 +68,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsSpeedMode: Bool
     /// Whether the provider emits task-list or todo snapshots.
     public let supportsTaskLists: Bool
-    /// Whether the provider emits sub-agent activity events.
+    /// Whether the provider emits provider-neutral sub-agent lifecycle events.
     public let supportsSubagents: Bool
     /// Whether the provider can request host-provided prompt answers.
     public let supportsPromptRequests: Bool
