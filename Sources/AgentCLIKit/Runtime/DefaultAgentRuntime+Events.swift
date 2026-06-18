@@ -426,7 +426,7 @@ extension DefaultAgentRuntime {
     }
 }
 
-private extension AgentUsageEvent {
+extension AgentUsageEvent {
     var endsActiveTurn: Bool {
         guard !isError, permissionDenials.isEmpty else {
             return true

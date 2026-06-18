@@ -1,6 +1,22 @@
 import Foundation
 
 extension CodexAppServerItemEventDecoder {
+    func collabAgentCompletedEvents(_ payload: ItemPayload) -> [AgentProviderRuntimeEvent] {
+        guard let terminal = collabAgentSubAgent(payload, phase: .terminal) else {
+            return []
+        }
+
+        guard terminal.status != "failed", !terminal.childSessionIds.isEmpty,
+              let started = collabAgentSubAgent(payload, phase: .started) else {
+            return [runtimeEvent(.subAgent(terminal))]
+        }
+
+        return [
+            runtimeEvent(.subAgent(started)),
+            runtimeEvent(.subAgent(terminal))
+        ]
+    }
+
     func collabAgentSubAgent(_ payload: ItemPayload, phase: AgentSubAgentPhase) -> AgentSubAgentEvent? {
         guard let tool = payload.item["tool"]?.codexStringValue,
               tool.normalizedCollabToolName == "spawnagent" else {
@@ -10,6 +26,7 @@ extension CodexAppServerItemEventDecoder {
         let receiverThreadIds = payload.item["receiverThreadIds"]?.codexArrayValue ?? []
         let agentsStates = payload.item["agentsStates"]?.codexObjectValue
         let prompt = payload.item["prompt"]?.codexStringValue
+        let result = subAgentResultText(payload.item)
         let metadata = toolMetadata(payload, values: [
             "codex_collab_tool": .string(tool),
             "sender_thread_id": payload.item["senderThreadId"],
@@ -17,7 +34,8 @@ extension CodexAppServerItemEventDecoder {
             "agents_states": agentsStates.map(JSONValue.object),
             "model": payload.item["model"],
             "reasoning_effort": payload.item["reasoningEffort"],
-            "prompt": payload.item["prompt"]
+            "prompt": payload.item["prompt"],
+            "result": result.map(JSONValue.string)
         ])
         return AgentSubAgentEvent(
             id: payload.id,
@@ -33,6 +51,7 @@ extension CodexAppServerItemEventDecoder {
             ]),
             lastToolName: tool,
             status: status,
+            result: phase == .terminal ? result : nil,
             parentSessionId: payload.item["senderThreadId"]?.codexStringValue,
             childSessionIds: receiverThreadIds.compactMap(\.codexStringValue),
             metadata: metadata
@@ -79,6 +98,18 @@ extension CodexAppServerItemEventDecoder {
             }
         }
         return tool ?? "Collaboration agent activity"
+    }
+
+    private func subAgentResultText(_ item: [String: JSONValue]) -> String? {
+        for key in ["result", "output"] {
+            if let value = item[key] {
+                let text = textContent(value).trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    return text
+                }
+            }
+        }
+        return item["error"]?.codexObjectValue?["message"]?.codexStringValue
     }
 }
 

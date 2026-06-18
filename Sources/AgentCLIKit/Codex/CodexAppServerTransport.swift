@@ -53,19 +53,6 @@ public struct CodexAppServerNotification: Sendable {
     }
 }
 
-struct CodexAppServerRawEventNotificationParser {
-    func notification(from object: [String: JSONValue]) -> CodexAppServerNotification? {
-        guard object.codexStringValue("type") == "event_msg",
-              var payload = object["payload"]?.codexObjectValue,
-              let eventType = payload.removeValue(forKey: "type")?.codexStringValue,
-              eventType == "item_completed",
-              payload["item"]?.codexObjectValue?["type"]?.codexStringValue == "Plan" else {
-            return nil
-        }
-        return CodexAppServerNotification(method: eventType, params: .object(payload))
-    }
-}
-
 /// Codex App Server request payload.
 public struct CodexAppServerRequest: Sendable {
     /// JSON-RPC request identifier.
@@ -155,6 +142,7 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     private var pendingResponses: [Int: PendingResponse] = [:]
     private var incomingContinuations: [UUID: AsyncStream<CodexAppServerIncomingMessage>.Continuation] = [:]
     private var stderrTail: [String] = []
+    private var rawEventNotificationParser = CodexAppServerRawEventNotificationParser()
 
     /// Creates a stdio App Server transport.
     public init(configuration: CodexProviderAdapter.Configuration) {
@@ -372,7 +360,7 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
             handleResponse(object, pending: pending)
             return
         }
-        if let notification = CodexAppServerRawEventNotificationParser().notification(from: object) {
+        if let notification = rawEventNotificationParser.notification(from: object) {
             publishIncoming(.notification(notification))
             return
         }

@@ -9,8 +9,21 @@ final class CodexTaskItemDecoderTests: XCTestCase {
         let events = decoder.decode(itemCompleted(item: collaborationItem())).map(\.event)
 
         XCTAssertEqual(events, [
+            .subAgent(expectedCollaborationEvent(phase: .started)),
+            .subAgent(expectedCollaborationEvent(phase: .terminal))
+        ])
+    }
+
+    func testDecodesFailedCollaborationItemWithResult() {
+        let events = decoder.decode(itemCompleted(item: collaborationItem(
+            id: "collab-failed",
+            status: "failed",
+            result: "Full-history forked agents inherit the parent agent type."
+        ))).map(\.event)
+
+        XCTAssertEqual(events, [
             .subAgent(AgentSubAgentEvent(
-                id: "collab-1",
+                id: "collab-failed",
                 phase: .terminal,
                 description: "Review the diff",
                 prompt: "Review the diff",
@@ -22,77 +35,70 @@ final class CodexTaskItemDecoderTests: XCTestCase {
                     "codex_collab_tool": .string("spawnAgent")
                 ]),
                 lastToolName: "spawnAgent",
-                status: "completed",
+                status: "failed",
+                result: "Full-history forked agents inherit the parent agent type.",
                 parentSessionId: "thread-1",
                 childSessionIds: ["thread-child"],
                 metadata: itemMetadata(
                     phase: "completed",
-                    itemId: "collab-1",
+                    itemId: "collab-failed",
                     type: "collabAgentToolCall",
-                    status: "completed",
-                    values: collaborationMetadata()
+                    status: "failed",
+                    values: collaborationMetadata().merging([
+                        "result": .string("Full-history forked agents inherit the parent agent type.")
+                    ]) { _, new in new }
                 )
             ))
         ])
     }
 
-    func testDecodesCollaborationSpawnAgentStart() {
+    func testIgnoresCollaborationSpawnAgentStartUntilCompletion() {
         let camelEvents = decoder.decode(itemStarted(item: collaborationItem(tool: "spawnAgent", status: "inProgress"))).map(\.event)
 
-        XCTAssertEqual(camelEvents.first, .subAgent(AgentSubAgentEvent(
-            id: "collab-1",
-            phase: .started,
-            description: "Review the diff",
-            prompt: "Review the diff",
-            agentType: "codex",
-            input: .object([
-                "description": .string("Review the diff"),
-                "prompt": .string("Review the diff"),
-                "subagent_type": .string("codex"),
-                "codex_collab_tool": .string("spawnAgent")
-            ]),
-            lastToolName: "spawnAgent",
-            status: "inProgress",
-            parentSessionId: "thread-1",
-            childSessionIds: ["thread-child"],
-            metadata: itemMetadata(
-                phase: "started",
-                itemId: "collab-1",
-                type: "collabAgentToolCall",
-                status: "inProgress",
-                values: collaborationMetadata(statusTool: "spawnAgent")
-            )
-        )))
+        XCTAssertEqual(camelEvents, [])
     }
 
-    func testDecodesCollaborationSpawnAgentSnakeCaseStart() {
+    func testIgnoresCollaborationSpawnAgentSnakeCaseStartUntilCompletion() {
         let snakeEvents = decoder.decode(itemStarted(item: collaborationItem(id: "collab-2", tool: "spawn_agent", status: "inProgress")))
             .map(\.event)
 
-        XCTAssertEqual(snakeEvents.first, .subAgent(AgentSubAgentEvent(
-            id: "collab-2",
-            phase: .started,
-            description: "Review the diff",
-            prompt: "Review the diff",
-            agentType: "codex",
-            input: .object([
-                "description": .string("Review the diff"),
-                "prompt": .string("Review the diff"),
-                "subagent_type": .string("codex"),
-                "codex_collab_tool": .string("spawn_agent")
-            ]),
-            lastToolName: "spawn_agent",
-            status: "inProgress",
-            parentSessionId: "thread-1",
-            childSessionIds: ["thread-child"],
-            metadata: itemMetadata(
-                phase: "started",
-                itemId: "collab-2",
-                type: "collabAgentToolCall",
-                status: "inProgress",
-                values: collaborationMetadata(statusTool: "spawn_agent")
-            )
-        )))
+        XCTAssertEqual(snakeEvents, [])
+    }
+
+    func testSuccessfulCollaborationCompletionEmitsStartAndTerminal() {
+        let events = decoder.decode(itemCompleted(item: collaborationItem(id: "collab-2", tool: "spawn_agent"))).map(\.event)
+
+        XCTAssertEqual(events, [
+            .subAgent(expectedCollaborationEvent(id: "collab-2", tool: "spawn_agent", phase: .started)),
+            .subAgent(expectedCollaborationEvent(id: "collab-2", tool: "spawn_agent", phase: .terminal))
+        ])
+    }
+
+    func testFailedCollaborationCompletionDoesNotEmitStart() {
+        let events = decoder.decode(itemCompleted(item: collaborationItem(
+            id: "collab-failed",
+            status: "failed",
+            result: "Full-history forked agents inherit the parent agent type."
+        ))).map(\.event)
+
+        XCTAssertEqual(events.count, 1)
+        guard case .subAgent(let subAgent)? = events.first else {
+            return XCTFail("Expected failed sub-agent terminal event")
+        }
+        XCTAssertEqual(subAgent.id, "collab-failed")
+        XCTAssertEqual(subAgent.phase, .terminal)
+        XCTAssertEqual(subAgent.status, "failed")
+    }
+
+    func testChildlessCollaborationCompletionDoesNotEmitStart() {
+        let events = decoder.decode(itemCompleted(item: collaborationItem(includeReceiver: false))).map(\.event)
+
+        XCTAssertEqual(events.count, 1)
+        guard case .subAgent(let subAgent)? = events.first else {
+            return XCTFail("Expected childless sub-agent terminal event")
+        }
+        XCTAssertEqual(subAgent.phase, .terminal)
+        XCTAssertEqual(subAgent.childSessionIds, [])
     }
 
     func testIgnoresCollaborationWaitAndCloseItems() {
@@ -172,25 +178,33 @@ final class CodexTaskItemDecoderTests: XCTestCase {
     private func collaborationItem(
         id: String = "collab-1",
         tool: String = "spawnAgent",
-        status: String = "completed"
+        status: String = "completed",
+        result: String? = nil,
+        includeReceiver: Bool = true
     ) -> [String: JSONValue] {
-        [
+        var item: [String: JSONValue] = [
             "id": .string(id),
             "type": .string("collabAgentToolCall"),
             "tool": .string(tool),
             "status": .string(status),
             "senderThreadId": .string("thread-1"),
-            "receiverThreadIds": .array([.string("thread-child")]),
-            "agentsStates": .object([
-                "thread-child": .object([
-                    "status": .string("completed"),
-                    "message": .string("Done")
-                ])
-            ]),
             "model": .string("model-a"),
             "reasoningEffort": .string("high"),
             "prompt": .string("Review the diff")
         ]
+        if includeReceiver {
+            item["receiverThreadIds"] = .array([.string("thread-child")])
+            item["agentsStates"] = .object([
+                "thread-child": .object([
+                    "status": .string("completed"),
+                    "message": .string("Done")
+                ])
+            ])
+        }
+        if let result {
+            item["result"] = .string(result)
+        }
+        return item
     }
 
     private func collaborationMetadata(statusTool tool: String = "spawnAgent") -> [String: JSONValue] {
@@ -208,6 +222,37 @@ final class CodexTaskItemDecoderTests: XCTestCase {
             "reasoning_effort": .string("high"),
             "prompt": .string("Review the diff")
         ]
+    }
+
+    private func expectedCollaborationEvent(
+        id: String = "collab-1",
+        tool: String = "spawnAgent",
+        phase: AgentSubAgentPhase
+    ) -> AgentSubAgentEvent {
+        AgentSubAgentEvent(
+            id: id,
+            phase: phase,
+            description: "Review the diff",
+            prompt: "Review the diff",
+            agentType: "codex",
+            input: .object([
+                "description": .string("Review the diff"),
+                "prompt": .string("Review the diff"),
+                "subagent_type": .string("codex"),
+                "codex_collab_tool": .string(tool)
+            ]),
+            lastToolName: tool,
+            status: "completed",
+            parentSessionId: "thread-1",
+            childSessionIds: ["thread-child"],
+            metadata: itemMetadata(
+                phase: "completed",
+                itemId: id,
+                type: "collabAgentToolCall",
+                status: "completed",
+                values: collaborationMetadata(statusTool: tool)
+            )
+        )
     }
 
     private func itemStarted(item: [String: JSONValue]) -> CodexAppServerNotification {

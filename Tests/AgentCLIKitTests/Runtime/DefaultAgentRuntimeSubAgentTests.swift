@@ -84,6 +84,103 @@ final class DefaultAgentRuntimeSubAgentTests: XCTestCase {
         XCTAssertEqual(subAgents.last?.metadata["synthetic"], .bool(true))
         XCTAssertEqual(subAgents.last?.metadata["terminal_reason"], .string("exited"))
     }
+
+    func testTerminalUsageCompletesOpenCodexSpawnAgent() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            FakeProviderAdapter(command: shell("printf 'subagent:codex-spawn-started\\nusage:end_turn\\n'; sleep 1"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let events = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.subAgentEvents.contains { subAgent in
+                subAgent.phase == .terminal && subAgent.metadata["terminal_reason"] == .string("turn_end")
+            }
+        })
+        let subAgents = events.subAgentEvents
+
+        XCTAssertEqual(subAgents.map(\.phase), [.started, .terminal])
+        XCTAssertEqual(subAgents.last?.status, "completed")
+        XCTAssertNil(subAgents.last?.result)
+        XCTAssertEqual(subAgents.last?.metadata["synthetic"], .bool(true))
+        XCTAssertEqual(subAgents.last?.metadata["terminal_reason"], .string("turn_end"))
+        XCTAssertEqual(subAgents.last?.lastToolName, "spawn_agent")
+
+        await runtime.shutdown()
+    }
+
+    func testCodexTurnCompletedCompletesOpenCodexSpawnAgent() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            FakeProviderAdapter(command: shell("printf 'subagent:codex-spawn-started\\nactivity:codex-turn-completed\\n'; sleep 1"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let events = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.subAgentEvents.contains { subAgent in
+                subAgent.phase == .terminal && subAgent.metadata["terminal_reason"] == .string("turn_end")
+            }
+        })
+        let subAgents = events.subAgentEvents
+
+        XCTAssertEqual(subAgents.map(\.phase), [.started, .terminal])
+        XCTAssertEqual(subAgents.last?.status, "completed")
+        XCTAssertNil(subAgents.last?.result)
+        XCTAssertEqual(subAgents.last?.metadata["synthetic"], .bool(true))
+        XCTAssertEqual(subAgents.last?.metadata["terminal_reason"], .string("turn_end"))
+        XCTAssertEqual(subAgents.last?.lastToolName, "spawn_agent")
+
+        await runtime.shutdown()
+    }
+
+    func testTerminalUsageDoesNotCompleteGenericOpenSubAgent() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            FakeProviderAdapter(command: shell("printf 'subagent:started\\nusage:end_turn\\n'; sleep 1"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let events = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.contains { envelope in
+                guard case let .usage(usage) = envelope.event else {
+                    return false
+                }
+                return usage.endsActiveTurn
+            }
+        })
+        let subAgents = events.subAgentEvents
+
+        XCTAssertEqual(subAgents.map(\.phase), [.started])
+
+        await runtime.shutdown()
+    }
+
+    func testCodexTurnCompletedDoesNotCompleteGenericOpenSubAgent() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            FakeProviderAdapter(command: shell("printf 'subagent:started\\nactivity:codex-turn-completed\\n'; sleep 1"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let events = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.contains { envelope in
+                envelope.event == .activity(AgentActivityEvent(
+                    state: .idle,
+                    turnId: "turn-1",
+                    metadata: ["codex_method": .string("turn/completed")]
+                ))
+            }
+        })
+        let subAgents = events.subAgentEvents
+
+        XCTAssertEqual(subAgents.map(\.phase), [.started])
+
+        await runtime.shutdown()
+    }
 }
 
 private extension [AgentEventEnvelope] {
