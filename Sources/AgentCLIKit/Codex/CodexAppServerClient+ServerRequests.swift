@@ -21,6 +21,9 @@ extension CodexAppServerClient {
             permissionMode: binding.spawnConfig.permissionMode
         )
         if let mapped = serverRequestMapper.map(request, context: mappingContext) {
+            if await autoResolveSessionApprovalIfAllowed(mapped) {
+                return
+            }
             pendingServerRequests[mapped.pending.interactionId] = mapped.pending
             continuation.yield(mapped.event)
             return
@@ -110,5 +113,38 @@ extension CodexAppServerClient {
             throw AgentCLIError.invalidInput("Codex App Server transport is unavailable.")
         }
         return transport
+    }
+
+    private func autoResolveSessionApprovalIfAllowed(_ mapped: CodexMappedServerRequest) async -> Bool {
+        guard mapped.pending.kind == .commandApproval else {
+            return false
+        }
+        let toolInput = JSONValue.object(mapped.pending.params)
+        let request = AgentSessionApprovalRequest(
+            providerId: CodexProviderAdapter.providerId,
+            conversationId: mapped.pending.conversationId,
+            sessionId: mapped.pending.threadId,
+            toolName: "Bash",
+            toolInput: toolInput,
+            approvalIdentityToolInput: configuration.commandApprovalNormalizationPolicy.normalizedApprovalIdentityToolInput(
+                toolName: "Bash",
+                toolInput: toolInput
+            )
+        )
+        guard await configuration.sessionApprovalPolicyStore.allowsSessionApproval(request) else {
+            return false
+        }
+
+        do {
+            try await responseTransport().sendResponse(id: mapped.pending.requestId, result: .object(["decision": .string("accept")]))
+            return true
+        } catch {
+            emitDiagnostic(
+                error,
+                conversationId: mapped.pending.conversationId,
+                message: "Could not auto-approve Codex App Server command request."
+            )
+            return false
+        }
     }
 }

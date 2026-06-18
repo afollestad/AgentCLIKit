@@ -104,6 +104,147 @@ final class AgentApprovalPolicyTests: XCTestCase {
         XCTAssertNil(quoted.recommendedSessionApprovalScope)
     }
 
+    func testBashApprovalIdentityUnwrapsSafeShellCommandStrings() {
+        let wrapped = bashRequest(command: #"/bin/zsh -lc 'git add README.md'"#)
+        let direct = bashRequest(command: "git add README.md")
+
+        XCTAssertEqual(wrapped.sessionApprovalGrant(for: .exact)?.matchValue, "git add README.md")
+        XCTAssertEqual(wrapped.sessionApprovalGrant(for: .exact), direct.sessionApprovalGrant(for: .exact))
+        XCTAssertEqual(wrapped.sessionApprovalGrant(for: .group)?.matchValue, "git add")
+        XCTAssertEqual(wrapped.supportedSessionApprovalScopes, [.exact, .group])
+    }
+
+    func testBashApprovalIdentityUnwrapsEnvAndNestedTransparentWrappers() {
+        let wrapped = bashRequest(command: #"/usr/bin/env -- FOO=bar rtk bash -c "git log --oneline""#)
+        let direct = bashRequest(command: "git log --oneline")
+
+        XCTAssertEqual(wrapped.sessionApprovalGrant(for: .exact), direct.sessionApprovalGrant(for: .exact))
+        XCTAssertEqual(wrapped.sessionApprovalGrant(for: .group), direct.sessionApprovalGrant(for: .group))
+        XCTAssertEqual(wrapped.recommendedSessionApprovalScope, .group)
+    }
+
+    func testBashApprovalIdentityRejectsUnsupportedWrapperFormsForGrouping() {
+        let envUnsupported = bashRequest(command: #"/usr/bin/env -S zsh -lc 'git add README.md'"#)
+        let envUnsupportedDoubleDashOrder = bashRequest(command: #"/usr/bin/env FOO=bar -- git add README.md"#)
+        let shellWithExtraArgument = bashRequest(command: #"/bin/zsh -lc 'git add README.md' extra"#)
+
+        XCTAssertEqual(envUnsupported.sessionApprovalGrant(for: .exact)?.matchValue, #"/usr/bin/env -S zsh -lc 'git add README.md'"#)
+        XCTAssertEqual(envUnsupported.supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(envUnsupportedDoubleDashOrder.sessionApprovalGrant(for: .exact)?.matchValue, #"/usr/bin/env FOO=bar -- git add README.md"#)
+        XCTAssertEqual(envUnsupportedDoubleDashOrder.supportedSessionApprovalScopes, [.exact])
+        XCTAssertEqual(shellWithExtraArgument.sessionApprovalGrant(for: .exact)?.matchValue, #"/bin/zsh -lc 'git add README.md' extra"#)
+        XCTAssertEqual(shellWithExtraArgument.supportedSessionApprovalScopes, [.exact])
+    }
+
+    func testBashApprovalIdentityPreservesExactButRejectsGroupWhenParsingFails() {
+        let request = bashRequest(command: #"git "unterminated"#)
+
+        XCTAssertEqual(request.sessionApprovalGrant(for: .exact)?.matchValue, #"git "unterminated"#)
+        XCTAssertEqual(request.supportedSessionApprovalScopes, [.exact])
+        XCTAssertNil(request.recommendedSessionApprovalScope)
+    }
+
+    func testCustomTransparentWrapperPolicyCanNormalizeZTK() {
+        let policy = AgentCommandApprovalNormalizationPolicy(transparentWrapperBasenames: ["rtk", "ztk"])
+        let toolInput = JSONValue.object(["command": .string("ztk git log --oneline")])
+        let request = sessionApprovalRequest(
+            toolName: "Bash",
+            toolInput: toolInput,
+            approvalIdentityToolInput: policy.normalizedApprovalIdentityToolInput(toolName: "Bash", toolInput: toolInput)
+        )
+
+        XCTAssertEqual(request.sessionApprovalGrant(for: .exact)?.matchValue, "git log --oneline")
+        XCTAssertEqual(request.sessionApprovalGrant(for: .group)?.matchValue, "git log")
+    }
+
+    func testSessionApprovalGrantCandidatesIncludeLegacyWrappedExactCommand() {
+        let request = bashRequest(command: #"/bin/zsh -lc 'git add README.md'"#)
+
+        XCTAssertEqual(
+            request.sessionApprovalGrantCandidates,
+            [
+                AgentSessionApprovalGrant(
+                    providerId: .claude,
+                    conversationId: "conversation",
+                    sessionId: "session",
+                    matchKind: .bashExact,
+                    matchValue: "git add README.md"
+                ),
+                AgentSessionApprovalGrant(
+                    providerId: .claude,
+                    conversationId: "conversation",
+                    sessionId: "session",
+                    matchKind: .bashCommandGroup,
+                    matchValue: "git add"
+                ),
+                AgentSessionApprovalGrant(
+                    providerId: .claude,
+                    conversationId: "conversation",
+                    sessionId: "session",
+                    matchKind: .bashExact,
+                    matchValue: #"/bin/zsh -lc 'git add README.md'"#
+                )
+            ]
+        )
+    }
+
+    func testInMemoryPolicyMatchesLegacyWrappedExactCandidate() async {
+        let store = InMemoryAgentApprovalPolicyStore()
+        let legacyGrant = AgentSessionApprovalGrant(
+            providerId: .claude,
+            conversationId: "conversation",
+            sessionId: "session",
+            matchKind: .bashExact,
+            matchValue: #"/bin/zsh -lc 'git add README.md'"#
+        )
+
+        _ = await store.recordSessionApproval(legacyGrant)
+        let matches = await store.allowsSessionApproval(bashRequest(command: #"/bin/zsh -lc 'git add README.md'"#))
+
+        XCTAssertTrue(matches)
+    }
+
+    func testAgentSessionApprovalRequestDecodesMissingApprovalIdentityInput() throws {
+        let data = Data(
+            #"""
+            {
+              "providerId": "claude",
+              "conversationId": "conversation",
+              "sessionId": "session",
+              "toolName": "Bash",
+              "toolInput": { "command": "git status" }
+            }
+            """#.utf8
+        )
+
+        let request = try JSONDecoder().decode(AgentSessionApprovalRequest.self, from: data)
+
+        XCTAssertNil(request.approvalIdentityToolInput)
+        XCTAssertEqual(request.sessionApprovalGrant(for: .exact)?.matchValue, "git status")
+    }
+
+    func testAgentApprovalRequestDecodesMissingApprovalIdentityInput() throws {
+        let data = Data(
+            #"""
+            {
+              "id": "approval",
+              "providerId": "claude",
+              "conversationId": "conversation",
+              "providerSessionId": "session",
+              "operation": "Bash",
+              "reason": "Approve Bash command",
+              "input": { "command": "git status" },
+              "createdAt": 1
+            }
+            """#.utf8
+        )
+
+        let request = try JSONDecoder().decode(AgentApprovalRequest.self, from: data)
+
+        XCTAssertNil(request.approvalIdentityInput)
+        XCTAssertEqual(request.sessionApprovalRequest?.sessionApprovalGrant(for: .exact)?.matchValue, "git status")
+    }
+
     func testSessionApprovalRequestBuildsExactFilePathGrant() {
         let request = AgentSessionApprovalRequest(
             providerId: .claude,
@@ -224,6 +365,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
     }
 
     func testAgentApprovalRequestForwardsRecommendedSessionApprovalScope() {
+        let rawInput = JSONValue.object(["command": .string(#"/bin/zsh -lc 'git log --oneline'"#)])
         let request = AgentApprovalRequest(
             id: "approval",
             providerId: .claude,
@@ -231,10 +373,15 @@ final class AgentApprovalPolicyTests: XCTestCase {
             providerSessionId: "session",
             operation: "Bash",
             reason: "Approve Bash command",
-            input: .object(["command": .string("git log --oneline")])
+            input: rawInput,
+            approvalIdentityInput: AgentCommandApprovalNormalizationPolicy.default.normalizedApprovalIdentityToolInput(
+                toolName: "Bash",
+                toolInput: rawInput
+            )
         )
 
         XCTAssertEqual(request.recommendedSessionApprovalScope, .group)
+        XCTAssertEqual(request.conciseSummary, "git log --oneline")
     }
 
     private func bashRequest(command: String) -> AgentSessionApprovalRequest {
@@ -244,13 +391,18 @@ final class AgentApprovalPolicyTests: XCTestCase {
         )
     }
 
-    private func sessionApprovalRequest(toolName: String, toolInput: JSONValue) -> AgentSessionApprovalRequest {
+    private func sessionApprovalRequest(
+        toolName: String,
+        toolInput: JSONValue,
+        approvalIdentityToolInput: JSONValue? = nil
+    ) -> AgentSessionApprovalRequest {
         AgentSessionApprovalRequest(
             providerId: .claude,
             conversationId: "conversation",
             sessionId: "session",
             toolName: toolName,
-            toolInput: toolInput
+            toolInput: toolInput,
+            approvalIdentityToolInput: approvalIdentityToolInput
         )
     }
 }

@@ -16,6 +16,8 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
     public let reason: String
     /// JSON-compatible operation input.
     public let input: JSONValue
+    /// Canonical operation input used for approval identity, when available.
+    public let approvalIdentityInput: JSONValue?
     /// Provider permission mode active when the approval was requested.
     public let permissionMode: String?
     /// Date the request was created.
@@ -30,6 +32,7 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         operation: String,
         reason: String,
         input: JSONValue,
+        approvalIdentityInput: JSONValue? = nil,
         permissionMode: String? = nil,
         createdAt: Date = Date()
     ) {
@@ -40,6 +43,7 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         self.operation = operation
         self.reason = reason
         self.input = input
+        self.approvalIdentityInput = approvalIdentityInput
         self.permissionMode = permissionMode
         self.createdAt = createdAt
     }
@@ -54,6 +58,7 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         self.operation = try container.decode(String.self, forKey: .operation)
         self.reason = try container.decode(String.self, forKey: .reason)
         self.input = try container.decode(JSONValue.self, forKey: .input)
+        self.approvalIdentityInput = try container.decodeIfPresent(JSONValue.self, forKey: .approvalIdentityInput)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
@@ -63,7 +68,7 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         let candidate: String?
         switch operation {
         case "Bash":
-            candidate = stringInput("command")
+            candidate = identityStringInput("command") ?? stringInput("command")
         case "Write", "Edit", "MultiEdit", "NotebookEdit":
             candidate = stringInput("file_path") ?? stringInput("path") ?? stringInput("notebook_path")
         case "EnterPlanMode":
@@ -107,12 +112,21 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
             conversationId: conversationId,
             sessionId: providerSessionId,
             toolName: operation,
-            toolInput: input
+            toolInput: input,
+            approvalIdentityToolInput: approvalIdentityInput
         )
     }
 
     private func stringInput(_ key: String) -> String? {
         guard case let .object(object) = input,
+              case let .string(value)? = object[key] else {
+            return nil
+        }
+        return value
+    }
+
+    private func identityStringInput(_ key: String) -> String? {
+        guard case let .object(object)? = approvalIdentityInput,
               case let .string(value)? = object[key] else {
             return nil
         }

@@ -25,6 +25,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         public let interactionStore: any AgentInteractionStore
         /// Store used for session and transient hook approvals.
         public let approvalPolicyStore: any ClaudeApprovalPolicyStoring
+        /// Policy used to derive Bash command approval identity.
+        public let commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy
         /// Directory used for generated per-launch Claude hook settings files.
         public let hookSupportDirectory: URL
         /// Optional provider that can answer Claude hook decisions while the hook request is still live.
@@ -42,6 +44,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         ///   - enableHooks: Whether this adapter should manage a Claude hook listener and generated hook settings.
         ///   - interactionStore: Store used for hook-originated pending interactions.
         ///   - approvalPolicyStore: Store used for session and transient hook approvals.
+        ///   - commandApprovalNormalizationPolicy: Policy used to derive Bash command approval identity.
         ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
         ///   - hookDecisionProvider: Optional provider that can answer Claude hook decisions while the hook request is still live.
         ///   - hookDecisionTimeout: Maximum live hook decision wait before Claude receives a deferred response.
@@ -55,6 +58,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             enableHooks: Bool = true,
             interactionStore: any AgentInteractionStore = InMemoryAgentInteractionStore(),
             approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
+            commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy = .default,
             hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
                 "AgentCLIKitClaudeHooks",
                 isDirectory: true
@@ -72,6 +76,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             self.enableHooks = enableHooks
             self.interactionStore = interactionStore
             self.approvalPolicyStore = approvalPolicyStore
+            self.commandApprovalNormalizationPolicy = commandApprovalNormalizationPolicy
             self.hookSupportDirectory = hookSupportDirectory
             self.hookDecisionProvider = hookDecisionProvider
             self.hookDecisionTimeout = hookDecisionTimeout
@@ -101,6 +106,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     ///   - enableHooks: Whether this adapter should manage a Claude hook listener and generated hook settings.
     ///   - interactionStore: Store used for hook-originated pending interactions.
     ///   - approvalPolicyStore: Store used for session and transient hook approvals.
+    ///   - commandApprovalNormalizationPolicy: Policy used to derive Bash command approval identity.
     ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
     ///   - hookDecisionProvider: Optional provider that can answer Claude hook decisions while the hook request is still live.
     ///   - hookDecisionTimeout: Maximum live hook decision wait before Claude receives a deferred response.
@@ -114,6 +120,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         enableHooks: Bool = true,
         interactionStore: any AgentInteractionStore = InMemoryAgentInteractionStore(),
         approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
+        commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy = .default,
         hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "AgentCLIKitClaudeHooks",
             isDirectory: true
@@ -131,6 +138,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             enableHooks: enableHooks,
             interactionStore: interactionStore,
             approvalPolicyStore: approvalPolicyStore,
+            commandApprovalNormalizationPolicy: commandApprovalNormalizationPolicy,
             hookSupportDirectory: hookSupportDirectory,
             hookDecisionProvider: hookDecisionProvider,
             hookDecisionTimeout: hookDecisionTimeout,
@@ -153,6 +161,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
                 tokenStore: tokenStore,
                 interactionStore: configuration.interactionStore,
                 approvalPolicyStore: configuration.approvalPolicyStore,
+                commandApprovalNormalizationPolicy: configuration.commandApprovalNormalizationPolicy,
                 decisionProvider: configuration.hookDecisionProvider,
                 decisionTimeout: configuration.hookDecisionTimeout,
                 compactionTracker: compactionTracker

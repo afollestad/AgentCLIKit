@@ -131,6 +131,11 @@ Most apps build around a few reusable flows:
 - Watch `runtime.statusUpdates` for waiting, active-turn, and cancellation state.
 - Use provider discovery and setup services for settings and project readiness UI.
 
+For reusable approval scopes, use `AgentSessionApprovalRequest` and `AgentSessionApprovalPolicyStore`. Bash approvals carry
+raw provider input plus an optional canonical `approvalIdentityToolInput`, derived by
+`AgentCommandApprovalNormalizationPolicy`, so transparent wrappers and safe shell `-c` wrappers can share exact/group
+approval identities without changing the command the provider executes.
+
 Treat `AgentSpawnConfig` as the host-facing settings source of truth. `permissionMode` is approval policy. Plan/default
 collaboration uses `collaborationMode`: pass `.plan` to enter plan mode, `.default` to leave it, and `nil` when the host is
 not overriding provider collaboration state. Speed uses `speedMode`: pass `.fast` only when

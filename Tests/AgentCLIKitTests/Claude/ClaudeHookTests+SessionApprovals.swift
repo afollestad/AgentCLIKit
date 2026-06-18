@@ -26,7 +26,7 @@ extension ClaudeHookTests {
         let allowed = await server.handle(preToolUse(
             token: token.value,
             toolName: "Bash",
-            toolInput: .object(["command": .string("git add Sources/App.swift")])
+            toolInput: .object(["command": .string(#"/bin/zsh -lc 'git add Sources/App.swift'"#)])
         ))
         let deferred = await server.handle(preToolUse(
             token: token.value,

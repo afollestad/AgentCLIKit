@@ -27,6 +27,10 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         public let transportKind: CodexAppServerTransportKind
         /// Checker used for Codex feature support probes.
         public let featureSupportChecker: any CodexFeatureSupportChecking
+        /// Store used to match host-owned durable session approvals.
+        public let sessionApprovalPolicyStore: any AgentSessionApprovalPolicyStore
+        /// Policy used to derive Bash command approval identity.
+        public let commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy
         /// Factory used to create the transport lazily.
         public let makeTransport: @Sendable (Configuration) -> any CodexAppServerTransport
 
@@ -41,6 +45,8 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         ///   - shutdownTimeout: Maximum time to wait for App Server shutdown.
         ///   - transportKind: Transport family used by this adapter.
         ///   - featureSupportChecker: Checker used for Codex feature support probes.
+        ///   - sessionApprovalPolicyStore: Store used to match host-owned durable session approvals.
+        ///   - commandApprovalNormalizationPolicy: Policy used to derive Bash command approval identity.
         ///   - makeTransport: Factory used to create the transport lazily.
         ///   - executableResolver: Resolver used when `executablePath` is `/usr/bin/env`.
         public init(
@@ -53,6 +59,8 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
             shutdownTimeout: TimeInterval = 5,
             transportKind: CodexAppServerTransportKind = .stdio,
             featureSupportChecker: any CodexFeatureSupportChecking = DefaultCodexFeatureSupportChecker(),
+            sessionApprovalPolicyStore: any AgentSessionApprovalPolicyStore = InMemoryAgentApprovalPolicyStore(),
+            commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy = .default,
             makeTransport: (@Sendable (Configuration) -> any CodexAppServerTransport)? = nil,
             executableResolver: any AgentProviderExecutableResolving = DefaultAgentProviderExecutableResolver()
         ) {
@@ -66,6 +74,8 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
             self.shutdownTimeout = shutdownTimeout
             self.transportKind = transportKind
             self.featureSupportChecker = featureSupportChecker
+            self.sessionApprovalPolicyStore = sessionApprovalPolicyStore
+            self.commandApprovalNormalizationPolicy = commandApprovalNormalizationPolicy
             self.makeTransport = makeTransport ?? { CodexStdioAppServerTransport(configuration: $0) }
         }
     }
@@ -216,6 +226,8 @@ extension CodexProviderAdapter.Configuration {
             shutdownTimeout: shutdownTimeout,
             transportKind: transportKind,
             featureSupportChecker: featureSupportChecker,
+            sessionApprovalPolicyStore: sessionApprovalPolicyStore,
+            commandApprovalNormalizationPolicy: commandApprovalNormalizationPolicy,
             makeTransport: makeTransport,
             executableResolver: executableResolver
         )
@@ -239,6 +251,8 @@ extension CodexProviderAdapter.Configuration {
                 shutdownTimeout: shutdownTimeout,
                 transportKind: transportKind,
                 featureSupportChecker: featureSupportChecker,
+                sessionApprovalPolicyStore: sessionApprovalPolicyStore,
+                commandApprovalNormalizationPolicy: commandApprovalNormalizationPolicy,
                 makeTransport: makeTransport,
                 executableResolver: executableResolver
             )

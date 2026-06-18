@@ -148,8 +148,7 @@ public actor ClaudeApprovalPolicyStore: ClaudeApprovalPolicyStoring, ClaudeTrans
 
     /// Returns whether a provider-neutral approval request matches a durable session grant.
     public func allowsSessionApproval(_ request: AgentSessionApprovalRequest) -> Bool {
-        request.supportedSessionApprovalScopes
-            .compactMap { request.sessionApprovalGrant(for: $0) }
+        request.sessionApprovalGrantCandidates
             .contains { sessionApprovalGrants.contains($0) }
     }
 

@@ -24,7 +24,10 @@ struct CodexInteractionResolutionEncoder {
         }
         switch resolution.outcome {
         case .approved, .answered:
-            return approvalGrantKind(resolution) == "session" ? .string("acceptForSession") : .string("accept")
+            guard approvalGrantKind(resolution) == "session" else {
+                return .string("accept")
+            }
+            return approvalSessionScope(resolution) == nil ? .string("acceptForSession") : .string("accept")
         case .denied, .deferred:
             return .string("decline")
         case .cancelled:
@@ -240,6 +243,10 @@ struct CodexInteractionResolutionEncoder {
 
     private func approvalGrantKind(_ resolution: AgentInteractionResolution) -> String? {
         resolution.metadata["approval_grant_kind"]?.codexStringValue
+    }
+
+    private func approvalSessionScope(_ resolution: AgentInteractionResolution) -> String? {
+        resolution.metadata["approval_session_scope"]?.codexStringValue
     }
 
     private func permissionGrant(_ resolution: AgentInteractionResolution, fallback: JSONValue?) -> JSONValue {

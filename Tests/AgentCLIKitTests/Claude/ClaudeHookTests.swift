@@ -95,7 +95,7 @@ final class ClaudeHookTests: XCTestCase {
         let response = await server.handle(preToolUse(
             token: token.value,
             toolName: "Bash",
-            toolInput: .object(["command": .string("git status")])
+            toolInput: .object(["command": .string(#"/bin/zsh -lc 'git status'"#)])
         ))
         let pending = await interactionStore.pending(conversationId: "conversation")
 
@@ -104,6 +104,8 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "Bash")
         XCTAssertEqual(pending.first?.approvalRequest?.providerSessionId, "session-123")
         XCTAssertEqual(pending.first?.approvalRequest?.conciseSummary, "git status")
+        XCTAssertEqual(pending.first?.approvalRequest?.approvalIdentityInput, .object(["command": .string("git status")]))
+        XCTAssertEqual(pending.first?.approvalRequest?.sessionApprovalRequest?.sessionApprovalGrant(for: .exact)?.matchValue, "git status")
     }
 
     func testPreToolUseStoresCurrentPermissionModeOnApproval() async {

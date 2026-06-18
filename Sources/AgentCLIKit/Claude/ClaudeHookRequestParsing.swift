@@ -76,6 +76,25 @@ extension ClaudeHookRequest {
         payload.objectValue?["tool_input"] ?? payload.objectValue?["toolInput"]
     }
 
+    var approvalIdentityToolInput: JSONValue? {
+        payload.objectValue?["approval_identity_tool_input"] ?? payload.objectValue?["approvalIdentityToolInput"]
+    }
+
+    func withApprovalIdentityToolInput(_ value: JSONValue?) -> ClaudeHookRequest {
+        guard let value,
+              var object = payload.objectValue else {
+            return self
+        }
+        object["approval_identity_tool_input"] = value
+        return ClaudeHookRequest(
+            bearerToken: bearerToken,
+            hookName: hookName,
+            conversationId: conversationId,
+            payload: .object(object),
+            processToken: processToken
+        )
+    }
+
     private var promptQuestionObject: [String: JSONValue]? {
         let toolInput = payload.objectValue?["tool_input"] ?? payload.objectValue?["toolInput"]
         guard case let .array(questions)? = toolInput?.objectValue?["questions"],

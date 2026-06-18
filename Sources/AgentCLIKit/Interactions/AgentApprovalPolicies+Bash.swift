@@ -5,7 +5,7 @@ extension AgentSessionApprovalRequest {
         guard let command = stringInput("command")?.trimmingCharacters(in: .whitespacesAndNewlines).approvalNilIfEmpty else {
             return nil
         }
-        return Self.approvalIdentityCommand(for: command)
+        return command
     }
 
     var bashCommandGroup: String? {
@@ -39,7 +39,7 @@ extension AgentSessionApprovalRequest {
     }
 
     func stringInput(_ key: String) -> String? {
-        guard case let .object(object) = toolInput,
+        guard case let .object(object) = approvalIdentityInput,
               case let .string(value)? = object[key] else {
             return nil
         }
@@ -50,7 +50,9 @@ extension AgentSessionApprovalRequest {
         guard let command = normalizedBashCommand, !Self.containsShellControlOperator(command) else {
             return nil
         }
-        let tokens = (try? ShellArgumentParser.parse(command)).flatMap { $0.isEmpty ? nil : $0 } ?? Self.fallbackCommandTokens(command)
+        guard let tokens = Self.parsedCommandTokens(command) else {
+            return nil
+        }
         guard let executable = tokens.first?.approvalNilIfEmpty, tokens.count >= 2 else {
             return nil
         }
@@ -64,33 +66,6 @@ extension AgentSessionApprovalRequest {
 }
 
 private extension AgentSessionApprovalRequest {
-    /// Normalizes a Bash command to the identity used for approval matching.
-    ///
-    /// Strips a leading unquoted `rtk` transparent-wrapper prefix so a wrapped command
-    /// (`rtk git log`) shares the same exact and group approval identity as the unwrapped
-    /// command (`git log`). The prefix is only stripped when it is a bare leading token
-    /// followed by whitespace; a quoted `"rtk"` keeps its own identity so an executable that
-    /// merely starts with `rtk` is not misattributed.
-    static func approvalIdentityCommand(for command: String) -> String? {
-        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("rtk") else {
-            return trimmed.approvalNilIfEmpty
-        }
-        let prefixEnd = trimmed.index(trimmed.startIndex, offsetBy: 3)
-        guard prefixEnd < trimmed.endIndex, trimmed[prefixEnd].isWhitespace else {
-            return trimmed.approvalNilIfEmpty
-        }
-        return trimmed[prefixEnd...]
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .approvalNilIfEmpty
-    }
-
-    static func fallbackCommandTokens(_ command: String) -> [String] {
-        command
-            .split(whereSeparator: \.isWhitespace)
-            .map(String.init)
-    }
-
     static func parsedCommandTokens(_ command: String) -> [String]? {
         (try? ShellArgumentParser.parse(command)).flatMap { $0.isEmpty ? nil : $0 }
     }
@@ -99,7 +74,7 @@ private extension AgentSessionApprovalRequest {
         guard !token.isEmpty, !token.hasPrefix("-") else {
             return false
         }
-        return token.rangeOfCharacter(from: CharacterSet(charactersIn: "./")) == nil
+        return token.rangeOfCharacter(from: CharacterSet(charactersIn: "./=")) == nil
     }
 
     static func recommendedSQLiteCommandGroup(_ tokens: [String]) -> String? {

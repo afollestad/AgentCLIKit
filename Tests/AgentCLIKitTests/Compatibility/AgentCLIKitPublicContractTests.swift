@@ -50,6 +50,8 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(CodexAuthReadiness.self)
         assertSendable(CodexAuthProbe.self)
         assertSendable(CodexAppServerModelOptionSource.self)
+        assertSendable(AgentCommandApprovalNormalizationPolicy.self)
+        assertSendable(CodexProviderAdapter.Configuration.self)
         assertSendable(ClaudeProviderAdapter.Configuration.self)
         assertSendable(MainActorClaudeHookDecisionProvider.self)
     }

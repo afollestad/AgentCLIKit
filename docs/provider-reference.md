@@ -26,6 +26,10 @@ Host apps should generally depend on:
 Provider adapters own native launch, input encoding, output decoding, session ID extraction, interaction resolution
 encoding, and native in-place reconfiguration when a provider can apply an `AgentSpawnConfig` without replacement.
 
+Reusable approval scopes are provider-neutral. Hosts can back `AgentSessionApprovalPolicyStore` with app persistence, and
+Bash approval requests may include canonical `approvalIdentityToolInput` derived by `AgentCommandApprovalNormalizationPolicy`.
+That identity is used for exact/group matching while raw provider input remains available for execution and resolution.
+
 `AgentSpawnConfig` is the host-facing settings source of truth. `permissionMode` represents approval policy only.
 Provider-neutral plan/default state lives in `collaborationMode`: `.plan` enters plan mode, `.default` leaves plan mode,
 and `nil` means the host is not overriding collaboration state. `runtime.reconfigure(conversationId:config:)` returns

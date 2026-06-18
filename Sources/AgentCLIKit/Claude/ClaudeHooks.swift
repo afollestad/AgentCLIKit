@@ -5,6 +5,7 @@ public actor ClaudeHookServer {
     private let tokenStore: AgentHookTokenStore
     private let interactionStore: any AgentInteractionStore
     private let approvalPolicyStore: any ClaudeApprovalPolicyStoring
+    private let commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy
     private let decisionProvider: (any ClaudeHookDecisionProviding)?
     private let decisionTimeout: TimeInterval?
     private let compactionTracker: ClaudeContextCompactionTracker
@@ -20,6 +21,7 @@ public actor ClaudeHookServer {
     ///   - tokenStore: Token store used to validate bearer tokens.
     ///   - interactionStore: Store used to surface pending hook interactions.
     ///   - approvalPolicyStore: Store for session and transient approvals.
+    ///   - commandApprovalNormalizationPolicy: Policy used to derive Bash command approval identity.
     ///   - decisionProvider: Optional live decision provider for app-owned approval UI.
     ///   - decisionTimeout: Maximum live decision wait before deferring; pass `nil` to wait indefinitely. The default is
     ///     shorter than the generated hook transport timeout so deferred responses can be returned before Claude closes the request.
@@ -27,6 +29,7 @@ public actor ClaudeHookServer {
         tokenStore: AgentHookTokenStore,
         interactionStore: any AgentInteractionStore,
         approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
+        commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy = .default,
         decisionProvider: (any ClaudeHookDecisionProviding)? = nil,
         decisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout
     ) {
@@ -34,6 +37,7 @@ public actor ClaudeHookServer {
             tokenStore: tokenStore,
             interactionStore: interactionStore,
             approvalPolicyStore: approvalPolicyStore,
+            commandApprovalNormalizationPolicy: commandApprovalNormalizationPolicy,
             decisionProvider: decisionProvider,
             decisionTimeout: decisionTimeout,
             compactionTracker: ClaudeContextCompactionTracker()
@@ -44,6 +48,7 @@ public actor ClaudeHookServer {
         tokenStore: AgentHookTokenStore,
         interactionStore: any AgentInteractionStore,
         approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
+        commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy = .default,
         decisionProvider: (any ClaudeHookDecisionProviding)? = nil,
         decisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout,
         compactionTracker: ClaudeContextCompactionTracker
@@ -51,6 +56,7 @@ public actor ClaudeHookServer {
         self.tokenStore = tokenStore
         self.interactionStore = interactionStore
         self.approvalPolicyStore = approvalPolicyStore
+        self.commandApprovalNormalizationPolicy = commandApprovalNormalizationPolicy
         self.decisionProvider = decisionProvider
         self.decisionTimeout = decisionTimeout
         self.compactionTracker = compactionTracker
@@ -159,6 +165,7 @@ public actor ClaudeHookServer {
         if let policyDecision = await policyDecision(operation: operation, interactionId: interactionId, request: request) {
             return response(for: policyDecision)
         }
+        let approvalIdentityInput = approvalIdentityInput(operation: operation, request: request)
         let approval = AgentApprovalRequest(
             id: interactionId,
             providerId: ClaudeProviderAdapter.providerId,
@@ -167,6 +174,7 @@ public actor ClaudeHookServer {
             operation: operation,
             reason: "Claude requested tool approval.",
             input: request.toolInput ?? request.payload,
+            approvalIdentityInput: approvalIdentityInput,
             permissionMode: permissionMode(for: request)
         )
         await interactionStore.save(AgentInteractionRecord(
@@ -175,7 +183,10 @@ public actor ClaudeHookServer {
             kind: .approval,
             approvalRequest: approval
         ))
-        let decision = await liveDecision(for: request, interactionId: interactionId)
+        let decision = await liveDecision(
+            for: request.withApprovalIdentityToolInput(approvalIdentityInput),
+            interactionId: interactionId
+        )
         await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .approved, deniedOutcome: .denied)
         return response(for: decision)
     }
@@ -334,7 +345,8 @@ public actor ClaudeHookServer {
                 conversationId: request.conversationId,
                 sessionId: sessionId,
                 toolName: operation,
-                toolInput: request.toolInput ?? .object([:])
+                toolInput: request.toolInput ?? .object([:]),
+                approvalIdentityToolInput: approvalIdentityInput(operation: operation, request: request)
             )
             if await approvalPolicyStore.allowsSessionApproval(approvalRequest) {
                 let decision = ClaudeHookDecision.allow(updatedInput: request.updatedInputForAllowedOperation(operation))
@@ -348,6 +360,13 @@ public actor ClaudeHookServer {
             return decision
         }
         return nil
+    }
+
+    private func approvalIdentityInput(operation: String, request: ClaudeHookRequest) -> JSONValue? {
+        commandApprovalNormalizationPolicy.normalizedApprovalIdentityToolInput(
+            toolName: operation,
+            toolInput: request.toolInput ?? .object([:])
+        )
     }
 
     private func transientDecision(

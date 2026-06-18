@@ -14,6 +14,7 @@
 - Return `.nextTurnRequired` instead of sending `thread/settings/update` while a turn is active.
 - Require a concrete model before sending Codex collaboration-mode settings.
 - Treat Codex permission-profile denial semantics as live-validated behavior; do not invent a decline enum for `item/permissions/requestApproval`.
+- Codex command approval exact/group reuse is host-owned: derive `approval_identity_tool_input` through `AgentCommandApprovalNormalizationPolicy`, check `AgentSessionApprovalPolicyStore`, and answer scoped matches with one-shot `accept` rather than Codex's coarse `acceptForSession`.
 - Treat `thread/compact/start` as a client request only; map `thread/compacted`, `contextCompaction` items, and raw response compaction aliases to `AgentEvent.contextCompaction`.
 - Do not expose encrypted Codex compaction payloads as transcript summaries.
 - Map only observed model-visible Codex tool items or actually executed host requests to provider-neutral tool events; do not synthesize successful tool activity from final assistant text, warnings, or unsupported `item/tool/call` requests.

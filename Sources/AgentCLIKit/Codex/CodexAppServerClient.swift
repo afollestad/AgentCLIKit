@@ -36,13 +36,16 @@ actor CodexAppServerClient {
     var pendingServerRequests: [AgentInteractionID: CodexPendingServerRequest] = [:]
     private let notificationDecoder = CodexAppServerNotificationDecoder()
     private let transcriptPlanReader: CodexSessionTranscriptPlanReader
-    let serverRequestMapper = CodexAppServerServerRequestMapper()
+    let serverRequestMapper: CodexAppServerServerRequestMapper
     let resolutionEncoder = CodexInteractionResolutionEncoder()
     private var recoveredPlanKeysByConversation: [AgentConversationID: Set<CodexSessionTranscriptPlanRecoveryKey>] = [:]
     private var transcriptPlanSessionFileURLsByThreadId: [AgentSessionID: URL] = [:]
 
     init(configuration: CodexProviderAdapter.Configuration) {
         self.configuration = configuration
+        self.serverRequestMapper = CodexAppServerServerRequestMapper(
+            commandApprovalNormalizationPolicy: configuration.commandApprovalNormalizationPolicy
+        )
         self.transcriptPlanReader = CodexSessionTranscriptPlanReader(
             codexHomeDirectory: configuration.codexHomeDirectory ?? CodexConfigStore.defaultCodexHomeDirectoryURL
         )

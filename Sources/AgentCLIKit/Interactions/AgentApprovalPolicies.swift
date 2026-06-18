@@ -83,6 +83,8 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
     public let toolName: String
     /// JSON-compatible tool input.
     public let toolInput: JSONValue
+    /// Canonical tool input used for approval identity, when the provider can derive one.
+    public let approvalIdentityToolInput: JSONValue?
 
     /// Creates a durable session approval request.
     public init(
@@ -90,13 +92,26 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
         conversationId: AgentConversationID,
         sessionId: AgentSessionID,
         toolName: String,
-        toolInput: JSONValue
+        toolInput: JSONValue,
+        approvalIdentityToolInput: JSONValue? = nil
     ) {
         self.providerId = providerId
         self.conversationId = conversationId
         self.sessionId = sessionId
         self.toolName = toolName
         self.toolInput = toolInput
+        self.approvalIdentityToolInput = approvalIdentityToolInput
+    }
+
+    /// Decodes a durable session approval request, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
+        self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
+        self.sessionId = try container.decode(AgentSessionID.self, forKey: .sessionId)
+        self.toolName = try container.decode(String.self, forKey: .toolName)
+        self.toolInput = try container.decode(JSONValue.self, forKey: .toolInput)
+        self.approvalIdentityToolInput = try container.decodeIfPresent(JSONValue.self, forKey: .approvalIdentityToolInput)
     }
 
     /// Session approval scopes supported by this request.
@@ -152,6 +167,18 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
         }
     }
 
+    /// Durable grants that may match a stored approval for this request.
+    public var sessionApprovalGrantCandidates: [AgentSessionApprovalGrant] {
+        var grants = supportedSessionApprovalScopes.compactMap { sessionApprovalGrant(for: $0) }
+        if toolName == "Bash",
+           let primary = sessionApprovalGrant(for: .exact) {
+            for legacyCommand in legacyBashExactCommands() where legacyCommand != primary.matchValue {
+                grants.append(grant(matchKind: .bashExact, matchValue: legacyCommand))
+            }
+        }
+        return grants.uniqued()
+    }
+
     private func grant(matchKind: AgentSessionApprovalMatchKind, matchValue: String) -> AgentSessionApprovalGrant {
         AgentSessionApprovalGrant(
             providerId: providerId,
@@ -166,6 +193,32 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
         (stringInput("file_path") ?? stringInput("path") ?? stringInput("notebook_path"))?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
+    }
+
+    var approvalIdentityInput: JSONValue {
+        approvalIdentityToolInput
+            ?? AgentCommandApprovalNormalizationPolicy.default.normalizedApprovalIdentityToolInput(
+                toolName: toolName,
+                toolInput: toolInput
+            )
+            ?? toolInput
+    }
+
+    func rawStringInput(_ key: String) -> String? {
+        guard case let .object(object) = toolInput,
+              case let .string(value)? = object[key] else {
+            return nil
+        }
+        return value
+    }
+
+    private func legacyBashExactCommands() -> [String] {
+        guard let command = rawStringInput("command") else {
+            return []
+        }
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        let legacy = AgentCommandApprovalNormalizationPolicy.default.legacyRawExactCommand(for: command)
+        return [trimmed.nilIfEmpty, legacy].compactMap(\.self).uniqued()
     }
 }
 
@@ -298,8 +351,7 @@ public actor InMemoryAgentApprovalPolicyStore: AgentApprovalPolicyStore, AgentSe
 
     /// Returns whether a request matches a stored durable approval.
     public func allowsSessionApproval(_ request: AgentSessionApprovalRequest) async -> Bool {
-        request.supportedSessionApprovalScopes
-            .compactMap { request.sessionApprovalGrant(for: $0) }
+        request.sessionApprovalGrantCandidates
             .contains { sessionApprovalGrants.contains($0) }
     }
 
@@ -323,5 +375,12 @@ public actor InMemoryAgentApprovalPolicyStore: AgentApprovalPolicyStore, AgentSe
 private extension String {
     var nilIfEmpty: String? {
         isEmpty ? nil : self
+    }
+}
+
+private extension Array where Element: Hashable {
+    func uniqued() -> [Element] {
+        var seen: Set<Element> = []
+        return filter { seen.insert($0).inserted }
     }
 }

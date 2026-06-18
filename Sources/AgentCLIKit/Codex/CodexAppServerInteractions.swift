@@ -41,6 +41,12 @@ enum CodexServerRequestResolution: Sendable {
 }
 
 struct CodexAppServerServerRequestMapper {
+    let commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy
+
+    init(commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy = .default) {
+        self.commandApprovalNormalizationPolicy = commandApprovalNormalizationPolicy
+    }
+
     func map(
         _ request: CodexAppServerRequest,
         context: CodexServerRequestMappingContext
@@ -121,7 +127,11 @@ struct CodexAppServerServerRequestMapper {
                 ]),
                 "codex_proposed_execpolicy_amendment": params["proposedExecpolicyAmendment"],
                 "codex_proposed_network_policy_amendments": params["proposedNetworkPolicyAmendments"],
-                "codex_approval_id": params["approvalId"]
+                "codex_approval_id": params["approvalId"],
+                "approval_identity_tool_input": commandApprovalNormalizationPolicy.normalizedApprovalIdentityToolInput(
+                    toolName: "Bash",
+                    toolInput: .object(params)
+                )
             ]
         )
         metadata["codex_supports_session_approval"] = .bool(true)
