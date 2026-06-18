@@ -158,6 +158,22 @@ public enum AgentPlanProposalMetadata {
     public static let planMarkdown = "agent_plan_markdown"
 }
 
+/// Metadata keys for user inputs and message events that represent mid-turn steering.
+public enum AgentSteeringMetadata {
+    /// Boolean metadata key that marks a user input or event as mid-turn steering.
+    public static let isSteering = "agent_steering"
+    /// Stable host-provided identifier for the local user input that performed the steering.
+    public static let inputId = "agent_steering_input_id"
+    /// Signal that proved or accepted the steering input.
+    public static let signal = "agent_steering_signal"
+    /// Codex App Server `item/started` proved the steered user message began.
+    public static let signalCodexUserMessageStarted = "codex_user_message_started"
+    /// Codex App Server `item/completed` proved the steered user message when `item/started` was not observed.
+    public static let signalCodexUserMessageCompleted = "codex_user_message_completed"
+    /// Runtime accepted and wrote the steered input to provider stdin.
+    public static let signalRuntimeInputAccepted = "runtime_input_accepted"
+}
+
 /// Role attached to a message event or message input.
 public enum AgentMessageRole: String, Codable, Hashable, Sendable {
     /// Host user input.

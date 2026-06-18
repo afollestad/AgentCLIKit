@@ -86,7 +86,11 @@ final class CodexAppServerItemEventDecoderTests: XCTestCase {
             .message(AgentMessageEvent(
                 role: .user,
                 text: "Run tests\n@README.md",
-                metadata: completedItemMetadata(itemId: "user-1", type: "userMessage")
+                metadata: completedItemMetadata(
+                    itemId: "user-1",
+                    type: "userMessage",
+                    values: ["codex_client_user_message_id": .string("client-1")]
+                )
             ))
         ])
         XCTAssertEqual(assistantEvents, [

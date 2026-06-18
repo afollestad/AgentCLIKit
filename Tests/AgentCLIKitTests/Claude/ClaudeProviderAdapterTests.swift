@@ -62,6 +62,39 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(definition.supportedPermissionModes, ClaudeProviderDefinition.definition.supportedPermissionModes)
     }
 
+    func testAcceptedSteeringInputEventMarksRuntimeAcceptedInput() {
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
+        let message = AgentMessageInput(
+            text: "Use option B",
+            metadata: [
+                AgentSteeringMetadata.isSteering: .bool(true),
+                AgentSteeringMetadata.inputId: .string("local-message-1")
+            ]
+        )
+
+        let event = adapter.acceptedSteeringInputEvent(for: message, context: Self.inputContext(isTurnActive: true))
+
+        XCTAssertEqual(event, .message(AgentMessageEvent(
+            role: .user,
+            text: "Use option B",
+            metadata: [
+                AgentSteeringMetadata.isSteering: .bool(true),
+                AgentSteeringMetadata.inputId: .string("local-message-1"),
+                AgentSteeringMetadata.signal: .string(AgentSteeringMetadata.signalRuntimeInputAccepted)
+            ]
+        )))
+    }
+
+    func testAcceptedSteeringInputEventRequiresInputId() {
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
+        let message = AgentMessageInput(
+            text: "Use option B",
+            metadata: [AgentSteeringMetadata.isSteering: .bool(true)]
+        )
+
+        XCTAssertNil(adapter.acceptedSteeringInputEvent(for: message, context: Self.inputContext(isTurnActive: true)))
+    }
+
     func testLaunchConfigurationPrioritizesPlanCollaborationModeOverPermissionMode() async throws {
         let adapter = ClaudeProviderAdapter(executablePath: "/opt/homebrew/bin/claude")
         let config = AgentSpawnConfig(
@@ -463,6 +496,16 @@ final class ClaudeProviderAdapterTests: XCTestCase {
 }
 
 private extension ClaudeProviderAdapterTests {
+    static func inputContext(isTurnActive: Bool) -> AgentProviderInputContext {
+        AgentProviderInputContext(
+            conversationId: "conversation",
+            processToken: UUID(),
+            providerSessionId: "session-id",
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            isTurnActive: isTurnActive
+        )
+    }
+
     static func completedTaskNotificationLine(outputFile: String) throws -> String {
         let payload: [String: Any] = [
             "type": "system",

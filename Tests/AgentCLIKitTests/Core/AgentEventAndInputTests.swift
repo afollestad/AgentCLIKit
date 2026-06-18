@@ -213,6 +213,15 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertEqual(decoded, input)
     }
 
+    func testSteeringMetadataKeysAreStable() {
+        XCTAssertEqual(AgentSteeringMetadata.isSteering, "agent_steering")
+        XCTAssertEqual(AgentSteeringMetadata.inputId, "agent_steering_input_id")
+        XCTAssertEqual(AgentSteeringMetadata.signal, "agent_steering_signal")
+        XCTAssertEqual(AgentSteeringMetadata.signalCodexUserMessageStarted, "codex_user_message_started")
+        XCTAssertEqual(AgentSteeringMetadata.signalCodexUserMessageCompleted, "codex_user_message_completed")
+        XCTAssertEqual(AgentSteeringMetadata.signalRuntimeInputAccepted, "runtime_input_accepted")
+    }
+
     func testAgentSpawnConfigRoundTripsPermissionAndCollaborationModeThroughJSON() throws {
         let config = AgentSpawnConfig(
             providerId: .claude,

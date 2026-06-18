@@ -8,6 +8,12 @@ struct CodexThreadBootstrap: Sendable {
 }
 
 actor CodexAppServerClient {
+    struct PendingSteeringInput {
+        let inputId: String
+        let text: String
+        let metadata: [String: JSONValue]
+    }
+
     struct ConversationBinding {
         let threadId: AgentSessionID
         let processToken: UUID
@@ -15,6 +21,8 @@ actor CodexAppServerClient {
         var activeTurnId: String?
         var isTurnSteerReady = false
         var initialPromptStarted = false
+        var pendingSteeringInputs: [String: PendingSteeringInput] = [:]
+        var emittedSteeringInputIds: Set<String> = []
         var continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation?
     }
 
@@ -252,21 +260,35 @@ actor CodexAppServerClient {
     }
 
     private func steerTurn(message: AgentMessageInput, conversationId: AgentConversationID) async throws {
-        guard let binding = bindingsByConversation[conversationId] else {
+        guard var binding = bindingsByConversation[conversationId] else {
             throw AgentCLIError.invalidInput("Codex App Server thread is unavailable.")
         }
         guard let activeTurnId = binding.activeTurnId else {
             throw AgentCLIError.invalidInput("Codex active turn id is unavailable for steering.")
         }
         let transport = try await initializedTransport()
-        let response = try await transport.sendRequest(
-            method: "turn/steer",
-            params: .object([
-                "threadId": .string(binding.threadId.rawValue),
-                "expectedTurnId": .string(activeTurnId),
-                "input": userInputArray(message)
-            ])
-        )
+        let pendingSteeringInput = try pendingSteeringInput(for: message)
+        if let pendingSteeringInput {
+            binding.pendingSteeringInputs[pendingSteeringInput.inputId] = pendingSteeringInput
+            bindingsByConversation[conversationId] = binding
+        }
+        var params: [String: JSONValue] = [
+            "threadId": .string(binding.threadId.rawValue),
+            "expectedTurnId": .string(activeTurnId),
+            "input": userInputArray(message)
+        ]
+        if let pendingSteeringInput {
+            params["clientUserMessageId"] = .string(pendingSteeringInput.inputId)
+        }
+        let response: JSONValue
+        do {
+            response = try await transport.sendRequest(method: "turn/steer", params: .object(params))
+        } catch {
+            if let pendingSteeringInput {
+                clearPendingSteeringInput(pendingSteeringInput.inputId, conversationId: conversationId)
+            }
+            throw error
+        }
         if let turnId = response.turnResponseId ?? response.stringValue("turnId") {
             updateActiveTurnId(turnId, conversationId: conversationId)
         }
@@ -331,6 +353,7 @@ actor CodexAppServerClient {
             binding.isTurnSteerReady = false
             clearPendingServerRequests(conversationId: conversationId, turnId: nil)
         }
+        let steeringResult = steeringEvent(for: notification, binding: &binding)
         bindingsByConversation[conversationId] = binding
         recordForwardedPlanItemIfNeeded(notification, conversationId: conversationId)
         if notification.shouldRecoverTranscriptPlanItems {
@@ -341,8 +364,13 @@ actor CodexAppServerClient {
                 processToken: binding.processToken
             )
         }
-        for event in notificationDecoder.decode(notification) {
+        if let event = steeringResult.event {
             binding.continuation?.yield(event)
+        }
+        if !steeringResult.suppressesDecodedEvents {
+            for event in notificationDecoder.decode(notification) {
+                binding.continuation?.yield(event)
+            }
         }
         if notification.shouldRecoverTranscriptPlanItems {
             scheduleTranscriptPlanRecovery(
@@ -352,6 +380,78 @@ actor CodexAppServerClient {
                 processToken: binding.processToken
             )
         }
+    }
+
+    private func pendingSteeringInput(for message: AgentMessageInput) throws -> PendingSteeringInput? {
+        guard message.metadata[AgentSteeringMetadata.isSteering] == .bool(true) else {
+            return nil
+        }
+        guard let inputId = message.metadata.steeringStringValue(AgentSteeringMetadata.inputId) else {
+            throw AgentCLIError.invalidInput("Codex steering input requires '\(AgentSteeringMetadata.inputId)' metadata.")
+        }
+        return PendingSteeringInput(inputId: inputId, text: message.text, metadata: message.metadata)
+    }
+
+    private func steeringEvent(
+        for notification: CodexAppServerNotification,
+        binding: inout ConversationBinding
+    ) -> (event: AgentProviderRuntimeEvent?, suppressesDecodedEvents: Bool) {
+        guard let item = CodexSteeringUserMessageItem(notification: notification) else {
+            return (nil, false)
+        }
+        switch item.phase {
+        case "started":
+            guard let pending = binding.pendingSteeringInputs.removeValue(forKey: item.inputId) else {
+                return (nil, false)
+            }
+            binding.emittedSteeringInputIds.insert(item.inputId)
+            return (
+                steeringRuntimeEvent(
+                    pending: pending,
+                    item: item,
+                    signal: AgentSteeringMetadata.signalCodexUserMessageStarted
+                ),
+                false
+            )
+        case "completed":
+            if binding.emittedSteeringInputIds.remove(item.inputId) != nil {
+                return (nil, true)
+            }
+            guard let pending = binding.pendingSteeringInputs.removeValue(forKey: item.inputId) else {
+                return (nil, false)
+            }
+            return (
+                steeringRuntimeEvent(
+                    pending: pending,
+                    item: item,
+                    signal: AgentSteeringMetadata.signalCodexUserMessageCompleted
+                ),
+                true
+            )
+        default:
+            return (nil, false)
+        }
+    }
+
+    private func steeringRuntimeEvent(
+        pending: PendingSteeringInput,
+        item: CodexSteeringUserMessageItem,
+        signal: String
+    ) -> AgentProviderRuntimeEvent {
+        var metadata = pending.metadata
+        metadata.merge(item.metadata) { _, new in new }
+        metadata[AgentSteeringMetadata.isSteering] = .bool(true)
+        metadata[AgentSteeringMetadata.inputId] = .string(pending.inputId)
+        metadata[AgentSteeringMetadata.signal] = .string(signal)
+        return AgentProviderRuntimeEvent(event: .message(AgentMessageEvent(role: .user, text: pending.text, metadata: metadata)))
+    }
+
+    private func clearPendingSteeringInput(_ inputId: String, conversationId: AgentConversationID) {
+        guard var binding = bindingsByConversation[conversationId] else {
+            return
+        }
+        binding.pendingSteeringInputs.removeValue(forKey: inputId)
+        bindingsByConversation[conversationId] = binding
     }
 
     private func scheduleTranscriptPlanRecovery(
@@ -478,4 +578,87 @@ actor CodexAppServerClient {
         ])
     }
 
+}
+
+private struct CodexSteeringUserMessageItem {
+    let inputId: String
+    let phase: String
+    let metadata: [String: JSONValue]
+
+    init?(notification: CodexAppServerNotification) {
+        guard let params = notification.params?.steeringObjectValue,
+              let phase = notification.steeringItemPhase,
+              let threadId = params.steeringStringValue("threadId", "thread_id"),
+              let item = params["item"]?.steeringObjectValue,
+              item.steeringStringValue("type") == "userMessage",
+              let itemId = item.steeringStringValue("id"),
+              let inputId = item.steeringStringValue(
+                "clientUserMessageId",
+                "client_user_message_id",
+                "clientId",
+                "client_id"
+              ) else {
+            return nil
+        }
+        var metadata: [String: JSONValue] = [
+            "codex_method": .string(notification.method),
+            "codex_thread_id": .string(threadId),
+            "codex_item_id": .string(itemId),
+            "codex_item_type": .string("userMessage"),
+            "codex_item_phase": .string(phase),
+            "codex_client_user_message_id": .string(inputId)
+        ]
+        if let turnId = params.steeringStringValue("turnId", "turn_id") {
+            metadata["codex_turn_id"] = .string(turnId)
+        }
+        if let status = item["status"], status != .null {
+            metadata["codex_status"] = status
+        }
+        if let startedAtMs = params.steeringValue("startedAtMs", "started_at_ms") {
+            metadata["started_at_ms"] = startedAtMs
+        }
+        if let completedAtMs = params.steeringValue("completedAtMs", "completed_at_ms") {
+            metadata["completed_at_ms"] = completedAtMs
+        }
+        self.inputId = inputId
+        self.phase = phase
+        self.metadata = metadata
+    }
+}
+
+private extension CodexAppServerNotification {
+    var steeringItemPhase: String? {
+        switch method {
+        case "item/started", "item_started":
+            "started"
+        case "item/completed", "item_completed":
+            "completed"
+        default:
+            nil
+        }
+    }
+}
+
+private extension [String: JSONValue] {
+    func steeringStringValue(_ keys: String...) -> String? {
+        keys.lazy.compactMap { key -> String? in
+            guard case let .string(value)? = self[key], !value.isEmpty else {
+                return nil
+            }
+            return value
+        }.first
+    }
+
+    func steeringValue(_ keys: String...) -> JSONValue? {
+        keys.lazy.compactMap { self[$0] }.first
+    }
+}
+
+private extension JSONValue {
+    var steeringObjectValue: [String: JSONValue]? {
+        guard case let .object(value) = self else {
+            return nil
+        }
+        return value
+    }
 }

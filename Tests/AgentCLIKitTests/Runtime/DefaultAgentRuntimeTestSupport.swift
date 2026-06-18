@@ -128,6 +128,38 @@ struct DeferredToolStopProviderAdapter: AgentProviderAdapter {
     }
 }
 
+struct SteeringFallbackProviderAdapter: AgentProviderAdapter {
+    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let command: AgentLaunchConfiguration
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?
+    ) async throws -> AgentLaunchConfiguration {
+        command
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        []
+    }
+
+    func encodeInput(_ input: AgentInput) async throws -> Data {
+        guard case let .userMessage(message) = input else {
+            return Data()
+        }
+        return Data((message.text + "\n").utf8)
+    }
+
+    func acceptedSteeringInputEvent(for message: AgentMessageInput, context: AgentProviderInputContext) -> AgentEvent? {
+        guard message.metadata[AgentSteeringMetadata.inputId] != nil else {
+            return nil
+        }
+        var metadata = message.metadata
+        metadata[AgentSteeringMetadata.signal] = .string(AgentSteeringMetadata.signalRuntimeInputAccepted)
+        return .message(AgentMessageEvent(role: .user, text: message.text, metadata: metadata))
+    }
+}
+
 struct SequencedProviderAdapter: AgentProviderAdapter {
     let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence

@@ -39,6 +39,9 @@ public protocol AgentProviderAdapter: Sendable {
     /// Encodes host input with runtime context into provider stdin data.
     func encodeInput(_ input: AgentInput, context: AgentProviderInputContext) async throws -> Data
 
+    /// Creates a runtime event after a marked steering input has been accepted by the provider input path.
+    func acceptedSteeringInputEvent(for message: AgentMessageInput, context: AgentProviderInputContext) -> AgentEvent?
+
     /// Subscribes to provider-owned runtime events that do not arrive through stdout or stderr.
     func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent>
 
@@ -89,6 +92,11 @@ public extension AgentProviderAdapter {
     /// Encodes input using the legacy provider stdin encoder.
     func encodeInput(_ input: AgentInput, context: AgentProviderInputContext) async throws -> Data {
         try await encodeInput(input)
+    }
+
+    /// Returns no runtime marker for providers that require provider-native steering proof.
+    func acceptedSteeringInputEvent(for message: AgentMessageInput, context: AgentProviderInputContext) -> AgentEvent? {
+        nil
     }
 
     /// Returns an immediately finished stream for providers that only emit process stdout or stderr.

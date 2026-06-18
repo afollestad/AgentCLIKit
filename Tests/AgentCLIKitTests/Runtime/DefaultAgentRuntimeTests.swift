@@ -129,6 +129,46 @@ final class DefaultAgentRuntimeTests: XCTestCase {
         XCTAssertEqual(messages, ["hello", "again"])
     }
 
+    func testRuntimeEmitsAcceptedSteeringInputAfterActiveTurnWrite() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            SteeringFallbackProviderAdapter(command: shell("sleep 2"))
+        ])
+        let conversationId: AgentConversationID = "conversation"
+        let metadata: [String: JSONValue] = [
+            AgentSteeringMetadata.isSteering: .bool(true),
+            AgentSteeringMetadata.inputId: .string("local-message-1")
+        ]
+
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+        try await runtime.send(.userMessage(AgentMessageInput(text: "start")), conversationId: conversationId)
+        try await runtime.send(.userMessage(AgentMessageInput(text: "steer", metadata: metadata)), conversationId: conversationId)
+        let events = await Self.collect(subscription.events, until: { envelopes in
+            envelopes.contains { envelope in
+                guard case let .message(message) = envelope.event else {
+                    return false
+                }
+                return message.metadata[AgentSteeringMetadata.signal] == .string(AgentSteeringMetadata.signalRuntimeInputAccepted)
+            }
+        })
+
+        let steeringEnvelope = try XCTUnwrap(events.first { envelope in
+            guard case let .message(message) = envelope.event else {
+                return false
+            }
+            return message.role == .user && message.text == "steer"
+        })
+        guard case let .message(steeringMessage) = steeringEnvelope.event else {
+            XCTFail("Expected steering message event.")
+            return
+        }
+        XCTAssertEqual(steeringEnvelope.source, .runtime)
+        XCTAssertEqual(steeringMessage.metadata[AgentSteeringMetadata.isSteering], .bool(true))
+        XCTAssertEqual(steeringMessage.metadata[AgentSteeringMetadata.inputId], .string("local-message-1"))
+        XCTAssertEqual(steeringMessage.metadata[AgentSteeringMetadata.signal], .string(AgentSteeringMetadata.signalRuntimeInputAccepted))
+        await runtime.shutdown()
+    }
+
     func testSendUserMessageFailsWhileInteractionIsPending() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
             FakeProviderAdapter(command: shell("printf 'interaction:prompt\\n'; sleep 1"))

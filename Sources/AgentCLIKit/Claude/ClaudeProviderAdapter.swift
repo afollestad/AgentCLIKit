@@ -296,6 +296,17 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         try inputEncoder.encode(input)
     }
 
+    /// Emits a steering marker once Claude stdin accepts a marked mid-turn user input.
+    public func acceptedSteeringInputEvent(for message: AgentMessageInput, context: AgentProviderInputContext) -> AgentEvent? {
+        guard message.metadata[AgentSteeringMetadata.isSteering] == .bool(true),
+              message.metadata.nonEmptyStringValue(AgentSteeringMetadata.inputId) != nil else {
+            return nil
+        }
+        var metadata = message.metadata
+        metadata[AgentSteeringMetadata.signal] = .string(AgentSteeringMetadata.signalRuntimeInputAccepted)
+        return .message(AgentMessageEvent(role: .user, text: message.text, metadata: metadata))
+    }
+
     /// Returns Claude hook runtime events for the active launch.
     public func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
         guard let hookCoordinator else {
@@ -451,6 +462,13 @@ private extension AgentTaskEvent {
 private extension [String: JSONValue] {
     func stringValue(_ key: String) -> String? {
         guard case let .string(value)? = self[key] else {
+            return nil
+        }
+        return value
+    }
+
+    func nonEmptyStringValue(_ key: String) -> String? {
+        guard let value = stringValue(key), !value.isEmpty else {
             return nil
         }
         return value

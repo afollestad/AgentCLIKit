@@ -493,7 +493,7 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         )
     }
 
-    private func inputContext(
+    func inputContext(
         threadId: AgentSessionID,
         spawnConfig: AgentSpawnConfig,
         isTurnActive: Bool,
@@ -521,7 +521,7 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID()
     }
 
-    private func turnNotificationParams(status: String) -> JSONValue {
+    func turnNotificationParams(status: String) -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turn": .object([

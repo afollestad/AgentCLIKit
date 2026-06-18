@@ -158,8 +158,11 @@ public actor DefaultAgentRuntime: AgentRuntime {
             )
             do {
                 let data = try await adapter.encodeInput(input, context: context)
-                try await self.writeInputData(
+                try await self.writeInputDataAndAppendAcceptedSteeringEventIfNeeded(
                     data,
+                    input: input,
+                    adapter: adapter,
+                    context: context,
                     conversationId: conversationId,
                     processToken: processToken,
                     marksTurnActive: false
@@ -217,6 +220,39 @@ public actor DefaultAgentRuntime: AgentRuntime {
         }
         states[conversationId]?.isTurnActive = false
         publishStatus(conversationId: conversationId)
+    }
+
+    private func writeInputDataAndAppendAcceptedSteeringEventIfNeeded(
+        _ data: Data,
+        input: AgentInput,
+        adapter: any AgentProviderAdapter,
+        context: AgentProviderInputContext,
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        marksTurnActive: Bool
+    ) throws {
+        try writeInputData(
+            data,
+            conversationId: conversationId,
+            processToken: processToken,
+            marksTurnActive: marksTurnActive
+        )
+        if let event = acceptedSteeringInputEvent(for: input, adapter: adapter, context: context) {
+            append(event, source: .runtime, conversationId: conversationId)
+        }
+    }
+
+    private func acceptedSteeringInputEvent(
+        for input: AgentInput,
+        adapter: any AgentProviderAdapter,
+        context: AgentProviderInputContext
+    ) -> AgentEvent? {
+        guard context.isTurnActive,
+              case let .userMessage(message) = input,
+              message.metadata[AgentSteeringMetadata.isSteering] == .bool(true) else {
+            return nil
+        }
+        return adapter.acceptedSteeringInputEvent(for: message, context: context)
     }
 
     /// Resolves a pending interaction and forwards the resolution to providers that accept one over input.

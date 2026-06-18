@@ -12,7 +12,7 @@ struct CodexAppServerItemEventDecoder {
             decodeReasoningSummaryTextDelta(notification)
         case "item/reasoning/summaryPartAdded":
             decodeReasoningSummaryPartAdded(notification)
-        case "item/started":
+        case "item/started", "item_started":
             decodeItemStarted(notification)
         case "item/completed", "item_completed":
             decodeItemCompleted(notification)
@@ -266,6 +266,12 @@ struct CodexAppServerItemEventDecoder {
                 "codex_item_type": .string(type),
                 "codex_item_phase": .string(phase),
                 "codex_status": item["status"],
+                "codex_client_user_message_id": item.codexStringValue(
+                    "clientUserMessageId",
+                    "client_user_message_id",
+                    "clientId",
+                    "client_id"
+                ).map(JSONValue.string),
                 "started_at_ms": params.codexValue("startedAtMs", "started_at_ms"),
                 "completed_at_ms": params.codexValue("completedAtMs", "completed_at_ms")
             ]
