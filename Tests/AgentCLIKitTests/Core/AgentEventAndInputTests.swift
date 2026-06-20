@@ -278,6 +278,43 @@ final class AgentEventAndInputTests: XCTestCase {
         XCTAssertNil(legacyDecoded.collaborationMode)
     }
 
+    func testAgentSpawnConfigRoundTripsSessionForkThroughJSON() throws {
+        let config = AgentSpawnConfig(
+            providerId: .claude,
+            workingDirectory: URL(fileURLWithPath: "/tmp/target"),
+            sessionFork: AgentSessionForkRequest(
+                sourceSessionId: "source-session",
+                sourceWorkingDirectory: URL(fileURLWithPath: "/tmp/source"),
+                mode: .worktree
+            )
+        )
+
+        let data = try JSONEncoder().encode(config)
+        let decoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: data)
+        var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        legacyObject.removeValue(forKey: "sessionFork")
+        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
+        let legacyDecoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: legacyData)
+
+        XCTAssertEqual(decoded, config)
+        XCTAssertTrue(decoded.forkSession)
+        XCTAssertEqual(decoded.sessionFork?.sourceSessionId, "source-session")
+        XCTAssertEqual(decoded.sessionFork?.sourceWorkingDirectory?.path, "/tmp/source")
+        XCTAssertEqual(decoded.sessionFork?.mode, .worktree)
+        XCTAssertNil(legacyDecoded.sessionFork)
+        XCTAssertTrue(legacyDecoded.forkSession)
+    }
+
+    func testSessionForkDefaultsModeToLocalWhenDecodedFromMinimalPayload() throws {
+        let data = Data(#"{"sourceSessionId":"source"}"#.utf8)
+
+        let request = try JSONDecoder().decode(AgentSessionForkRequest.self, from: data)
+
+        XCTAssertEqual(request.sourceSessionId, "source")
+        XCTAssertNil(request.sourceWorkingDirectory)
+        XCTAssertEqual(request.mode, .local)
+    }
+
     func testPathHelpersExpandTilde() {
         let home = URL(fileURLWithPath: "/Users/example")
 

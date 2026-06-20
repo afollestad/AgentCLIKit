@@ -5,7 +5,7 @@ final class CodexAppServerProtocolFixtureTests: XCTestCase {
     func testProtocolValidationFixtureDocumentsRequiredCodexAppServerCoverage() throws {
         let fixture = try Self.fixture()
 
-        XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.137.0-alpha.4")
+        XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.142.0-alpha.6")
         XCTAssertEqual(fixture.value(at: ["documentation", "transport", "default"]) as? String, "stdio://")
         XCTAssertEqual(fixture.value(at: ["documentation", "jsonRPC", "wireOmitsJsonrpcHeader"]) as? Bool, true)
         XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireLiveCodexAuth"]) as? Bool, false)
@@ -16,9 +16,17 @@ final class CodexAppServerProtocolFixtureTests: XCTestCase {
         XCTAssertTrue(serverNotifications.contains("thread/name/updated"))
         XCTAssertEqual(fixture.value(at: ["schema", "threadMetadata", "threadObject", "name"]) as? String, "nullable string")
         XCTAssertEqual(
+            fixture.value(at: ["schema", "threadMetadata", "threadObject", "forkedFromId"]) as? String,
+            "nullable source thread id"
+        )
+        XCTAssertEqual(
             fixture.value(at: ["schema", "threadMetadata", "nameUpdateNotification", "fields", "threadName"]) as? String,
             "optional string"
         )
+
+        let clientRequests = try XCTUnwrap(fixture.value(at: ["schema", "clientRequestsValidatedForV1"]) as? [String])
+        XCTAssertTrue(clientRequests.contains("thread/fork"))
+        XCTAssertTrue(clientRequests.contains("thread/delete"))
 
         let serverRequests = try XCTUnwrap(fixture.value(at: ["schema", "serverRequests"]) as? [String])
         XCTAssertTrue(serverRequests.contains("item/commandExecution/requestApproval"))

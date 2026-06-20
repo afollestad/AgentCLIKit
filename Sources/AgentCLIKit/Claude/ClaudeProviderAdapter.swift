@@ -206,15 +206,20 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         if let effort = ClaudeModelAliases.normalizedEffort(spawnConfig.effort, model: spawnConfig.model) {
             arguments.append(contentsOf: ["--effort", effort])
         }
-        var sessionContinuity: AgentSessionContinuity = resumedSession == nil ? .fresh : .resumed
-        if let sessionId = resumedSession?.providerSessionId {
+        let forkRequest = spawnConfig.sessionFork
+        var sessionContinuity: AgentSessionContinuity = resumedSession == nil && forkRequest == nil ? .fresh : .resumed
+        if let sessionId = forkRequest?.sourceSessionId ?? resumedSession?.providerSessionId {
+            let sessionLookupDirectory = forkRequest?.sourceWorkingDirectory ?? spawnConfig.workingDirectory
             let sessionFileURL = ClaudePathEncoder.sessionFileURL(
                 sessionId: sessionId,
-                workingDirectory: spawnConfig.workingDirectory,
+                workingDirectory: sessionLookupDirectory,
                 homeDirectory: homeDirectory
             )
             let canResume = sessionFileExists(sessionFileURL)
-            sessionContinuity = canResume ? .resumed : .restartedFresh
+            if forkRequest != nil, !canResume {
+                throw AgentCLIError.invalidInput("Cannot fork Claude session because the source session artifact was not found.")
+            }
+            sessionContinuity = canResume ? (spawnConfig.forkSession ? .forked : .resumed) : .restartedFresh
             var sessionArguments = canResume ? ["--resume", sessionId.rawValue] : ["--session-id", sessionId.rawValue]
             if canResume, spawnConfig.forkSession {
                 sessionArguments.append("--fork-session")

@@ -29,6 +29,16 @@ extension JSONValue {
         return preview
     }
 
+    var threadResponseForkedFromId: String? {
+        guard case let .object(response) = self,
+              case let .object(thread)? = response["thread"],
+              case let .string(forkedFromId)? = thread["forkedFromId"],
+              !forkedFromId.isEmpty else {
+            return nil
+        }
+        return forkedFromId
+    }
+
     var turnResponseId: String? {
         guard case let .object(response) = self,
               case let .object(turn)? = response["turn"],

@@ -103,7 +103,12 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
                 "-c",
                 "printf '%s\\n' \"$1\"; sleep 2147483647",
                 "codex-bootstrap",
-                try Self.bootstrapLine(threadId: bootstrap.threadId, name: bootstrap.name, preview: bootstrap.preview)
+                try Self.bootstrapLine(
+                    threadId: bootstrap.threadId,
+                    name: bootstrap.name,
+                    preview: bootstrap.preview,
+                    forkedFromId: bootstrap.forkedFromId
+                )
             ],
             workingDirectory: spawnConfig.workingDirectory,
             sessionContinuity: bootstrap.continuity,
@@ -120,15 +125,19 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
             return [.rawOutput(AgentRawOutputEvent(text: line, isComplete: true))]
         }
         let threadId = AgentSessionID(rawValue: payload.threadId)
+        var metadata: [String: JSONValue] = [
+            "codex_thread_id": .string(payload.threadId),
+            "provider_session_id": .string(payload.threadId),
+            "codex_source": .string("bootstrap")
+        ]
+        if let forkedFromId = payload.forkedFromId {
+            metadata["codex_forked_from_id"] = .string(forkedFromId)
+        }
         return [.sessionMetadata(AgentSessionMetadataEvent(
             providerSessionId: threadId,
             name: payload.name,
             preview: payload.preview,
-            metadata: [
-                "codex_thread_id": .string(payload.threadId),
-                "provider_session_id": .string(payload.threadId),
-                "codex_source": .string("bootstrap")
-            ]
+            metadata: metadata
         ))]
     }
 
@@ -183,17 +192,29 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         try await client.unarchiveThread(record.providerSessionId)
     }
 
+    /// Deletes a Codex App Server thread without starting or resuming a runtime session.
+    public func deleteSession(_ record: AgentSessionRecord) async throws {
+        try validateSessionActionRecord(record)
+        try await client.deleteThread(record.providerSessionId)
+    }
+
     /// Stops the shared App Server transport.
     public func shutdownProviderResources() async {
         await client.shutdown()
     }
 
-    private static func bootstrapLine(threadId: AgentSessionID, name: String?, preview: String?) throws -> String {
+    private static func bootstrapLine(
+        threadId: AgentSessionID,
+        name: String?,
+        preview: String?,
+        forkedFromId: AgentSessionID?
+    ) throws -> String {
         let payload = CodexBootstrapPayload(
             codexAppServerBootstrap: true,
             threadId: threadId.rawValue,
             name: name,
-            preview: preview
+            preview: preview,
+            forkedFromId: forkedFromId?.rawValue
         )
         let data = try JSONEncoder().encode(payload)
         guard let line = String(data: data, encoding: .utf8) else {
@@ -208,6 +229,7 @@ private struct CodexBootstrapPayload: Codable {
     let threadId: String
     let name: String?
     let preview: String?
+    let forkedFromId: String?
 }
 
 extension CodexProviderAdapter.Configuration {

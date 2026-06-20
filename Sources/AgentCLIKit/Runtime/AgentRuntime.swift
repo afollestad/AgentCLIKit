@@ -27,7 +27,12 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     /// A `nil` value leaves provider behavior unchanged. Hosts should inspect
     /// `AgentProviderCapabilities.supportsSpeedMode` before sending `.fast`.
     public let speedMode: AgentSpeedMode?
+    /// Optional provider-native fork request.
+    public let sessionFork: AgentSessionForkRequest?
     /// Whether a resumed provider session should fork instead of continuing in-place.
+    ///
+    /// Deprecated compatibility flag for older hosts. New hosts should use `sessionFork`
+    /// so providers can fork from a source session into a different target working directory.
     public let forkSession: Bool
     /// Optional initial prompt sent by the provider launch command.
     public let initialPrompt: String?
@@ -43,6 +48,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         permissionMode: String? = nil,
         collaborationMode: AgentCollaborationMode? = nil,
         speedMode: AgentSpeedMode? = nil,
+        sessionFork: AgentSessionForkRequest? = nil,
         forkSession: Bool = false,
         initialPrompt: String? = nil
     ) {
@@ -55,7 +61,8 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.permissionMode = permissionMode
         self.collaborationMode = collaborationMode
         self.speedMode = speedMode
-        self.forkSession = forkSession
+        self.sessionFork = sessionFork
+        self.forkSession = forkSession || sessionFork != nil
         self.initialPrompt = initialPrompt
     }
 
@@ -71,9 +78,48 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
         self.speedMode = try container.decodeIfPresent(AgentSpeedMode.self, forKey: .speedMode)
-        self.forkSession = try container.decodeIfPresent(Bool.self, forKey: .forkSession) ?? false
+        self.sessionFork = try container.decodeIfPresent(AgentSessionForkRequest.self, forKey: .sessionFork)
+        self.forkSession = (try container.decodeIfPresent(Bool.self, forKey: .forkSession) ?? false) || sessionFork != nil
         self.initialPrompt = try container.decodeIfPresent(String.self, forKey: .initialPrompt)
     }
+}
+
+/// Provider-native request to fork an existing provider session into a new host conversation.
+public struct AgentSessionForkRequest: Codable, Equatable, Sendable {
+    /// Provider-defined source session identifier to fork from.
+    public let sourceSessionId: AgentSessionID
+    /// Source session working directory, when the provider requires it to locate persisted artifacts.
+    public let sourceWorkingDirectory: URL?
+    /// Host-requested fork target kind.
+    public let mode: AgentSessionForkMode
+
+    /// Creates a provider-native fork request.
+    public init(
+        sourceSessionId: AgentSessionID,
+        sourceWorkingDirectory: URL? = nil,
+        mode: AgentSessionForkMode = .local
+    ) {
+        self.sourceSessionId = sourceSessionId
+        self.sourceWorkingDirectory = sourceWorkingDirectory.map(AgentPathHelpers.canonicalFileURL)
+        self.mode = mode
+    }
+
+    /// Decodes a fork request, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.sourceSessionId = try container.decode(AgentSessionID.self, forKey: .sourceSessionId)
+        self.sourceWorkingDirectory = try container.decodeIfPresent(URL.self, forKey: .sourceWorkingDirectory)
+            .map(AgentPathHelpers.canonicalFileURL)
+        self.mode = try container.decodeIfPresent(AgentSessionForkMode.self, forKey: .mode) ?? .local
+    }
+}
+
+/// Host-requested target kind for a provider-native session fork.
+public enum AgentSessionForkMode: String, Codable, Equatable, Sendable {
+    /// Fork into a normal local host conversation.
+    case local
+    /// Fork into a host-managed Git worktree conversation.
+    case worktree
 }
 
 /// Provider-neutral collaboration mode for an agent session.

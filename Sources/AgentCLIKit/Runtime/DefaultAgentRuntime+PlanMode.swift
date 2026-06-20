@@ -329,6 +329,7 @@ private extension AgentSpawnConfig {
             permissionMode: permissionMode,
             collaborationMode: collaborationMode,
             speedMode: speedMode,
+            sessionFork: sessionFork,
             forkSession: forkSession,
             initialPrompt: initialPrompt
         )

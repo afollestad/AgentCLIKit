@@ -281,6 +281,8 @@ extension DefaultAgentRuntime {
             "Started a fresh provider session."
         case .resumed:
             "Resumed provider session."
+        case .forked:
+            "Forked provider session."
         case .restartedFresh:
             "Provider session artifact was unavailable; restarted with the saved session identifier."
         }

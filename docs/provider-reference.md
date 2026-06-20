@@ -40,6 +40,10 @@ Provider-neutral speed lives in `speedMode`: `.fast` requests faster provider be
 behavior, and `nil` means the host is not overriding speed. Inspect
 `AgentProviderCapabilities.supportsSpeedMode` before showing or sending `.fast`.
 
+Provider-neutral session forks live in `sessionFork`. Hosts create a new conversation with the target
+`workingDirectory`, set `sessionFork.sourceSessionId` to the source provider session, and copy host transcript rows only
+for UI continuity. Provider context comes from the native fork request, not from replaying copied host records.
+
 ## Capability Summary
 
 Inspect `AgentProviderDefinition.capabilities` before showing provider-specific UI.
@@ -59,7 +63,8 @@ Inspect `AgentProviderDefinition.capabilities` before showing provider-specific 
 | Runtime reconfigure | Process replacement or resume path | Idle threads use `thread/settings/update`; active turns require next-turn staging |
 | Context compaction | Supported through hooks and stream frames | Supported through App Server notifications and items |
 | MCP | Supported | Supported |
-| Native archive | No provider-native action; validated no-op | `thread/archive` and `thread/unarchive` |
+| Native fork | `--resume <source> --fork-session`; source artifact must exist | `thread/fork` |
+| Native archive/delete | No provider-native action; validated no-op | `thread/archive`, `thread/unarchive`, and `thread/delete` |
 
 ## Claude
 
@@ -99,6 +104,10 @@ Claude model options come from `ClaudeModelOptionSource`.
 Claude speed mode is intentionally unsupported. The Claude CLI exposes `--bare`, but that disables hooks and other host
 integration surfaces, so AgentCLIKit does not map it to `AgentSpeedMode.fast`.
 
+Claude forks use `AgentSpawnConfig.sessionFork` to locate the source session artifact and launch the target process with
+`--resume <source> --fork-session` from the target `workingDirectory`. Worktree forks should pass the source working
+directory when it differs from the target.
+
 ## Codex
 
 Codex support uses Codex App Server JSON-RPC. `CodexProviderAdapter` starts the App Server lazily for Codex runtime work,
@@ -126,6 +135,10 @@ App Server with global `--enable fast_mode`.
 
 Codex runtime cancellation maps to `turn/interrupt` when Codex reports an active turn. Mid-turn user input uses
 `turn/steer`.
+
+Codex forks use App Server `thread/fork` with the source `threadId` plus target settings accepted by `ThreadForkParams`,
+including `cwd`, `model`, approval policy, and config. Failed fork cleanup can delete unbound target threads with
+`thread/delete`.
 
 Codex setup uses `CodexProviderSetup` and `CodexConfigStore` for user-level `~/.codex/config.toml` project trust. Project
 `.codex/config.toml` should be loaded through `loadTrustedProjectConfig(for:)` when a host wants to mirror Codex behavior,

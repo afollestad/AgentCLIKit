@@ -34,6 +34,13 @@ public struct AgentProviderSessionActionRouter: Sendable {
         }
     }
 
+    /// Deletes the provider session associated with `record`, if the provider has a native delete action.
+    public func deleteSession(_ record: AgentSessionRecord) async throws {
+        try await route(record) { adapter in
+            try await adapter.deleteSession(record)
+        }
+    }
+
     private func route(
         _ record: AgentSessionRecord,
         action: (any AgentProviderAdapter) async throws -> Void

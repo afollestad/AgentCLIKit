@@ -4,6 +4,7 @@ struct CodexThreadBootstrap: Sendable {
     let threadId: AgentSessionID
     let name: String?
     let preview: String?
+    let forkedFromId: AgentSessionID?
     let continuity: AgentSessionContinuity
 }
 

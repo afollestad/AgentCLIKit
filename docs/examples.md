@@ -194,6 +194,7 @@ func setPlanMode(
         effort: currentConfig.effort,
         permissionMode: currentConfig.permissionMode,
         collaborationMode: enabled ? .plan : .default,
+        sessionFork: currentConfig.sessionFork,
         forkSession: currentConfig.forkSession,
         initialPrompt: nil
     )
@@ -235,6 +236,7 @@ func setFastMode(
         permissionMode: currentConfig.permissionMode,
         collaborationMode: currentConfig.collaborationMode,
         speedMode: enabled ? .fast : .standard,
+        sessionFork: currentConfig.sessionFork,
         forkSession: currentConfig.forkSession,
         initialPrompt: nil
     )

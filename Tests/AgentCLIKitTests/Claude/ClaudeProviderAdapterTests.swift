@@ -191,7 +191,70 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         )
 
         XCTAssertEqual(Array(launch.arguments.suffix(3)), ["--resume", "session-id", "--fork-session"])
-        XCTAssertEqual(launch.sessionContinuity, .resumed)
+        XCTAssertEqual(launch.sessionContinuity, .forked)
+    }
+
+    func testLaunchConfigurationForksSourceSessionIntoTargetDirectory() async throws {
+        let sourceDirectory = URL(fileURLWithPath: "/tmp/source")
+        let targetDirectory = URL(fileURLWithPath: "/tmp/worktree")
+        let homeDirectory = URL(fileURLWithPath: "/tmp/home")
+        let expectedSourceSessionFile = ClaudePathEncoder.sessionFileURL(
+            sessionId: "source-session",
+            workingDirectory: sourceDirectory,
+            homeDirectory: homeDirectory
+        )
+        let lookupRecorder = ClaudeSessionLookupRecorder()
+        let adapter = ClaudeProviderAdapter(
+            executablePath: "/opt/homebrew/bin/claude",
+            homeDirectory: homeDirectory,
+            sessionFileExists: { url in
+                lookupRecorder.append(url)
+                return url == expectedSourceSessionFile
+            }
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: targetDirectory,
+                sessionFork: AgentSessionForkRequest(
+                    sourceSessionId: "source-session",
+                    sourceWorkingDirectory: sourceDirectory,
+                    mode: .worktree
+                )
+            ),
+            resumedSession: nil
+        )
+
+        XCTAssertEqual(Array(launch.arguments.suffix(3)), ["--resume", "source-session", "--fork-session"])
+        XCTAssertEqual(launch.workingDirectory, targetDirectory)
+        XCTAssertEqual(launch.sessionContinuity, .forked)
+        XCTAssertEqual(lookupRecorder.urls, [expectedSourceSessionFile])
+    }
+
+    func testLaunchConfigurationThrowsWhenForkSourceArtifactIsMissing() async throws {
+        let adapter = ClaudeProviderAdapter(
+            executablePath: "/opt/homebrew/bin/claude",
+            sessionFileExists: { _ in false }
+        )
+
+        do {
+            _ = try await adapter.makeLaunchConfiguration(
+                spawnConfig: AgentSpawnConfig(
+                    providerId: .claude,
+                    workingDirectory: URL(fileURLWithPath: "/tmp/worktree"),
+                    sessionFork: AgentSessionForkRequest(sourceSessionId: "source-session")
+                ),
+                resumedSession: nil
+            )
+            XCTFail("Expected missing Claude source artifact to throw.")
+        } catch let error as AgentCLIError {
+            guard case let .invalidInput(message) = error else {
+                XCTFail("Expected invalidInput, got \(error).")
+                return
+            }
+            XCTAssertTrue(message.contains("source session artifact"))
+        }
     }
 
     func testLaunchConfigurationDoesNotForkMissingResumeArtifact() async throws {
@@ -472,4 +535,21 @@ private extension ClaudeProviderAdapterTests {
         )
     }
 
+}
+
+private final class ClaudeSessionLookupRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedURLs: [URL] = []
+
+    var urls: [URL] {
+        lock.withLock {
+            recordedURLs
+        }
+    }
+
+    func append(_ url: URL) {
+        lock.withLock {
+            recordedURLs.append(url)
+        }
+    }
 }

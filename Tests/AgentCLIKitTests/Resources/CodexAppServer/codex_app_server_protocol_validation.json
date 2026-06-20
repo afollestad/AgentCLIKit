@@ -1,6 +1,6 @@
 {
   "codexCLI": {
-    "version": "codex-cli 0.137.0-alpha.4",
+    "version": "codex-cli 0.142.0-alpha.6",
     "schemaCommands": [
       "codex app-server generate-json-schema --out <redacted:path>",
       "codex app-server generate-ts --out <redacted:path>"
@@ -11,8 +11,8 @@
         "codex_app_server_protocol.v2.schemas.json"
       ],
       "jsonBundleByteCounts": {
-        "codex_app_server_protocol.schemas.json": 509729,
-        "codex_app_server_protocol.v2.schemas.json": 424682
+        "codex_app_server_protocol.schemas.json": 542339,
+        "codex_app_server_protocol.v2.schemas.json": 454494
       }
     }
   },
@@ -41,7 +41,9 @@
       "initialize",
       "thread/start",
       "thread/resume",
+      "thread/fork",
       "thread/archive",
+      "thread/delete",
       "thread/read",
       "turn/start",
       "turn/steer",
@@ -95,13 +97,17 @@
       "threadObject": {
         "id": "opaque string",
         "name": "nullable string",
-        "preview": "nullable string"
+        "preview": "nullable string",
+        "forkedFromId": "nullable source thread id"
       },
       "bootstrapSources": [
         "thread/start result.thread.name",
         "thread/start result.thread.preview",
         "thread/resume result.thread.name",
         "thread/resume result.thread.preview",
+        "thread/fork result.thread.name",
+        "thread/fork result.thread.preview",
+        "thread/fork result.thread.forkedFromId",
         "thread/started params.thread.name",
         "thread/started params.thread.preview"
       ],

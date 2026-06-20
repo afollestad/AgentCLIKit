@@ -142,7 +142,8 @@ not overriding provider collaboration state. Speed uses `speedMode`: pass `.fast
 `AgentProviderCapabilities.supportsSpeedMode` is true, `.standard` to force supported providers back to normal behavior,
 and `nil` to preserve provider defaults. Claude exposes `bypassPermissions` as an explicit dangerous approval policy;
 AgentCLIKit unlocks that mode for the launch without using `--dangerously-skip-permissions`. Codex plan mode requires a
-concrete selected `model`.
+concrete selected `model`. To fork provider context into a new host conversation, pass `sessionFork` with the source
+provider session ID and the target `workingDirectory`; copied host transcript records are not provider context.
 
 Use `runtime.reconfigure(conversationId:config:)` to apply changed settings to a started conversation. The result tells
 the host what happened:
@@ -210,7 +211,8 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Models | Built-in `ClaudeModelOptionSource` | Static fallback or opt-in live `model/list` |
 | Plan mode | `collaborationMode: .plan` maps to Claude's internal `--permission-mode plan` | Idle threads use `thread/settings/update`; plan mode requires a concrete model |
 | Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `speedMode: .fast` when Codex reports `fast_mode` support |
-| Archive | Validated no-op | App Server `thread/archive` and `thread/unarchive` |
+| Native fork | `--resume <source> --fork-session` | App Server `thread/fork` |
+| Archive/delete | Validated no-op | App Server `thread/archive`, `thread/unarchive`, and `thread/delete` |
 
 Both built-in providers expose provider-neutral events, sessions, provider session metadata, usage, tool events, task
 events, typed sub-agent lifecycle, permission/collaboration state, prompt/approval interactions, MCP support, and

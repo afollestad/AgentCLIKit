@@ -23,6 +23,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private var threadIds: [String]
     private var threadNames: [String?]
     private var threadPreviews: [String?]
+    private var threadForkedFromIds: [String?]
     private var modelListResponses: [JSONValue]
     private let failModelListRequests: Bool
     private let failModelListRequestsAfterSuccessCount: Int?
@@ -44,6 +45,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         threadIds: [String],
         threadNames: [String?] = [],
         threadPreviews: [String?] = [],
+        threadForkedFromIds: [String?] = [],
         modelListResponses: [JSONValue] = [],
         failModelListRequests: Bool = false,
         failModelListRequestsAfterSuccessCount: Int? = nil,
@@ -52,6 +54,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         self.threadIds = threadIds
         self.threadNames = threadNames
         self.threadPreviews = threadPreviews
+        self.threadForkedFromIds = threadForkedFromIds
         self.modelListResponses = modelListResponses
         self.failModelListRequests = failModelListRequests
         self.failModelListRequestsAfterSuccessCount = failModelListRequestsAfterSuccessCount
@@ -84,7 +87,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         switch method {
         case "initialize":
             return .object(["server": .string("fake")])
-        case "thread/start", "thread/resume":
+        case "thread/start", "thread/resume", "thread/fork":
             return nextThreadResponse()
         case "turn/start":
             turnIndex += 1
@@ -99,7 +102,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
             return .object(["turnId": .string("turn-\(turnIndex)")])
         case "turn/interrupt":
             return .object([:])
-        case "thread/archive", "thread/unarchive":
+        case "thread/archive", "thread/unarchive", "thread/delete":
             return .object([:])
         case "model/list":
             if failModelListRequests || shouldFailModelListRequestAfterSuccesses() {
@@ -124,6 +127,9 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         }
         if !threadPreviews.isEmpty, let preview = threadPreviews.removeFirst() {
             thread["preview"] = .string(preview)
+        }
+        if !threadForkedFromIds.isEmpty, let forkedFromId = threadForkedFromIds.removeFirst() {
+            thread["forkedFromId"] = .string(forkedFromId)
         }
         return .object([
             "thread": .object(thread)

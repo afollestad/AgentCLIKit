@@ -4,7 +4,7 @@ import XCTest
 @testable import AgentCLIKit
 
 final class AgentProviderSessionActionRouterTests: XCTestCase {
-    func testRoutesArchiveAndUnarchiveToMatchingProvider() async throws {
+    func testRoutesArchiveUnarchiveAndDeleteToMatchingProvider() async throws {
         let state = ActionRecordingProviderState()
         let router = AgentProviderSessionActionRouter {
             AgentProviderAdapterSet(adapters: [
@@ -15,14 +15,17 @@ final class AgentProviderSessionActionRouterTests: XCTestCase {
 
         try await router.archiveSession(record)
         try await router.unarchiveSession(record)
+        try await router.deleteSession(record)
 
         let archivedSessionIds = await state.archivedSessionIds
         let unarchivedSessionIds = await state.unarchivedSessionIds
+        let deletedSessionIds = await state.deletedSessionIds
         let shutdownCount = await state.shutdownCount
 
         XCTAssertEqual(archivedSessionIds, ["session"])
         XCTAssertEqual(unarchivedSessionIds, ["session"])
-        XCTAssertEqual(shutdownCount, 2)
+        XCTAssertEqual(deletedSessionIds, ["session"])
+        XCTAssertEqual(shutdownCount, 3)
     }
 
     func testDefaultProviderActionNoOpsForMatchingProviderRecord() async throws {
@@ -31,6 +34,7 @@ final class AgentProviderSessionActionRouterTests: XCTestCase {
 
         try await adapter.archiveSession(record)
         try await adapter.unarchiveSession(record)
+        try await adapter.deleteSession(record)
     }
 
     func testDefaultProviderActionThrowsForMismatchedProviderRecord() async throws {
@@ -81,11 +85,12 @@ final class AgentProviderSessionActionRouterTests: XCTestCase {
 
         try await router.archiveSession(sessionRecord(providerId: .codex))
         try await router.unarchiveSession(sessionRecord(providerId: .codex))
+        try await router.deleteSession(sessionRecord(providerId: .codex))
 
         let shutdownCount = await state.shutdownCount
 
-        XCTAssertEqual(factoryCalls.value, 2)
-        XCTAssertEqual(shutdownCount, 2)
+        XCTAssertEqual(factoryCalls.value, 3)
+        XCTAssertEqual(shutdownCount, 3)
     }
 
     func testShutsDownOwnedAdaptersAfterActionFailure() async {
@@ -216,6 +221,10 @@ private struct ActionRecordingProviderAdapter: AgentProviderAdapter {
         await state.recordUnarchive(record.providerSessionId)
     }
 
+    func deleteSession(_ record: AgentSessionRecord) async throws {
+        await state.recordDelete(record.providerSessionId)
+    }
+
     func shutdownProviderResources() async {
         await state.recordShutdown()
     }
@@ -224,6 +233,7 @@ private struct ActionRecordingProviderAdapter: AgentProviderAdapter {
 private actor ActionRecordingProviderState {
     private var archived: [AgentSessionID] = []
     private var unarchived: [AgentSessionID] = []
+    private var deleted: [AgentSessionID] = []
     private var shutdowns = 0
 
     var archivedSessionIds: [AgentSessionID] {
@@ -232,6 +242,10 @@ private actor ActionRecordingProviderState {
 
     var unarchivedSessionIds: [AgentSessionID] {
         unarchived
+    }
+
+    var deletedSessionIds: [AgentSessionID] {
+        deleted
     }
 
     var shutdownCount: Int {
@@ -244,6 +258,10 @@ private actor ActionRecordingProviderState {
 
     func recordUnarchive(_ sessionId: AgentSessionID) {
         unarchived.append(sessionId)
+    }
+
+    func recordDelete(_ sessionId: AgentSessionID) {
+        deleted.append(sessionId)
     }
 
     func recordShutdown() {

@@ -57,6 +57,9 @@ public protocol AgentProviderAdapter: Sendable {
     /// Unarchives a provider-native session when the provider supports it.
     func unarchiveSession(_ record: AgentSessionRecord) async throws
 
+    /// Deletes a provider-native session when the provider supports it.
+    func deleteSession(_ record: AgentSessionRecord) async throws
+
     /// Notifies the provider that runtime-observed permission mode changed for a conversation.
     func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async
 
@@ -121,6 +124,11 @@ public extension AgentProviderAdapter {
 
     /// Validates the provider record and otherwise no-ops for providers without native unarchiving.
     func unarchiveSession(_ record: AgentSessionRecord) async throws {
+        try validateSessionActionRecord(record)
+    }
+
+    /// Validates the provider record and otherwise no-ops for providers without native deletion.
+    func deleteSession(_ record: AgentSessionRecord) async throws {
         try validateSessionActionRecord(record)
     }
 

@@ -184,6 +184,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         let config = try JSONDecoder().decode(AgentSpawnConfig.self, from: data)
 
         XCTAssertFalse(config.forkSession)
+        XCTAssertNil(config.sessionFork)
         XCTAssertNil(config.speedMode)
     }
 

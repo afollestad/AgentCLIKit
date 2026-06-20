@@ -265,6 +265,8 @@ public enum AgentSessionContinuity: String, Codable, Hashable, Sendable {
     case fresh
     /// An existing provider session is being resumed.
     case resumed
+    /// A new provider session was forked from an existing provider session.
+    case forked
     /// The requested provider session was unavailable and the launch restarted with that session ID.
     case restartedFresh
 }

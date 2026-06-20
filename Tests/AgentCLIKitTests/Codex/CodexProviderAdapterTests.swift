@@ -166,6 +166,84 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(threadResumeParams.objectValue?["threadId"], .string("thread-existing"))
     }
 
+    func testForksThreadFromSourceWithTargetSettings() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-forked"],
+            threadNames: ["Forked Thread"],
+            threadPreviews: ["Forked preview"],
+            threadForkedFromIds: ["thread-source"]
+        )
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(
+            providerId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/worktree"),
+            model: "model-a",
+            effort: "high",
+            permissionMode: "on-request",
+            sessionFork: AgentSessionForkRequest(
+                sourceSessionId: "thread-source",
+                sourceWorkingDirectory: URL(fileURLWithPath: "/tmp/source"),
+                mode: .worktree
+            )
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let metadata = try XCTUnwrap(events.compactMap(\.sessionMetadataEvent).first)
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/fork"])
+        XCTAssertEqual(launch.sessionContinuity, .forked)
+        XCTAssertEqual(launch.providerSessionId, "thread-forked")
+        XCTAssertEqual(metadata.providerSessionId, "thread-forked")
+        XCTAssertEqual(metadata.name, "Forked Thread")
+        XCTAssertEqual(metadata.preview, "Forked preview")
+        XCTAssertEqual(metadata.metadata["codex_forked_from_id"], .string("thread-source"))
+
+        let threadForkParams = try XCTUnwrap(requestParams["thread/fork"])
+        XCTAssertEqual(threadForkParams.objectValue?["threadId"], .string("thread-source"))
+        XCTAssertEqual(threadForkParams.objectValue?["cwd"], .string("/tmp/worktree"))
+        XCTAssertEqual(threadForkParams.objectValue?["model"], .string("model-a"))
+        XCTAssertEqual(threadForkParams.objectValue?["approvalPolicy"], .string("on-request"))
+        XCTAssertEqual(threadForkParams.objectValue?["ephemeral"], .bool(false))
+        XCTAssertEqual(threadForkParams.objectValue?["config"], .object(["model_reasoning_effort": .string("high")]))
+    }
+
+    func testLegacyForkSessionForksResumedThread() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-forked"],
+            threadForkedFromIds: ["thread-source"]
+        )
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let resumedSession = AgentSessionRecord(
+            conversationId: "conversation",
+            providerId: .codex,
+            providerSessionId: "thread-source",
+            workingDirectory: URL(fileURLWithPath: "/tmp/source"),
+            generation: 1
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/target"),
+                forkSession: true
+            ),
+            resumedSession: resumedSession
+        )
+
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/fork"])
+        XCTAssertEqual(launch.sessionContinuity, .forked)
+        XCTAssertEqual(launch.providerSessionId, "thread-forked")
+        XCTAssertEqual(requestParams["thread/fork"]?.objectValue?["threadId"], .string("thread-source"))
+        XCTAssertEqual(requestParams["thread/fork"]?.objectValue?["cwd"], .string("/tmp/target"))
+    }
+
     func testReusesSharedTransportAcrossThreadBootstraps() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-1", "thread-2"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
@@ -284,6 +362,21 @@ final class CodexProviderAdapterTests: XCTestCase {
 
         XCTAssertEqual(requestMethods, ["initialize", "thread/unarchive"])
         XCTAssertEqual(requestParams["thread/unarchive"]?.objectValue?["threadId"], .string("thread-123"))
+        XCTAssertFalse(requestMethods.contains("thread/start"))
+        XCTAssertFalse(requestMethods.contains("thread/resume"))
+    }
+
+    func testDeletesThreadWithoutRuntimeBootstrap() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        try await adapter.deleteSession(sessionRecord(providerId: .codex, workingDirectory: nil))
+
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/delete"])
+        XCTAssertEqual(requestParams["thread/delete"]?.objectValue?["threadId"], .string("thread-123"))
         XCTAssertFalse(requestMethods.contains("thread/start"))
         XCTAssertFalse(requestMethods.contains("thread/resume"))
     }
