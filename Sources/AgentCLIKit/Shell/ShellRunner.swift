@@ -10,18 +10,32 @@ public struct ShellCommand: Codable, Equatable, Hashable, Sendable {
     public let environment: [String: String]
     /// Optional working directory.
     public let workingDirectory: URL?
+    /// Optional text written to standard input, then closed.
+    public let standardInput: String?
 
     /// Creates a shell command.
     public init(
         executable: String,
         arguments: [String] = [],
         environment: [String: String] = [:],
-        workingDirectory: URL? = nil
+        workingDirectory: URL? = nil,
+        standardInput: String? = nil
     ) {
         self.executable = executable
         self.arguments = arguments
         self.environment = environment
         self.workingDirectory = workingDirectory
+        self.standardInput = standardInput
+    }
+
+    /// Decodes a shell command, defaulting additive fields for older persisted values.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.executable = try container.decode(String.self, forKey: .executable)
+        self.arguments = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
+        self.environment = try container.decodeIfPresent([String: String].self, forKey: .environment) ?? [:]
+        self.workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory)
+        self.standardInput = try container.decodeIfPresent(String.self, forKey: .standardInput)
     }
 }
 
@@ -80,11 +94,16 @@ public struct ProcessShellRunner: ShellRunning {
                 cancellationHandler.terminate()
             }
 
+            let stdinWriter = Self.writeStandardInput(command.standardInput, to: pipes.stdin)
+
             // Drain both pipes while the process runs so verbose commands cannot block on a full pipe buffer.
             async let stdoutData = Task.detached { pipes.stdout.fileHandleForReading.readDataToEndOfFile() }.value
             async let stderrData = Task.detached { pipes.stderr.fileHandleForReading.readDataToEndOfFile() }.value
 
             await terminationObserver.waitForTermination()
+            if let stdinWriter {
+                await stdinWriter.value
+            }
             let output = await (
                 stdout: stdoutData,
                 stderr: stderrData
@@ -105,7 +124,7 @@ public struct ProcessShellRunner: ShellRunning {
         _ process: Process,
         for command: ShellCommand,
         terminationObserver: ProcessTerminationObserver
-    ) -> (stdout: Pipe, stderr: Pipe) {
+    ) -> ProcessPipes {
         let launch = launchConfiguration(for: command)
         process.executableURL = launch.executableURL
         process.arguments = launch.arguments
@@ -116,14 +135,30 @@ public struct ProcessShellRunner: ShellRunning {
             process.currentDirectoryURL = workingDirectory
         }
 
+        let stdin = command.standardInput == nil ? nil : Pipe()
         let stdout = Pipe()
         let stderr = Pipe()
+        if let stdin {
+            process.standardInput = stdin
+        }
         process.standardOutput = stdout
         process.standardError = stderr
         process.terminationHandler = { _ in
             terminationObserver.signalTermination()
         }
-        return (stdout, stderr)
+        return ProcessPipes(stdin: stdin, stdout: stdout, stderr: stderr)
+    }
+
+    private static func writeStandardInput(_ standardInput: String?, to pipe: Pipe?) -> Task<Void, Never>? {
+        guard let standardInput,
+              let pipe else {
+            return nil
+        }
+        return Task.detached {
+            let data = Data(standardInput.utf8)
+            pipe.fileHandleForWriting.write(data)
+            try? pipe.fileHandleForWriting.close()
+        }
     }
 
     private static func launchConfiguration(for command: ShellCommand) -> (executableURL: URL, arguments: [String]) {
@@ -133,6 +168,12 @@ public struct ProcessShellRunner: ShellRunning {
         // Bare executable names are resolved through PATH so the public shell command model can accept either paths or names.
         return (URL(fileURLWithPath: "/usr/bin/env"), [command.executable] + command.arguments)
     }
+}
+
+private struct ProcessPipes {
+    let stdin: Pipe?
+    let stdout: Pipe
+    let stderr: Pipe
 }
 
 private final class ProcessCancellationHandler: @unchecked Sendable {

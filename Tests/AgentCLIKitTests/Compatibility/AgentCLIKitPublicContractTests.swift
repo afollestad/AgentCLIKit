@@ -56,5 +56,13 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(MainActorClaudeHookDecisionProvider.self)
     }
 
+    func testOneShotTypesRemainSendable() {
+        assertSendable(AgentOneShotToolPolicy.self)
+        assertSendable(AgentOneShotPromptRequest.self)
+        assertSendable(AgentOneShotPromptResult.self)
+        assertSendable(AgentOneShotPromptError.self)
+        assertSendable(DefaultAgentOneShotPromptRunner.self)
+    }
+
     private func assertSendable<T: Sendable>(_ type: T.Type) {}
 }

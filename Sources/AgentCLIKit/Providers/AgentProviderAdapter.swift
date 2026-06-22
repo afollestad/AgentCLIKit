@@ -11,6 +11,16 @@ public protocol AgentProviderAdapter: Sendable {
         resumedSession: AgentSessionRecord?
     ) async throws -> AgentLaunchConfiguration
 
+    /// Builds a CLI command for a sessionless one-shot prompt.
+    func makeOneShotPromptCommand(request: AgentOneShotPromptRequest) async throws -> ShellCommand
+
+    /// Extracts final assistant text from a completed sessionless one-shot command.
+    func finalOneShotPromptText(
+        stdout: String,
+        stderr: String,
+        request: AgentOneShotPromptRequest
+    ) async throws -> String
+
     /// Gives the provider a chance to augment a launch before the runtime starts the process.
     /// - Parameters:
     ///   - launch: Base launch configuration returned by `makeLaunchConfiguration(spawnConfig:resumedSession:)`.
@@ -72,6 +82,20 @@ public protocol AgentProviderAdapter: Sendable {
 
 /// Default behavior for optional provider adapter capabilities.
 public extension AgentProviderAdapter {
+    /// Throws by default for providers that do not support sessionless one-shot prompts.
+    func makeOneShotPromptCommand(request: AgentOneShotPromptRequest) async throws -> ShellCommand {
+        throw AgentOneShotPromptError.unsupportedProvider(definition.id)
+    }
+
+    /// Throws by default for providers that do not support sessionless one-shot prompts.
+    func finalOneShotPromptText(
+        stdout: String,
+        stderr: String,
+        request: AgentOneShotPromptRequest
+    ) async throws -> String {
+        throw AgentOneShotPromptError.unsupportedProvider(definition.id)
+    }
+
     /// Returns the launch unchanged for providers that do not need runtime-managed launch augmentation.
     func prepareLaunchConfiguration(
         _ launch: AgentLaunchConfiguration,

@@ -6,7 +6,30 @@ app implementation.
 Examples marked **Complete snippet** include imports and avoid undefined helpers. Examples marked **Skeleton** show the
 host integration shape and use placeholders for app-owned UI or persistence.
 
-## One-Off Conversation
+## Sessionless One-Shot Prompt
+
+**Complete snippet.** Runs one provider prompt, returns the final assistant text, and does not create an AgentCLIKit runtime
+conversation or persisted provider session.
+
+```swift
+import AgentCLIKit
+import Foundation
+
+func runSessionlessPrompt(projectURL: URL) async throws -> String {
+    let runner = DefaultAgentOneShotPromptRunner()
+    let result = try await runner.generate(AgentOneShotPromptRequest(
+        providerId: .codex,
+        workingDirectory: projectURL,
+        prompt: "Summarize the current Git diff in one paragraph.",
+        timeout: 120
+    ))
+    return result.text
+}
+```
+
+Use `.claude` for Claude Code. One-shot prompts are read-only and cannot answer provider approval or prompt requests.
+
+## One-Off Runtime Conversation
 
 **Complete snippet.** Starts one provider, sends one message, prints a few common events, and acknowledges event indexes.
 

@@ -238,7 +238,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         )
     }
 
-    private func resolvedLaunchExecutable() async -> (executable: String, arguments: [String]) {
+    func resolvedLaunchExecutable() async -> (executable: String, arguments: [String]) {
         guard executablePath == "/usr/bin/env" else {
             return (executablePath, [])
         }

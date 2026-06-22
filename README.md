@@ -5,6 +5,7 @@ AgentCLIKit is a Swift package for macOS apps that run local agent CLIs through 
 It gives host apps a reusable layer for:
 
 - Launching Claude Code or Codex App Server.
+- Running sessionless one-shot prompts for project-level tasks that should not create provider sessions.
 - Sending user messages and steering active turns.
 - Receiving provider-neutral events for messages, tools, usage, tasks, sub-agent lifecycle, session metadata,
   permission/collaboration state, context compaction, lifecycle, and interactions.
@@ -13,7 +14,7 @@ It gives host apps a reusable layer for:
 
 Host apps still own UI, durable app data, queueing policy, notifications, and product-specific workflow decisions.
 AgentCLIKit owns process launch, provider sessions, stdin/stdout coordination, App Server transport, event replay, status,
-and interaction resolution.
+interaction resolution, and sessionless one-shot provider prompts.
 
 ## Installation
 
@@ -124,6 +125,7 @@ In a real app, keep the event and status tasks alive for the conversation lifeti
 Most apps build around a few reusable flows:
 
 - Create one long-lived `DefaultAgentRuntime` for the app or workspace.
+- Use `DefaultAgentOneShotPromptRunner` for project-level prompts that need one final answer without a runtime conversation.
 - Subscribe to `AgentEventEnvelope` values with a persisted cursor.
 - Start a conversation with `AgentSpawnConfig`.
 - Send input through `runtime.send`.
@@ -144,6 +146,12 @@ and `nil` to preserve provider defaults. Claude exposes `bypassPermissions` as a
 AgentCLIKit unlocks that mode for the launch without using `--dangerously-skip-permissions`. Codex plan mode requires a
 concrete selected `model`. To fork provider context into a new host conversation, pass `sessionFork` with the source
 provider session ID and the target `workingDirectory`; copied host transcript records are not provider context.
+
+For one final answer without a runtime conversation, use `DefaultAgentOneShotPromptRunner`. It invokes provider CLIs in
+read-only mode and does not create AgentCLIKit runtime state. Codex uses `codex exec --ephemeral --json` rather than Codex
+App Server; the CLI may still emit a transient `thread.started` id, but the run is not expected to persist a provider
+thread. Claude uses `claude -p --safe-mode --no-session-persistence --output-format stream-json` with native read-only
+tools restricted to file inspection. One-shot runs cannot service approvals or provider prompts.
 
 Use `runtime.reconfigure(conversationId:config:)` to apply changed settings to a started conversation. The result tells
 the host what happened:

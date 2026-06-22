@@ -13,6 +13,7 @@ Host apps should generally depend on:
 
 - `AgentRuntime`
 - `AgentSpawnConfig`
+- `AgentOneShotPromptRunning`
 - `AgentCollaborationMode`
 - `AgentSpeedMode`
 - `AgentEventEnvelope`
@@ -25,6 +26,9 @@ Host apps should generally depend on:
 
 Provider adapters own native launch, input encoding, output decoding, session ID extraction, interaction resolution
 encoding, and native in-place reconfiguration when a provider can apply an `AgentSpawnConfig` without replacement.
+
+Sessionless project-level prompts use `AgentOneShotPromptRunning` instead of `AgentRuntime`. They return one final
+assistant message, do not create AgentCLIKit runtime state, and do not service approvals or provider prompts.
 
 Reusable approval scopes are provider-neutral. Hosts can back `AgentSessionApprovalPolicyStore` with app persistence, and
 Bash approval requests may include canonical `approvalIdentityToolInput` derived by `AgentCommandApprovalNormalizationPolicy`.
@@ -71,6 +75,11 @@ Inspect `AgentProviderDefinition.capabilities` before showing provider-specific 
 Claude support uses Claude CLI stream JSON over stdin/stdout. `ClaudeProviderAdapter` owns launch flags, input encoding,
 stream decoding, hook listener setup, hook-token invalidation, and interaction resolution.
 
+Claude one-shot prompts use `claude -p --safe-mode --no-session-persistence --output-format stream-json --input-format text
+--verbose` with `--tools Read,Grep,Glob,LS`. The runner normalizes legacy default model values through
+`ClaudeModelAliases`, so omitted or `"default"` models launch as `sonnet` rather than whatever the local Claude CLI default
+currently is.
+
 Claude setup uses `ClaudeProviderSetup` and `ClaudeConfigStore` to manage user `.claude.json` project trust while
 preserving unrelated config such as MCP servers.
 
@@ -116,6 +125,10 @@ through `turn/start`. When Codex reports `Thread.name` or `Thread.preview` durin
 thread metadata notifications, the adapter emits `AgentEvent.sessionMetadata`; the runtime mirrors normalized values into
 `AgentRuntimeStatus.providerSessionName`, `AgentRuntimeStatus.providerSessionPreview`, `AgentSessionRecord.providerSessionName`,
 and `AgentSessionRecord.providerSessionPreview`.
+
+Codex one-shot prompts intentionally do not use Codex App Server. They run `codex exec --ephemeral --json --sandbox
+read-only -c 'approval_policy="never"' -C <cwd> -` and parse the final `agent_message` from stdout JSONL. Codex can still
+emit a transient `thread.started` event in that stream; the sessionless contract is that no provider thread is persisted.
 
 Codex uses the same `AgentSpawnConfig.collaborationMode` API. `turn/start` and idle-thread `thread/settings/update`
 share the same sticky settings payload for `cwd`, `model`, `approvalPolicy`, `effort`, `collaborationMode`, and

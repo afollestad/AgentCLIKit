@@ -26,6 +26,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - Keep generic runtime, event, session, interaction, transcript, MCP, skills, and provider-detection code outside provider-specific folders.
 - Put Claude-specific launch details, wire formats, config files, hook behavior, model defaults, effort defaults, and policies under `Sources/AgentCLIKit/Claude/`.
 - Put Codex-specific launch details, wire formats, config files, App Server model-list handling, and policies under `Sources/AgentCLIKit/Codex/`.
+- Keep sessionless one-shot prompts outside `DefaultAgentRuntime`; generic request/result/error APIs stay provider-neutral, while provider-specific CLI command details stay in each provider folder.
 - Additional providers should use their own sibling provider folders rather than adding provider-specific branches to generic runtime code.
 - Public APIs must use generic names and avoid host-app concepts such as SwiftData, view models, drafts, notifications, and keep-awake services.
 - Additive public `Codable` changes should decode older persisted values with defaults.

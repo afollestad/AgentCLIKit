@@ -13,6 +13,28 @@ final class ShellRunnerTests: XCTestCase {
         XCTAssertEqual(result.stderr, "")
     }
 
+    func testProcessShellRunnerWritesStandardInput() async throws {
+        let runner = ProcessShellRunner()
+
+        let result = try await runner.run(ShellCommand(executable: "/bin/cat", standardInput: "hello stdin"))
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.stdout, "hello stdin")
+        XCTAssertEqual(result.stderr, "")
+    }
+
+    func testShellCommandDecodesLegacyPayloadWithoutStandardInput() throws {
+        let data = Data(#"{"executable":"/bin/echo"}"#.utf8)
+
+        let command = try JSONDecoder().decode(ShellCommand.self, from: data)
+
+        XCTAssertEqual(command.executable, "/bin/echo")
+        XCTAssertEqual(command.arguments, [])
+        XCTAssertEqual(command.environment, [:])
+        XCTAssertNil(command.workingDirectory)
+        XCTAssertNil(command.standardInput)
+    }
+
     func testProcessShellRunnerResolvesExecutableNameFromPath() async throws {
         let runner = ProcessShellRunner()
 

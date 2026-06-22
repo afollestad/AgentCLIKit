@@ -83,10 +83,12 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
     /// Static Codex provider metadata.
     public let definition = CodexProviderDefinition.definition
 
+    let configuration: Configuration
     private let client: CodexAppServerClient
 
     /// Creates a Codex provider adapter.
     public init(configuration: Configuration = Configuration()) {
+        self.configuration = configuration
         self.client = CodexAppServerClient(configuration: configuration)
     }
 
