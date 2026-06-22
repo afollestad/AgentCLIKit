@@ -20,6 +20,8 @@ public enum ClaudeProviderDefinition {
             supportsToolEvents: true,
             supportsGroupedToolOutput: true,
             supportsPlanMode: true,
+            supportsGoalMode: true,
+            supportedGoalActions: [.delete],
             supportsTaskLists: true,
             supportsSubagents: true,
             supportsPromptRequests: true,

@@ -58,6 +58,12 @@ public protocol AgentProviderAdapter: Sendable {
     /// Sends a provider-native interruption request for the active turn, if supported.
     func interrupt(context: AgentProviderInterruptContext) async throws
 
+    /// Performs a provider-native goal action, if supported.
+    func performGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws
+
+    /// Encodes provider-native stdin bytes for a goal action when the provider controls goals through stdin.
+    func encodeGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws -> Data?
+
     /// Gives the provider a chance to apply a new spawn configuration without replacing the process.
     func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult
 
@@ -136,6 +142,16 @@ public extension AgentProviderAdapter {
     /// Performs no provider-native interruption for process-only providers.
     func interrupt(context: AgentProviderInterruptContext) async throws {}
 
+    /// Throws for providers that do not support provider-native goal actions.
+    func performGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws {
+        throw AgentCLIError.unsupportedCapability(providerId: definition.id, capability: "goal \(action.rawValue)")
+    }
+
+    /// Returns no stdin bytes for providers that do not control goals through stdin.
+    func encodeGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws -> Data? {
+        nil
+    }
+
     /// Requests the runtime's replacement-process reconfigure path for providers without in-place settings updates.
     func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
         .restartRequired
@@ -172,6 +188,35 @@ public extension AgentProviderAdapter {
                 "Provider session record for '\(record.providerId.rawValue)' cannot be handled by '\(definition.id.rawValue)'."
             )
         }
+    }
+}
+
+/// Runtime context supplied for provider-native goal actions.
+public struct AgentProviderGoalActionContext: Sendable {
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Runtime process generation token.
+    public let processToken: UUID
+    /// Provider session identifier known to the runtime.
+    public let providerSessionId: AgentSessionID?
+    /// Spawn configuration for the active process generation.
+    public let spawnConfig: AgentSpawnConfig
+    /// Latest provider-reported goal snapshot.
+    public let goal: AgentGoalSnapshot?
+
+    /// Creates provider goal action context.
+    public init(
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        providerSessionId: AgentSessionID?,
+        spawnConfig: AgentSpawnConfig,
+        goal: AgentGoalSnapshot?
+    ) {
+        self.conversationId = conversationId
+        self.processToken = processToken
+        self.providerSessionId = providerSessionId
+        self.spawnConfig = spawnConfig
+        self.goal = goal
     }
 }
 

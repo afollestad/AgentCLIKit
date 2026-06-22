@@ -136,6 +136,101 @@ final class ClaudeStreamDecoderAttachmentTests: XCTestCase {
         ])
     }
 
+    func testGoalStatusAttachmentDecodesActiveGoal() throws {
+        let decoder = ClaudeStreamDecoder()
+        let line = #"""
+        {
+          "type": "attachment",
+          "session_id": "session-123",
+          "attachment": {
+            "type": "goal_status",
+            "objective": "Ship goal mode",
+            "status": "active",
+            "elapsedSeconds": 7,
+            "tokensUsed": 12
+          }
+        }
+        """#
+
+        let events = try decoder.decodeLine(line)
+
+        XCTAssertEqual(events, [
+            .goal(AgentGoalEvent(snapshot: AgentGoalSnapshot(
+                objective: "Ship goal mode",
+                status: .active,
+                availableActions: [.delete],
+                elapsedSeconds: 7,
+                tokenCount: 12,
+                metadata: [
+                    "claude_goal_attachment_type": .string("goal_status"),
+                    "session_id": .string("session-123"),
+                    "claude_goal_status": .string("active")
+                ]
+            )))
+        ])
+    }
+
+    func testGoalStatusAttachmentDecodesAchievedGoal() throws {
+        let decoder = ClaudeStreamDecoder()
+        let line = #"""
+        {
+          "type": "attachment",
+          "session_id": "session-123",
+          "attachment": {
+            "type": "goal_status",
+            "condition": "Make tests pass",
+            "met": true,
+            "elapsed_seconds": 7,
+            "token_count": 12
+          }
+        }
+        """#
+
+        let events = try decoder.decodeLine(line)
+
+        XCTAssertEqual(events, [
+            .goal(AgentGoalEvent(snapshot: AgentGoalSnapshot(
+                objective: "Make tests pass",
+                status: .achieved,
+                availableActions: [],
+                elapsedSeconds: 7,
+                tokenCount: 12,
+                metadata: [
+                    "claude_goal_attachment_type": .string("goal_status"),
+                    "session_id": .string("session-123"),
+                    "met": .bool(true)
+                ]
+            )))
+        ])
+    }
+
+    func testGoalStatusAttachmentDecodesClearedGoal() throws {
+        let decoder = ClaudeStreamDecoder()
+        let line = #"""
+        {
+          "type": "attachment",
+          "session_id": "session-123",
+          "attachment": {
+            "type": "goal_status",
+            "goal": "Ship goal mode",
+            "cleared": true
+          }
+        }
+        """#
+
+        let events = try decoder.decodeLine(line)
+
+        XCTAssertEqual(events, [
+            .goal(.cleared(
+                objective: "Ship goal mode",
+                metadata: [
+                    "claude_goal_attachment_type": .string("goal_status"),
+                    "session_id": .string("session-123")
+                ]
+            ))
+        ])
+    }
+
     private static func queuedTaskNotificationLine() throws -> String {
         let content = """
         <task-notification>

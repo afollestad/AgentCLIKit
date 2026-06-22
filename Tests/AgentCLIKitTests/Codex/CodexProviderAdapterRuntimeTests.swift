@@ -42,6 +42,61 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "turn/start"])
     }
 
+    func testRuntimeGoalMetadataSetsNativeGoalBeforeFirstTurn() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: true)
+        ))
+        let runtime = DefaultAgentRuntime(adapters: [adapter])
+        let conversationId = AgentConversationID(rawValue: "codex-goal-metadata-send")
+        let spawnConfig = AgentSpawnConfig(
+            providerId: .codex,
+            workingDirectory: FileManager.default.temporaryDirectory,
+            model: "model-a"
+        )
+
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig)
+        try await runtime.send(.userMessage(AgentMessageInput(
+            text: "Refactor the cache",
+            metadata: [
+                AgentGoalMetadata.isInitialGoalTransport: .bool(true),
+                AgentGoalMetadata.objective: .string("Refactor the cache")
+            ]
+        )), conversationId: conversationId)
+        let requestLog = await waitForRequestLog(transport) { log in
+            log.map(\.method).contains("turn/start")
+        }
+        let events = await Self.collect(subscription.events, limit: 6) { envelopes in
+            envelopes.contains { envelope in
+                guard case let .goal(goal) = envelope.event,
+                      goal.snapshot?.objective == "Refactor the cache",
+                      goal.snapshot?.status == .active else {
+                    return false
+                }
+                return true
+            }
+        }
+        await runtime.destroy(conversationId: conversationId)
+
+        XCTAssertEqual(
+            requestLog.map(\.method),
+            ["initialize", "thread/start", "thread/goal/set", "turn/start"]
+        )
+        let goalSetParams = try XCTUnwrap(requestLog.first { $0.method == "thread/goal/set" }?.params?.objectValue)
+        XCTAssertEqual(goalSetParams["threadId"], .string("thread-123"))
+        XCTAssertEqual(goalSetParams["objective"], .string("Refactor the cache"))
+        XCTAssertTrue(events.contains {
+            guard case let .goal(goal) = $0.event,
+                  goal.snapshot?.objective == "Refactor the cache",
+                  goal.snapshot?.status == .active else {
+                return false
+            }
+            return true
+        })
+    }
+
     func testStartsTurnAndSteersActiveTurn() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
@@ -461,12 +516,14 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
 
     func configuration(
         transport: FakeCodexAppServerTransport,
-        codexHomeDirectory: URL? = nil
+        codexHomeDirectory: URL? = nil,
+        featureSupportChecker: any CodexFeatureSupportChecking = FixedCodexFeatureSupportChecker(supportsFastMode: false)
     ) -> CodexProviderAdapter.Configuration {
         CodexProviderAdapter.Configuration(
             codexHomeDirectory: codexHomeDirectory,
             requestTimeout: 0.1,
             probeTimeout: 0.1,
+            featureSupportChecker: featureSupportChecker,
             makeTransport: { _ in transport },
             executableResolver: RecordingExecutableResolver(path: nil)
         )

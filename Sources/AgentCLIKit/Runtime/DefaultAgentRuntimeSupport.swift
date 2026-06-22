@@ -44,6 +44,7 @@ struct ConversationState {
     var staleProviderSessionSaveProcessTokens: Set<UUID>
     var permissionMode: String?
     var collaborationMode: AgentCollaborationMode?
+    var goal: AgentGoalSnapshot?
     var isTurnActive: Bool
     var waitingState: AgentRuntimeWaitingState
     var inputAvailability: AgentInputAvailability
@@ -85,6 +86,7 @@ struct ConversationState {
             providerSessionPreview: providerSessionPreview,
             permissionMode: permissionMode,
             collaborationMode: collaborationMode,
+            goal: goal,
             isTurnActive: isTurnActive,
             inputAvailability: inputAvailability,
             waitingState: waitingState,
@@ -216,7 +218,7 @@ extension AgentEvent {
     var isProviderResumeReplayCandidate: Bool {
         switch self {
         case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode,
-             .collaborationMode, .task, .subAgent, .contextCompaction, .interaction, .rawOutput:
+             .collaborationMode, .task, .subAgent, .contextCompaction, .goal, .interaction, .rawOutput:
             true
         case .activity, .sessionMetadata, .sessionContinuity, .lifecycle, .diagnostic:
             false

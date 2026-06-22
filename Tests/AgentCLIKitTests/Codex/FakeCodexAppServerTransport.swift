@@ -25,6 +25,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private var threadPreviews: [String?]
     private var threadForkedFromIds: [String?]
     private var modelListResponses: [JSONValue]
+    private var goal: [String: JSONValue]?
     private let failModelListRequests: Bool
     private let failModelListRequestsAfterSuccessCount: Int?
     private let failingMethods: Set<String>
@@ -47,6 +48,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         threadPreviews: [String?] = [],
         threadForkedFromIds: [String?] = [],
         modelListResponses: [JSONValue] = [],
+        goal: [String: JSONValue]? = nil,
         failModelListRequests: Bool = false,
         failModelListRequestsAfterSuccessCount: Int? = nil,
         failingMethods: Set<String> = []
@@ -56,6 +58,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         self.threadPreviews = threadPreviews
         self.threadForkedFromIds = threadForkedFromIds
         self.modelListResponses = modelListResponses
+        self.goal = goal
         self.failModelListRequests = failModelListRequests
         self.failModelListRequestsAfterSuccessCount = failModelListRequestsAfterSuccessCount
         self.failingMethods = failingMethods
@@ -104,6 +107,14 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
             return .object([:])
         case "thread/archive", "thread/unarchive", "thread/delete":
             return .object([:])
+        case "thread/goal/set":
+            return setGoal(params: params)
+        case "thread/goal/get":
+            return .object(["goal": goal.map(JSONValue.object) ?? .null])
+        case "thread/goal/clear":
+            let cleared = goal != nil
+            goal = nil
+            return .object(["cleared": .bool(cleared)])
         case "model/list":
             if failModelListRequests || shouldFailModelListRequestAfterSuccesses() {
                 throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "Model list failed.")
@@ -116,6 +127,28 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         default:
             return .null
         }
+    }
+
+    private func setGoal(params: JSONValue?) -> JSONValue {
+        var nextGoal = goal ?? [:]
+        if case let .object(object)? = params {
+            if case let .string(threadId)? = object["threadId"] {
+                nextGoal["threadId"] = .string(threadId)
+            }
+            if case let .string(objective)? = object["objective"] {
+                nextGoal["objective"] = .string(objective)
+            }
+            if case let .string(status)? = object["status"] {
+                nextGoal["status"] = .string(status)
+            } else if nextGoal["status"] == nil {
+                nextGoal["status"] = .string("active")
+            }
+        }
+        if nextGoal["objective"] == nil {
+            nextGoal["objective"] = .string("Existing goal")
+        }
+        goal = nextGoal
+        return .object(["goal": .object(nextGoal)])
     }
 
     private func nextThreadResponse() -> JSONValue {

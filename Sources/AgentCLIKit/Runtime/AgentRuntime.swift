@@ -27,6 +27,11 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     /// A `nil` value leaves provider behavior unchanged. Hosts should inspect
     /// `AgentProviderCapabilities.supportsSpeedMode` before sending `.fast`.
     public let speedMode: AgentSpeedMode?
+    /// Optional provider-neutral initial goal objective.
+    ///
+    /// The visible host message remains `initialPrompt`. Providers that support native goal mode use `initialGoal`
+    /// to configure goal pursuit without sending a duplicate visible prompt.
+    public let initialGoal: String?
     /// Optional provider-native fork request.
     public let sessionFork: AgentSessionForkRequest?
     /// Whether a resumed provider session should fork instead of continuing in-place.
@@ -48,6 +53,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         permissionMode: String? = nil,
         collaborationMode: AgentCollaborationMode? = nil,
         speedMode: AgentSpeedMode? = nil,
+        initialGoal: String? = nil,
         sessionFork: AgentSessionForkRequest? = nil,
         forkSession: Bool = false,
         initialPrompt: String? = nil
@@ -61,6 +67,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.permissionMode = permissionMode
         self.collaborationMode = collaborationMode
         self.speedMode = speedMode
+        self.initialGoal = initialGoal
         self.sessionFork = sessionFork
         self.forkSession = forkSession || sessionFork != nil
         self.initialPrompt = initialPrompt
@@ -78,6 +85,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
         self.speedMode = try container.decodeIfPresent(AgentSpeedMode.self, forKey: .speedMode)
+        self.initialGoal = try container.decodeIfPresent(String.self, forKey: .initialGoal)
         self.sessionFork = try container.decodeIfPresent(AgentSessionForkRequest.self, forKey: .sessionFork)
         self.forkSession = (try container.decodeIfPresent(Bool.self, forKey: .forkSession) ?? false) || sessionFork != nil
         self.initialPrompt = try container.decodeIfPresent(String.self, forKey: .initialPrompt)
@@ -160,6 +168,8 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
     public let permissionMode: String?
     /// Latest provider-neutral collaboration mode when known.
     public let collaborationMode: AgentCollaborationMode?
+    /// Latest provider-reported goal state when a goal is active or terminal.
+    public let goal: AgentGoalSnapshot?
     /// Whether a host-started provider turn is still active, even if mid-turn input is available.
     public let isTurnActive: Bool
     /// Whether host input can currently be sent to the provider.
@@ -185,6 +195,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         providerSessionPreview: String? = nil,
         permissionMode: String? = nil,
         collaborationMode: AgentCollaborationMode? = nil,
+        goal: AgentGoalSnapshot? = nil,
         isTurnActive: Bool = false,
         inputAvailability: AgentInputAvailability = .available,
         waitingState: AgentRuntimeWaitingState = .idle,
@@ -202,6 +213,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.providerSessionPreview = providerSessionPreview
         self.permissionMode = permissionMode
         self.collaborationMode = collaborationMode
+        self.goal = goal
         self.isTurnActive = isTurnActive
         self.inputAvailability = inputAvailability
         self.waitingState = waitingState
@@ -223,6 +235,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.providerSessionPreview = try container.decodeIfPresent(String.self, forKey: .providerSessionPreview)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
+        self.goal = try container.decodeIfPresent(AgentGoalSnapshot.self, forKey: .goal)
         self.isTurnActive = try container.decodeIfPresent(Bool.self, forKey: .isTurnActive) ?? false
         self.inputAvailability = try container.decodeIfPresent(AgentInputAvailability.self, forKey: .inputAvailability) ?? .available
         self.waitingState = try container.decodeIfPresent(AgentRuntimeWaitingState.self, forKey: .waitingState) ?? .idle
@@ -296,6 +309,8 @@ public protocol AgentRuntime: Sendable {
     func send(_ input: AgentInput, conversationId: AgentConversationID) async throws
     /// Resolves a pending interaction and forwards the resolution to providers that accept one over input.
     func resolveInteraction(_ resolution: AgentInteractionResolution, conversationId: AgentConversationID) async throws
+    /// Performs a provider-native goal action.
+    func performGoalAction(_ action: AgentGoalAction, conversationId: AgentConversationID) async throws
     /// Sends an interrupt request and terminates the provider process.
     func cancel(conversationId: AgentConversationID) async
     /// Immediately kills the provider process.

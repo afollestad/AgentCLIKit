@@ -3,9 +3,14 @@ import Foundation
 extension CodexAppServerClient {
     func bootstrapThread(spawnConfig: AgentSpawnConfig, resumedSession: AgentSessionRecord?) async throws -> CodexThreadBootstrap {
         let supportsFastMode = try await speedModeSupportForSettings(spawnConfig: spawnConfig)
-        let transport = try await initializedTransport()
         let legacyForkSourceSessionId = spawnConfig.forkSession ? resumedSession?.providerSessionId : nil
         let forkSourceSessionId = spawnConfig.sessionFork?.sourceSessionId ?? legacyForkSourceSessionId
+        let shouldHydrateExistingGoal = resumedSession != nil || forkSourceSessionId != nil
+        let supportsGoalMode = try await goalModeSupportForSettings(
+            spawnConfig: spawnConfig,
+            shouldHydrateExistingGoal: shouldHydrateExistingGoal
+        )
+        let transport = try await initializedTransport()
         let method: String
         let continuity: AgentSessionContinuity
         if forkSourceSessionId != nil {
@@ -30,12 +35,20 @@ extension CodexAppServerClient {
         guard let threadId = response.threadResponseId else {
             throw CodexAppServerError.missingThreadID(method: method)
         }
+        let providerThreadId = AgentSessionID(rawValue: threadId)
+        let goal = try await bootstrapGoal(
+            threadId: providerThreadId,
+            spawnConfig: spawnConfig,
+            supportsGoalMode: supportsGoalMode,
+            shouldHydrateExistingGoal: shouldHydrateExistingGoal
+        )
         return CodexThreadBootstrap(
-            threadId: AgentSessionID(rawValue: threadId),
+            threadId: providerThreadId,
             name: response.threadResponseName,
             preview: response.threadResponsePreview,
             forkedFromId: response.threadResponseForkedFromId.map(AgentSessionID.init(rawValue:)),
-            continuity: continuity
+            continuity: continuity,
+            goal: goal
         )
     }
 
@@ -61,6 +74,82 @@ extension CodexAppServerClient {
             method: "thread/delete",
             params: threadActionParams(threadId)
         )
+    }
+
+    func setThreadGoal(_ threadId: AgentSessionID, objective: String) async throws -> AgentGoalSnapshot? {
+        let transport = try await initializedTransport()
+        let response = try await transport.sendRequest(
+            method: "thread/goal/set",
+            params: .object([
+                "threadId": .string(threadId.rawValue),
+                "objective": .string(objective)
+            ])
+        )
+        return codexGoalSnapshot(from: response)
+    }
+
+    func updateThreadGoalStatus(_ threadId: AgentSessionID, status: String) async throws -> AgentGoalSnapshot? {
+        let transport = try await initializedTransport()
+        let response = try await transport.sendRequest(
+            method: "thread/goal/set",
+            params: .object([
+                "threadId": .string(threadId.rawValue),
+                "status": .string(status)
+            ])
+        )
+        return codexGoalSnapshot(from: response)
+    }
+
+    func getThreadGoal(_ threadId: AgentSessionID) async throws -> AgentGoalSnapshot? {
+        let transport = try await initializedTransport()
+        let response = try await transport.sendRequest(
+            method: "thread/goal/get",
+            params: threadActionParams(threadId)
+        )
+        return codexGoalSnapshot(from: response)
+    }
+
+    func clearThreadGoal(_ threadId: AgentSessionID) async throws -> Bool {
+        let transport = try await initializedTransport()
+        let response = try await transport.sendRequest(
+            method: "thread/goal/clear",
+            params: threadActionParams(threadId)
+        )
+        guard case let .object(object) = response,
+              case let .bool(cleared)? = object["cleared"] else {
+            return false
+        }
+        return cleared
+    }
+
+    func performGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws {
+        guard await configuration.featureSupportChecker.supportsGoalMode(configuration: configuration, availability: nil) else {
+            throw AgentCLIError.unsupportedCapability(providerId: CodexProviderAdapter.providerId, capability: "goal mode")
+        }
+        guard let binding = bindingsByConversation[context.conversationId],
+              binding.processToken == context.processToken else {
+            throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex App Server thread is unavailable.")
+        }
+        switch action {
+        case .pause:
+            guard let snapshot = try await updateThreadGoalStatus(binding.threadId, status: "paused") else {
+                throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex did not return a paused goal.")
+            }
+            yieldGoal(snapshot, conversationId: context.conversationId)
+        case .resume:
+            guard let snapshot = try await updateThreadGoalStatus(binding.threadId, status: "active") else {
+                throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex did not return an active goal.")
+            }
+            yieldGoal(snapshot, conversationId: context.conversationId)
+        case .delete:
+            let cleared = try await clearThreadGoal(binding.threadId)
+            guard cleared else {
+                throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex reported no goal to clear.")
+            }
+            bindingsByConversation[context.conversationId]?.continuation?.yield(
+                AgentProviderRuntimeEvent(event: .goal(.cleared(objective: context.goal?.objective)))
+            )
+        }
     }
 
     private func threadParams(
@@ -103,5 +192,131 @@ extension CodexAppServerClient {
 
     private func threadActionParams(_ threadId: AgentSessionID) -> JSONValue {
         .object(["threadId": .string(threadId.rawValue)])
+    }
+
+    private func bootstrapGoal(
+        threadId: AgentSessionID,
+        spawnConfig: AgentSpawnConfig,
+        supportsGoalMode: Bool,
+        shouldHydrateExistingGoal: Bool
+    ) async throws -> AgentGoalSnapshot? {
+        if let initialGoal = spawnConfig.initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !initialGoal.isEmpty {
+            guard supportsGoalMode else {
+                throw AgentCLIError.unsupportedCapability(providerId: CodexProviderAdapter.providerId, capability: "goal mode")
+            }
+            return try await setThreadGoal(threadId, objective: initialGoal)
+        }
+        guard supportsGoalMode, shouldHydrateExistingGoal else {
+            return nil
+        }
+        return try await getThreadGoal(threadId)
+    }
+
+    private func yieldGoal(_ snapshot: AgentGoalSnapshot, conversationId: AgentConversationID) {
+        bindingsByConversation[conversationId]?.continuation?.yield(
+            AgentProviderRuntimeEvent(event: .goal(AgentGoalEvent(snapshot: snapshot)))
+        )
+    }
+}
+
+func codexGoalSnapshot(from response: JSONValue) -> AgentGoalSnapshot? {
+    guard case let .object(responseObject) = response,
+          case let .object(goal)? = responseObject["goal"] else {
+        return nil
+    }
+    return codexGoalSnapshot(fromGoalObject: goal)
+}
+
+func codexGoalSnapshot(fromGoalObject goal: [String: JSONValue]) -> AgentGoalSnapshot? {
+    guard case let .string(objective)? = goal["objective"],
+          !objective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return nil
+    }
+    let providerStatus = goal.stringValue("status") ?? "active"
+    let status = AgentGoalStatus(codexStatus: providerStatus)
+    let metadata = codexGoalMetadata(goal: goal, providerStatus: providerStatus)
+    return AgentGoalSnapshot(
+        objective: objective,
+        status: status,
+        availableActions: codexGoalActions(for: status),
+        elapsedSeconds: goal.intValue("timeUsedSeconds", "time_used_seconds", "elapsedSeconds", "elapsed_seconds"),
+        turnCount: goal.intValue("turnCount", "turn_count"),
+        tokenCount: goal.intValue("tokensUsed", "tokens_used", "tokenCount", "token_count"),
+        statusReason: goal.stringValue("reason", "statusReason", "status_reason"),
+        metadata: metadata
+    )
+}
+
+private func codexGoalMetadata(goal: [String: JSONValue], providerStatus: String) -> [String: JSONValue] {
+    var metadata: [String: JSONValue] = [
+        "codex_goal_status": .string(providerStatus),
+        "codex_goal": .object(goal)
+    ]
+    if let threadId = goal.stringValue("threadId", "thread_id") {
+        metadata["codex_thread_id"] = .string(threadId)
+    }
+    if let tokenBudget = goal.intValue("tokenBudget", "token_budget") {
+        metadata["token_budget"] = .number(Double(tokenBudget))
+    }
+    return metadata
+}
+
+private func codexGoalActions(for status: AgentGoalStatus) -> [AgentGoalAction] {
+    switch status {
+    case .active:
+        [.pause, .delete]
+    case .paused:
+        [.resume, .delete]
+    case .achieved, .blocked, .usageLimited, .cleared:
+        []
+    }
+}
+
+private extension AgentGoalStatus {
+    init(codexStatus: String) {
+        switch codexStatus {
+        case "active", "inProgress", "in_progress":
+            self = .active
+        case "paused":
+            self = .paused
+        case "complete", "completed", "achieved", "success", "succeeded":
+            self = .achieved
+        case "blocked", "failed":
+            self = .blocked
+        case "usageLimited", "usage_limited", "budgetLimited", "budget_limited", "limitReached", "limit_reached":
+            self = .usageLimited
+        case "cleared", "cancelled", "canceled":
+            self = .cleared
+        default:
+            self = .active
+        }
+    }
+}
+
+private extension [String: JSONValue] {
+    func stringValue(_ keys: String...) -> String? {
+        keys.lazy.compactMap { key -> String? in
+            guard case let .string(value)? = self[key], !value.isEmpty else {
+                return nil
+            }
+            return value
+        }.first
+    }
+
+    func intValue(_ keys: String...) -> Int? {
+        keys.lazy.compactMap { key -> Int? in
+            guard let value = self[key] else {
+                return nil
+            }
+            switch value {
+            case let .number(number):
+                return Int(number)
+            case let .string(string):
+                return Int(string)
+            default:
+                return nil
+            }
+        }.first
     }
 }

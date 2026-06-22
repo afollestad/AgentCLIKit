@@ -313,6 +313,7 @@ private extension DefaultAgentRuntime {
             staleProviderSessionSaveProcessTokens: previous?.staleProviderSessionSaveProcessTokens ?? [],
             permissionMode: nil,
             collaborationMode: input.spawnConfig.collaborationMode,
+            goal: seededInitialGoal(from: input) ?? (input.fresh ? nil : previous?.goal),
             isTurnActive: input.spawnConfig.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
             waitingState: .idle,
             inputAvailability: .available,
@@ -334,6 +335,21 @@ private extension DefaultAgentRuntime {
             subAgentPhaseKeys: Self.subAgentPhaseKeys(from: previous, generation: input.generation),
             outputPumps: [],
             providerEventTasks: []
+        )
+    }
+
+    private func seededInitialGoal(from input: StateInput) -> AgentGoalSnapshot? {
+        guard let objective = input.spawnConfig.initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines),
+              input.spawnConfig.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+              !objective.isEmpty else {
+            return nil
+        }
+        let activeActions = input.adapter.definition.capabilities.supportedGoalActions.filter { $0 != .resume }
+        return AgentGoalSnapshot(
+            objective: objective,
+            status: .active,
+            availableActions: activeActions,
+            metadata: ["source": .string("initial_goal")]
         )
     }
 
@@ -515,7 +531,7 @@ private extension DefaultAgentRuntime {
                 isTurnActive: true
             )
             let data = try await prepared.adapter.encodeInput(
-                .userMessage(AgentMessageInput(text: initialPrompt)),
+                .userMessage(initialPromptInput(initialPrompt, goal: prepared.stateInput.spawnConfig.initialGoal)),
                 context: context
             )
             try writeInputData(
@@ -536,6 +552,19 @@ private extension DefaultAgentRuntime {
             await prepared.adapter.processDidTerminate(processToken: prepared.stateInput.processToken)
             throw error
         }
+    }
+
+    private func initialPromptInput(_ initialPrompt: String, goal: String?) -> AgentMessageInput {
+        guard let goal = goal?.trimmingCharacters(in: .whitespacesAndNewlines), !goal.isEmpty else {
+            return AgentMessageInput(text: initialPrompt)
+        }
+        return AgentMessageInput(
+            text: initialPrompt,
+            metadata: [
+                AgentGoalMetadata.isInitialGoalTransport: .bool(true),
+                AgentGoalMetadata.objective: .string(goal)
+            ]
+        )
     }
 }
 

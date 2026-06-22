@@ -130,6 +130,66 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(startCount, 0)
     }
 
+    func testInitialGoalSetsNativeGoalAndIncludesGoalInBootstrapEvents() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: true)
+        ))
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                initialGoal: "Ship goal mode",
+                initialPrompt: "Ship goal mode"
+            ),
+            resumedSession: nil
+        )
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let goal = try XCTUnwrap(events.compactMap(\.goalEvent).first?.snapshot)
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/start", "thread/goal/set"])
+        XCTAssertFalse(requestMethods.contains("turn/start"))
+        XCTAssertEqual(goal.objective, "Ship goal mode")
+        XCTAssertEqual(goal.status, .active)
+        XCTAssertEqual(goal.availableActions, [.pause, .delete])
+        let goalSetParams = try XCTUnwrap(requestParams["thread/goal/set"]?.objectValue)
+        XCTAssertEqual(goalSetParams["threadId"], .string("thread-123"))
+        XCTAssertEqual(goalSetParams["objective"], .string("Ship goal mode"))
+    }
+
+    func testUnsupportedInitialGoalFailsBeforeStartingTransport() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: false)
+        ))
+
+        do {
+            _ = try await adapter.makeLaunchConfiguration(
+                spawnConfig: AgentSpawnConfig(
+                    providerId: .codex,
+                    workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                    initialGoal: "Ship goal mode",
+                    initialPrompt: "Ship goal mode"
+                ),
+                resumedSession: nil
+            )
+            XCTFail("Expected unsupported goal mode to fail.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .unsupportedCapability)
+            XCTAssertEqual(error.metadata["provider_id"], .string("codex"))
+            XCTAssertEqual(error.metadata["capability"], .string("goal mode"))
+        }
+
+        let startCount = await transport.startCount
+        XCTAssertEqual(startCount, 0)
+    }
+
     func testResumesSavedThreadId() async throws {
         let transport = FakeCodexAppServerTransport(
             threadIds: ["thread-existing"],
@@ -242,6 +302,46 @@ final class CodexProviderAdapterTests: XCTestCase {
         XCTAssertEqual(launch.providerSessionId, "thread-forked")
         XCTAssertEqual(requestParams["thread/fork"]?.objectValue?["threadId"], .string("thread-source"))
         XCTAssertEqual(requestParams["thread/fork"]?.objectValue?["cwd"], .string("/tmp/target"))
+    }
+
+    func testResumeHydratesExistingGoal() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-existing"],
+            goal: [
+                "threadId": .string("thread-existing"),
+                "objective": .string("Finish migration"),
+                "status": .string("paused"),
+                "tokensUsed": .number(42),
+                "timeUsedSeconds": .number(8)
+            ]
+        )
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: true)
+        ))
+        let resumedSession = AgentSessionRecord(
+            conversationId: "conversation",
+            providerId: .codex,
+            providerSessionId: "thread-existing",
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            generation: 1
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: resumedSession
+        )
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let goal = try XCTUnwrap(events.compactMap(\.goalEvent).first?.snapshot)
+        let requestMethods = await transport.requestMethods
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/resume", "thread/goal/get"])
+        XCTAssertEqual(goal.objective, "Finish migration")
+        XCTAssertEqual(goal.status, .paused)
+        XCTAssertEqual(goal.availableActions, [.resume, .delete])
+        XCTAssertEqual(goal.tokenCount, 42)
+        XCTAssertEqual(goal.elapsedSeconds, 8)
     }
 
     func testReusesSharedTransportAcrossThreadBootstraps() async throws {
@@ -466,7 +566,7 @@ final class CodexProviderAdapterTests: XCTestCase {
         executablePath: String = "/usr/bin/env",
         executableResolver: any AgentProviderExecutableResolving = RecordingExecutableResolver(path: nil),
         recorder: CodexTransportConfigurationRecorder? = nil,
-        featureSupportChecker: any CodexFeatureSupportChecking = FixedCodexFeatureSupportChecker(supportsFastMode: false)
+        featureSupportChecker: any CodexFeatureSupportChecking = FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: false)
     ) -> CodexProviderAdapter.Configuration {
         CodexProviderAdapter.Configuration(
             executablePath: executablePath,
@@ -489,5 +589,12 @@ private extension AgentEvent {
             return nil
         }
         return metadata
+    }
+
+    var goalEvent: AgentGoalEvent? {
+        guard case let .goal(goal) = self else {
+            return nil
+        }
+        return goal
     }
 }

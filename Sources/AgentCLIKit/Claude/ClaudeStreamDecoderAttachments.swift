@@ -10,6 +10,8 @@ extension ClaudeStreamDecoder {
             return hookDeferredToolAttachmentEvents(from: envelope, attachment: attachment)
         case "hook_non_blocking_error":
             return hookErrorAttachmentEvents(from: envelope, attachment: attachment)
+        case "goal_status":
+            return goalStatusAttachmentEvents(from: envelope, attachment: attachment)
         case "queued_command" where attachment.isTaskNotification:
             return taskNotificationEvents(from: attachment.queuedCommandPrompt ?? "")
         default:
@@ -82,6 +84,30 @@ extension ClaudeStreamDecoder {
         ))]
     }
 
+    private func goalStatusAttachmentEvents(
+        from envelope: ClaudeStreamEnvelope,
+        attachment: ClaudeAttachment
+    ) -> [AgentEvent] {
+        if attachment.isClearedGoalStatus {
+            return [.goal(.cleared(objective: attachment.goalObjective, metadata: attachment.goalMetadata(sessionId: envelope.sessionId)))]
+        }
+        guard let objective = attachment.goalObjective else {
+            return [.rawOutput(AgentRawOutputEvent(text: "attachment:\(attachment.type)", isComplete: true))]
+        }
+        let status = attachment.goalStatus
+        let snapshot = AgentGoalSnapshot(
+            objective: objective,
+            status: status,
+            availableActions: status == .active ? [.delete] : [],
+            elapsedSeconds: attachment.elapsedSeconds,
+            turnCount: attachment.turnCount,
+            tokenCount: attachment.tokenCount,
+            statusReason: attachment.statusReason,
+            metadata: attachment.goalMetadata(sessionId: envelope.sessionId)
+        )
+        return [.goal(AgentGoalEvent(snapshot: snapshot))]
+    }
+
     private func toolName(fromHookName hookName: String) -> String? {
         guard let separator = hookName.firstIndex(of: ":") else {
             return nil
@@ -107,6 +133,24 @@ struct ClaudeAttachment: Decodable {
     let prompt: String?
     let commandMode: String?
     let commandModeSnake: String?
+    let objective: String?
+    let condition: String?
+    let goal: String?
+    let status: String?
+    let reason: String?
+    let met: Bool?
+    let active: Bool?
+    let cleared: Bool?
+    let elapsedSecondsCamel: Int?
+    let elapsedSecondsSnake: Int?
+    let timeUsedSecondsCamel: Int?
+    let timeUsedSecondsSnake: Int?
+    let turnCountCamel: Int?
+    let turnCountSnake: Int?
+    let tokenCountCamel: Int?
+    let tokenCountSnake: Int?
+    let tokensUsedCamel: Int?
+    let tokensUsedSnake: Int?
 
     var isTaskNotification: Bool {
         commandMode == "task-notification"
@@ -134,6 +178,73 @@ struct ClaudeAttachment: Decodable {
         nonEmpty(hookNameCamel) ?? nonEmpty(hookNameSnake)
     }
 
+    var goalObjective: String? {
+        nonEmpty(objective) ?? nonEmpty(condition) ?? nonEmpty(goal) ?? queuedCommandPrompt
+    }
+
+    var goalStatus: AgentGoalStatus {
+        if met == true {
+            return .achieved
+        }
+        if cleared == true {
+            return .cleared
+        }
+        if active == false {
+            return .paused
+        }
+        switch status ?? "" {
+        case "achieved", "complete", "completed", "met", "success", "succeeded":
+            return .achieved
+        case "blocked", "failed":
+            return .blocked
+        case "usageLimited", "usage_limited", "budgetLimited", "budget_limited", "limitReached", "limit_reached":
+            return .usageLimited
+        case "paused":
+            return .paused
+        case "cleared", "clear", "cancelled", "canceled":
+            return .cleared
+        default:
+            return .active
+        }
+    }
+
+    var isClearedGoalStatus: Bool {
+        cleared == true || goalStatus == .cleared
+    }
+
+    var elapsedSeconds: Int? {
+        elapsedSecondsCamel ?? elapsedSecondsSnake ?? timeUsedSecondsCamel ?? timeUsedSecondsSnake
+    }
+
+    var turnCount: Int? {
+        turnCountCamel ?? turnCountSnake
+    }
+
+    var tokenCount: Int? {
+        tokenCountCamel ?? tokenCountSnake ?? tokensUsedCamel ?? tokensUsedSnake
+    }
+
+    var statusReason: String? {
+        nonEmpty(reason)
+    }
+
+    func goalMetadata(sessionId: String?) -> [String: JSONValue] {
+        var metadata: [String: JSONValue] = ["claude_goal_attachment_type": .string(type)]
+        if let sessionId {
+            metadata["session_id"] = .string(sessionId)
+        }
+        if let status {
+            metadata["claude_goal_status"] = .string(status)
+        }
+        if let met {
+            metadata["met"] = .bool(met)
+        }
+        if let active {
+            metadata["active"] = .bool(active)
+        }
+        return metadata
+    }
+
     enum CodingKeys: String, CodingKey {
         case type
         case toolUseID
@@ -150,6 +261,24 @@ struct ClaudeAttachment: Decodable {
         case prompt
         case commandMode
         case commandModeSnake = "command_mode"
+        case objective
+        case condition
+        case goal
+        case status
+        case reason
+        case met
+        case active
+        case cleared
+        case elapsedSecondsCamel = "elapsedSeconds"
+        case elapsedSecondsSnake = "elapsed_seconds"
+        case timeUsedSecondsCamel = "timeUsedSeconds"
+        case timeUsedSecondsSnake = "time_used_seconds"
+        case turnCountCamel = "turnCount"
+        case turnCountSnake = "turn_count"
+        case tokenCountCamel = "tokenCount"
+        case tokenCountSnake = "token_count"
+        case tokensUsedCamel = "tokensUsed"
+        case tokensUsedSnake = "tokens_used"
     }
 }
 

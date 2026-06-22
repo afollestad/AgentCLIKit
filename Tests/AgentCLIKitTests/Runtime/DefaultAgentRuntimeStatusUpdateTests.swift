@@ -41,6 +41,156 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         XCTAssertFalse(cancelled?.canCancel == true)
     }
 
+    func testGoalStatusUpdatesPublishGoalWithoutChangingTurnState() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("printf 'goal:active:Ship goal mode\\ngoal:achieved:Ship goal mode\\n'; sleep 1"))
+        ])
+        let stream = await runtime.statusUpdates(conversationId: "conversation")
+        var iterator = stream.makeAsyncIterator()
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+
+        let statuses = await Self.collect(&iterator, until: { statuses in
+            statuses.contains { $0.goal?.status == .achieved }
+        })
+        let active = try XCTUnwrap(statuses.first { $0.goal?.status == .active })
+        let achieved = try XCTUnwrap(statuses.first { $0.goal?.status == .achieved })
+
+        XCTAssertEqual(active.goal?.objective, "Ship goal mode")
+        XCTAssertEqual(active.inputAvailability, .available)
+        XCTAssertEqual(active.waitingState, .idle)
+        XCTAssertFalse(active.isTurnActive)
+        XCTAssertEqual(achieved.goal?.objective, "Ship goal mode")
+        XCTAssertEqual(achieved.inputAvailability, .available)
+        XCTAssertEqual(achieved.waitingState, .idle)
+        XCTAssertFalse(achieved.isTurnActive)
+
+        await runtime.shutdown()
+    }
+
+    func testGoalActionWithoutGoalThrowsUnavailable() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("sleep 1"))
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+
+        do {
+            try await runtime.performGoalAction(.delete, conversationId: "conversation")
+            XCTFail("Expected missing active goal to throw.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .goalUnavailable)
+            XCTAssertEqual(error.metadata["provider_id"], .string("claude"))
+            XCTAssertEqual(error.metadata["reason"], .string("No active goal is available."))
+        }
+
+        await runtime.shutdown()
+    }
+
+    func testInitialGoalWithoutInitialPromptDoesNotSeedLocalGoal() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            GoalActionProviderAdapter(command: shell("sleep 1"))
+        ])
+
+        try await runtime.spawn(
+            conversationId: "conversation",
+            config: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: FileManager.default.temporaryDirectory,
+                initialGoal: "Ship goal mode"
+            )
+        )
+        let status = await runtime.status(conversationId: "conversation")
+
+        XCTAssertNil(status?.goal)
+
+        await runtime.shutdown()
+    }
+
+    func testUnsupportedGoalActionThrowsProviderError() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("sleep 1"))
+        ])
+
+        try await runtime.spawn(
+            conversationId: "conversation",
+            config: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: FileManager.default.temporaryDirectory,
+                initialGoal: "Ship goal mode",
+                initialPrompt: "Ship goal mode"
+            )
+        )
+
+        do {
+            try await runtime.performGoalAction(.pause, conversationId: "conversation")
+            XCTFail("Expected unsupported provider action to throw.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .unsupportedCapability)
+            XCTAssertEqual(error.metadata["provider_id"], .string("claude"))
+            XCTAssertEqual(error.metadata["capability"], .string("goal pause"))
+        }
+
+        await runtime.shutdown()
+    }
+
+    func testGoalActionUnavailableForCurrentSnapshotThrowsBeforeProvider() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            GoalActionProviderAdapter(command: shell("sleep 1"))
+        ])
+
+        try await runtime.spawn(
+            conversationId: "conversation",
+            config: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: FileManager.default.temporaryDirectory,
+                initialGoal: "Ship goal mode",
+                initialPrompt: "Ship goal mode"
+            )
+        )
+
+        do {
+            try await runtime.performGoalAction(.pause, conversationId: "conversation")
+            XCTFail("Expected unavailable snapshot action to throw.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .goalUnavailable)
+            XCTAssertEqual(error.metadata["provider_id"], .string("claude"))
+            XCTAssertEqual(error.metadata["reason"], .string("Goal action 'pause' is unavailable."))
+        }
+
+        await runtime.shutdown()
+    }
+
+    func testEncodedGoalActionDoesNotMarkTurnActiveAndClearsAfterProviderEvent() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            GoalActionProviderAdapter(command: shell("""
+            printf 'goal:active:Ship goal mode\\n'
+            while IFS= read -r line; do
+              if [ "$line" = "goal-clear" ]; then
+                printf 'goal-cleared\\n'
+              fi
+            done
+            """))
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        let activeGoal = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.lastEventIndex >= 1 && status.goal?.status == .active && !status.isTurnActive
+        }
+        XCTAssertFalse(activeGoal?.isTurnActive == true)
+        try await runtime.performGoalAction(.delete, conversationId: "conversation")
+
+        let status = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.lastEventIndex >= 1 && status.goal == nil
+        }
+
+        XCTAssertEqual(status?.inputAvailability, .available)
+        XCTAssertEqual(status?.waitingState, .idle)
+        XCTAssertFalse(status?.isTurnActive == true)
+
+        await runtime.shutdown()
+    }
+
     func testStatusUpdatesPublishStoppedProcessAfterCancellation() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
             StatusReportingProviderAdapter(command: shell("sleep 5"))
@@ -290,7 +440,12 @@ private actor ProviderActivitySource {
 }
 
 private struct StatusReportingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentProviderDefinition(
+        id: .claude,
+        displayName: "Fake",
+        executableNames: ["fake"],
+        capabilities: AgentProviderCapabilities(supportsGoalMode: true, supportedGoalActions: [.pause])
+    )
     let command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(
@@ -311,6 +466,20 @@ private struct StatusReportingProviderAdapter: AgentProviderAdapter {
         }
         if line == "interaction:prompt" {
             return [.interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?"))]
+        }
+        if line.hasPrefix("goal:") {
+            let components = line.split(separator: ":", maxSplits: 2).map(String.init)
+            guard components.count == 3, let status = AgentGoalStatus(rawValue: components[1]) else {
+                return []
+            }
+            return [.goal(AgentGoalEvent(snapshot: AgentGoalSnapshot(
+                objective: components[2],
+                status: status,
+                availableActions: status == .active ? [.delete] : []
+            )))]
+        }
+        if line == "goal-cleared" {
+            return [.goal(.cleared(objective: "Ship goal mode"))]
         }
         if line == "usage-terminal:nil" {
             return [.usage(AgentUsageEvent(
@@ -337,6 +506,64 @@ private struct StatusReportingProviderAdapter: AgentProviderAdapter {
             return Data((message.text + "\n").utf8)
         }
         return Data()
+    }
+}
+
+private struct GoalActionProviderAdapter: AgentProviderAdapter {
+    let definition = AgentProviderDefinition(
+        id: .claude,
+        displayName: "Fake",
+        executableNames: ["fake"],
+        capabilities: AgentProviderCapabilities(supportsGoalMode: true, supportedGoalActions: [.delete])
+    )
+    let command: AgentLaunchConfiguration
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?
+    ) async throws -> AgentLaunchConfiguration {
+        command
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        if line.hasPrefix("usage:") {
+            let stopReason = String(line.dropFirst("usage:".count))
+            return [.usage(AgentUsageEvent(
+                model: nil,
+                inputTokens: nil,
+                outputTokens: nil,
+                stopReason: stopReason
+            ))]
+        }
+        if line.hasPrefix("goal:") {
+            let components = line.split(separator: ":", maxSplits: 2).map(String.init)
+            guard components.count == 3, let status = AgentGoalStatus(rawValue: components[1]) else {
+                return []
+            }
+            return [.goal(AgentGoalEvent(snapshot: AgentGoalSnapshot(
+                objective: components[2],
+                status: status,
+                availableActions: status == .active ? [.delete] : []
+            )))]
+        }
+        if line == "goal-cleared" {
+            return [.goal(.cleared(objective: "Ship goal mode"))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentInput) async throws -> Data {
+        if case let .userMessage(message) = input {
+            return Data((message.text + "\n").utf8)
+        }
+        return Data()
+    }
+
+    func encodeGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws -> Data? {
+        guard action == .delete else {
+            throw AgentCLIError.unsupportedCapability(providerId: definition.id, capability: "goal \(action.rawValue)")
+        }
+        return Data("goal-clear\n".utf8)
     }
 }
 

@@ -6,6 +6,7 @@ struct CodexThreadBootstrap: Sendable {
     let preview: String?
     let forkedFromId: AgentSessionID?
     let continuity: AgentSessionContinuity
+    let goal: AgentGoalSnapshot?
 }
 
 actor CodexAppServerClient {
@@ -247,6 +248,25 @@ actor CodexAppServerClient {
             throw AgentCLIError.invalidInput("Codex App Server thread is unavailable.")
         }
         let transport = try await initializedTransport()
+        if message.metadata[AgentGoalMetadata.isInitialGoalTransport] == .bool(true),
+           case let .string(objective)? = message.metadata[AgentGoalMetadata.objective],
+           !objective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let supportsGoalMode = await configuration.featureSupportChecker.supportsGoalMode(
+                configuration: configuration,
+                availability: nil
+            )
+            guard supportsGoalMode else {
+                throw AgentCLIError.unsupportedCapability(
+                    providerId: CodexProviderAdapter.providerId,
+                    capability: "goal mode"
+                )
+            }
+            if let snapshot = try await setThreadGoal(binding.threadId, objective: objective) {
+                bindingsByConversation[conversationId]?.continuation?.yield(
+                    AgentProviderRuntimeEvent(event: .goal(AgentGoalEvent(snapshot: snapshot)))
+                )
+            }
+        }
         let supportsFastMode = try await speedModeSupportForSettings(spawnConfig: binding.spawnConfig)
         let response = try await transport.sendRequest(
             method: "turn/start",

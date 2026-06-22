@@ -13,6 +13,7 @@ enum ProviderResumeReplayFingerprint: Equatable {
     case task(ProviderResumeTaskFingerprint)
     case subAgent(ProviderResumeSubAgentFingerprint)
     case contextCompaction(ProviderResumeCompactionFingerprint)
+    case goal(AgentGoalEvent)
     case interaction(kind: AgentInteractionKind, prompt: String, metadata: [ProviderResumeMetadataEntry])
     case rawOutput(text: String, isComplete: Bool)
 
@@ -93,6 +94,8 @@ enum ProviderResumeReplayFingerprint: Equatable {
             self = .subAgent(ProviderResumeSubAgentFingerprint(subAgent))
         case .contextCompaction(let compaction):
             self = .contextCompaction(ProviderResumeCompactionFingerprint(compaction))
+        case .goal(let goal):
+            self = .goal(goal)
         case .interaction(let interaction):
             self = .interaction(
                 kind: interaction.kind,

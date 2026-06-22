@@ -92,6 +92,24 @@ extension CodexAppServerClient {
         return supportsFastMode
     }
 
+    func goalModeSupportForSettings(spawnConfig: AgentSpawnConfig, shouldHydrateExistingGoal: Bool) async throws -> Bool {
+        guard spawnConfig.initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false || shouldHydrateExistingGoal else {
+            return false
+        }
+        let supportsGoalMode = await configuration.featureSupportChecker.supportsGoalMode(
+            configuration: configuration,
+            availability: nil
+        )
+        if spawnConfig.initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+           !supportsGoalMode {
+            throw AgentCLIError.unsupportedCapability(
+                providerId: CodexProviderAdapter.providerId,
+                capability: "goal mode"
+            )
+        }
+        return supportsGoalMode
+    }
+
     func stickyConfig(spawnConfig: AgentSpawnConfig, supportsFastMode: Bool) -> JSONValue? {
         var config: [String: JSONValue] = [:]
         mergeSpeedModeConfig(spawnConfig: spawnConfig, supportsFastMode: supportsFastMode, into: &config)

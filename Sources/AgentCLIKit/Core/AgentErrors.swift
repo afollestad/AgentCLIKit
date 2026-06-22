@@ -18,6 +18,8 @@ public enum AgentErrorCode: String, Codable, Hashable, Sendable {
     case invalidInput
     /// The host requested a provider capability that is not currently supported.
     case unsupportedCapability
+    /// The provider supports a capability, but it is unavailable for the current session or project.
+    case goalUnavailable
 }
 
 /// Errors thrown by generic AgentCLIKit services.
@@ -38,6 +40,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
     case invalidInput(String)
     /// The host requested a provider capability that is not currently supported.
     case unsupportedCapability(providerId: AgentProviderID, capability: String)
+    /// The provider supports Goal mode, but goal control is unavailable for the current session or project.
+    case goalUnavailable(providerId: AgentProviderID, reason: String)
 
     /// Stable machine-readable code for host UI mapping and telemetry.
     public var code: AgentErrorCode {
@@ -58,6 +62,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             .invalidInput
         case .unsupportedCapability:
             .unsupportedCapability
+        case .goalUnavailable:
+            .goalUnavailable
         }
     }
 
@@ -84,6 +90,11 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
                 "provider_id": .string(providerId.rawValue),
                 "capability": .string(capability)
             ]
+        case let .goalUnavailable(providerId, reason):
+            [
+                "provider_id": .string(providerId.rawValue),
+                "reason": .string(reason)
+            ]
         }
     }
 
@@ -106,6 +117,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             "Invalid agent input: \(message)"
         case let .unsupportedCapability(providerId, capability):
             "Provider '\(providerId.rawValue)' does not support \(capability)."
+        case let .goalUnavailable(providerId, reason):
+            "Provider '\(providerId.rawValue)' cannot control the active goal: \(reason)"
         }
     }
 }

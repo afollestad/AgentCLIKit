@@ -133,6 +133,13 @@ extension DemoModel {
             return "sub_agent phase=\(subAgent.phase.rawValue) id=\(subAgent.id)"
         case .contextCompaction(let compaction):
             return "context_compaction phase=\(compaction.phase.rawValue) id=\(compaction.id)"
+        case .goal(let goal):
+            if goal.isCleared {
+                return "goal cleared=true"
+            }
+            let status = goal.snapshot?.status.rawValue ?? "unknown"
+            let objectiveLength = goal.snapshot?.objective.count ?? 0
+            return "goal status=\(status) objective_length=\(objectiveLength)"
         case .sessionContinuity(let continuity):
             return "session_continuity continuity=\(continuity.continuity.rawValue)"
         case .sessionMetadata(let metadata):

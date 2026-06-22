@@ -72,6 +72,8 @@ extension DemoModel {
             appendAgentEvent(.status(Self.subAgentSummary(subAgent)), envelope: envelope, sessionID: sessionID)
         case .contextCompaction(let compaction):
             appendAgentEvent(.status(Self.contextCompactionSummary(compaction)), envelope: envelope, sessionID: sessionID)
+        case .goal(let goal):
+            appendAgentEvent(.status(Self.goalSummary(goal)), envelope: envelope, sessionID: sessionID)
         case .sessionContinuity(let continuity):
             appendAgentEvent(
                 .status(continuity.message ?? continuity.continuity.rawValue.capitalized),
@@ -83,6 +85,16 @@ extension DemoModel {
         case .lifecycle(let lifecycle):
             handleLifecycle(lifecycle, envelope: envelope, sessionID: sessionID)
         }
+    }
+
+    private static func goalSummary(_ goal: AgentGoalEvent) -> String {
+        if goal.isCleared {
+            return "Goal cleared"
+        }
+        guard let snapshot = goal.snapshot else {
+            return "Goal updated"
+        }
+        return "Goal \(snapshot.status.rawValue): \(snapshot.objective)"
     }
 
     private func handleUsage(_ usage: AgentUsageEvent, envelope: AgentEventEnvelope, sessionID: AgentConversationID) {

@@ -317,6 +317,24 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         try inputEncoder.encode(input)
     }
 
+    /// Encodes host input as Claude stream JSON stdin with launch context.
+    public func encodeInput(_ input: AgentInput, context: AgentProviderInputContext) async throws -> Data {
+        if case let .userMessage(message) = input,
+           message.metadata[AgentGoalMetadata.isInitialGoalTransport] == .bool(true),
+           let objective = message.metadata.nonEmptyStringValue(AgentGoalMetadata.objective) {
+            return try inputEncoder.encode(.userMessage(AgentMessageInput(text: Self.goalCommand(objective))))
+        }
+        return try inputEncoder.encode(input)
+    }
+
+    /// Encodes Claude's confirmed goal clear surface. Pause/resume are intentionally unsupported.
+    public func encodeGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws -> Data? {
+        guard action == .delete else {
+            throw AgentCLIError.unsupportedCapability(providerId: Self.providerId, capability: "goal \(action.rawValue)")
+        }
+        return try inputEncoder.encode(.userMessage(AgentMessageInput(text: "/goal clear")))
+    }
+
     /// Emits a steering marker once Claude stdin accepts a marked mid-turn user input.
     public func acceptedSteeringInputEvent(for message: AgentMessageInput, context: AgentProviderInputContext) -> AgentEvent? {
         guard message.metadata[AgentSteeringMetadata.isSteering] == .bool(true),
@@ -394,6 +412,10 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
             return ClaudePermissionModes.plan
         }
         return spawnConfig.permissionMode.map(ClaudePermissionModes.canonicalHostMode)
+    }
+
+    private static func goalCommand(_ objective: String) -> String {
+        "/goal \(objective.trimmingCharacters(in: .whitespacesAndNewlines))"
     }
 }
 

@@ -380,6 +380,8 @@ extension DefaultAgentRuntime {
             state.permissionMode = permissionMode.mode
         case let .collaborationMode(collaborationMode):
             state.collaborationMode = collaborationMode.mode
+        case let .goal(goal):
+            applyGoalStatusSideEffects(for: goal, state: &state)
         case .sessionMetadata:
             break
         case let .interaction(interaction):
@@ -399,6 +401,14 @@ extension DefaultAgentRuntime {
         state.isTurnActive = activity.state == .active
         if activity.state == .idle, state.waitingState == .idle, !state.lifecycleState.isTerminal {
             state.inputAvailability = .available
+        }
+    }
+
+    private func applyGoalStatusSideEffects(for goalEvent: AgentGoalEvent, state: inout ConversationState) {
+        if goalEvent.isCleared {
+            state.goal = nil
+        } else if let snapshot = goalEvent.snapshot {
+            state.goal = snapshot
         }
     }
 

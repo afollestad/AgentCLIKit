@@ -309,6 +309,39 @@ public actor DefaultAgentRuntime: AgentRuntime {
         throw AgentCLIError.invalidInput("Input is blocked for conversation '\(conversationId.rawValue)': \(reason)")
     }
 
+    /// Performs a provider-native goal action.
+    public func performGoalAction(_ action: AgentGoalAction, conversationId: AgentConversationID) async throws {
+        guard let state = states[conversationId] else {
+            throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
+        }
+        guard let goal = state.goal else {
+            throw AgentCLIError.goalUnavailable(providerId: state.providerId, reason: "No active goal is available.")
+        }
+        guard goal.availableActions.contains(action) else {
+            throw AgentCLIError.goalUnavailable(
+                providerId: state.providerId,
+                reason: "Goal action '\(action.rawValue)' is unavailable."
+            )
+        }
+        let context = AgentProviderGoalActionContext(
+            conversationId: conversationId,
+            processToken: state.processToken,
+            providerSessionId: state.providerSessionId,
+            spawnConfig: state.spawnConfig,
+            goal: goal
+        )
+        if let data = try await state.adapter.encodeGoalAction(action, context: context) {
+            try writeInputData(
+                data,
+                conversationId: conversationId,
+                processToken: state.processToken,
+                marksTurnActive: false
+            )
+            return
+        }
+        try await state.adapter.performGoalAction(action, context: context)
+    }
+
     func writeInputData(
         _ data: Data,
         conversationId: AgentConversationID,

@@ -95,6 +95,44 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertNil(adapter.acceptedSteeringInputEvent(for: message, context: Self.inputContext(isTurnActive: true)))
     }
 
+    func testInitialGoalTransportEncodesGoalSlashCommand() async throws {
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
+        let message = AgentMessageInput(
+            text: "Ship goal mode",
+            metadata: [
+                AgentGoalMetadata.isInitialGoalTransport: .bool(true),
+                AgentGoalMetadata.objective: .string("Ship goal mode")
+            ]
+        )
+
+        let data = try await adapter.encodeInput(.userMessage(message), context: Self.inputContext(isTurnActive: true))
+        let text = try Self.encodedClaudeText(data)
+
+        XCTAssertEqual(text, "/goal Ship goal mode")
+    }
+
+    func testGoalDeleteActionEncodesGoalClearCommand() async throws {
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
+        let data = try await adapter.encodeGoalAction(.delete, context: Self.goalActionContext())
+        let unwrappedData = try XCTUnwrap(data)
+        let text = try Self.encodedClaudeText(unwrappedData)
+
+        XCTAssertEqual(text, "/goal clear")
+    }
+
+    func testUnsupportedGoalActionThrows() async throws {
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
+
+        do {
+            _ = try await adapter.encodeGoalAction(.pause, context: Self.goalActionContext())
+            XCTFail("Expected unsupported goal action to throw.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .unsupportedCapability)
+            XCTAssertEqual(error.metadata["provider_id"], .string("claude"))
+            XCTAssertEqual(error.metadata["capability"], .string("goal pause"))
+        }
+    }
+
     func testLaunchConfigurationPrioritizesPlanCollaborationModeOverPermissionMode() async throws {
         let adapter = ClaudeProviderAdapter(executablePath: "/opt/homebrew/bin/claude")
         let config = AgentSpawnConfig(
@@ -533,6 +571,25 @@ private extension ClaudeProviderAdapterTests {
             spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
             isTurnActive: isTurnActive
         )
+    }
+
+    static func goalActionContext() -> AgentProviderGoalActionContext {
+        AgentProviderGoalActionContext(
+            conversationId: "conversation",
+            processToken: UUID(),
+            providerSessionId: "session-id",
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            goal: AgentGoalSnapshot(objective: "Ship goal mode", status: .active, availableActions: [.delete])
+        )
+    }
+
+    static func encodedClaudeText(_ data: Data) throws -> String {
+        let object = try JSONSerialization.jsonObject(with: data)
+        let dictionary = try XCTUnwrap(object as? [String: Any])
+        let message = try XCTUnwrap(dictionary["message"] as? [String: Any])
+        let content = try XCTUnwrap(message["content"] as? [[String: Any]])
+        let firstContent = try XCTUnwrap(content.first)
+        return try XCTUnwrap(firstContent["text"] as? String)
     }
 
 }

@@ -23,6 +23,10 @@ struct CodexAppServerNotificationDecoder {
             decodeThreadSettingsUpdated(notification)
         case "thread/tokenUsage/updated":
             decodeThreadTokenUsageUpdated(notification)
+        case "thread/goal/updated":
+            decodeThreadGoalUpdated(notification)
+        case "thread/goal/cleared":
+            decodeThreadGoalCleared(notification)
         case "account/rateLimits/updated":
             decodeAccountRateLimitsUpdated(notification)
         case "turn/plan/updated":
@@ -182,6 +186,35 @@ struct CodexAppServerNotificationDecoder {
             metadata: metadata
         ))))
         return events
+    }
+
+    private func decodeThreadGoalUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+        guard let params = notification.params?.codexObjectValue,
+              let threadId = params["threadId"]?.codexStringValue,
+              let goal = params["goal"]?.codexObjectValue,
+              let decodedSnapshot = codexGoalSnapshot(fromGoalObject: goal) else {
+            return []
+        }
+        var metadata = decodedSnapshot.metadata
+        metadata.merge(self.metadata(method: notification.method, threadId: threadId)) { _, new in new }
+        let snapshot = AgentGoalSnapshot(
+            objective: decodedSnapshot.objective,
+            status: decodedSnapshot.status,
+            availableActions: decodedSnapshot.availableActions,
+            elapsedSeconds: decodedSnapshot.elapsedSeconds,
+            turnCount: decodedSnapshot.turnCount,
+            tokenCount: decodedSnapshot.tokenCount,
+            statusReason: decodedSnapshot.statusReason,
+            metadata: metadata
+        )
+        return [runtimeEvent(.goal(AgentGoalEvent(snapshot: snapshot)))]
+    }
+
+    private func decodeThreadGoalCleared(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+        guard let threadId = notification.threadId else {
+            return []
+        }
+        return [runtimeEvent(.goal(.cleared(metadata: metadata(method: notification.method, threadId: threadId))))]
     }
 
     private func collaborationMode(from settings: [String: JSONValue]) -> AgentCollaborationMode? {

@@ -186,6 +186,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertFalse(config.forkSession)
         XCTAssertNil(config.sessionFork)
         XCTAssertNil(config.speedMode)
+        XCTAssertNil(config.initialGoal)
     }
 
     func testOlderRuntimeStatusPayloadDefaultsLifecycleSnapshotFields() throws {
@@ -200,8 +201,37 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertFalse(status.canCancel)
         XCTAssertFalse(status.isTurnActive)
         XCTAssertNil(status.collaborationMode)
+        XCTAssertNil(status.goal)
         XCTAssertNil(status.providerSessionName)
         XCTAssertNil(status.providerSessionPreview)
+    }
+
+    func testOlderProviderCapabilitiesPayloadDefaultsGoalFields() throws {
+        let data = Data(#"{"supportsPlanMode":true,"supportsSpeedMode":true}"#.utf8)
+
+        let capabilities = try JSONDecoder().decode(AgentProviderCapabilities.self, from: data)
+
+        XCTAssertTrue(capabilities.supportsPlanMode)
+        XCTAssertTrue(capabilities.supportsSpeedMode)
+        XCTAssertFalse(capabilities.supportsGoalMode)
+        XCTAssertEqual(capabilities.supportedGoalActions, [])
+    }
+
+    func testGoalSnapshotAndEventRoundTrip() throws {
+        let event = AgentEvent.goal(AgentGoalEvent(snapshot: AgentGoalSnapshot(
+            objective: "Ship goal mode",
+            status: .active,
+            availableActions: [.pause, .delete],
+            elapsedSeconds: 12,
+            turnCount: 2,
+            tokenCount: 300,
+            metadata: ["source": .string("test")]
+        )))
+
+        let data = try JSONEncoder().encode(event)
+        let decoded = try JSONDecoder().decode(AgentEvent.self, from: data)
+
+        XCTAssertEqual(decoded, event)
     }
 
     func testOlderSessionRecordPayloadDefaultsProviderSessionMetadata() throws {

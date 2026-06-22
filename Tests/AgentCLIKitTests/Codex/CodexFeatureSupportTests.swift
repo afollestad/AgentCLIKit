@@ -8,12 +8,14 @@ final class CodexFeatureSupportTests: XCTestCase {
         let output = """
         Name                                    Stage              Enabled
         fast_mode                               stable             false
+        goals                                   stable             true
         namespace_tools                         stable             true
         other_feature                           experimental       true
         """
 
         XCTAssertEqual(DefaultCodexFeatureSupportChecker.parseFeatureNames(from: output), [
             "fast_mode",
+            "goals",
             "namespace_tools",
             "other_feature"
         ])
@@ -36,7 +38,7 @@ final class CodexFeatureSupportTests: XCTestCase {
             versionCommand: .success(ShellCommandResult(exitCode: 0, stdout: "codex-cli 1.0\n", stderr: "")),
             featuresCommand: .success(ShellCommandResult(
                 exitCode: 0,
-                stdout: "fast_mode stable false\n",
+                stdout: "fast_mode stable false\ngoals stable true\n",
                 stderr: ""
             ))
         ])
@@ -55,10 +57,18 @@ final class CodexFeatureSupportTests: XCTestCase {
                 executablePath: "/opt/homebrew/bin/codex"
             )
         )
+        let supportsGoalMode = await checker.supportsGoalMode(
+            configuration: configuration,
+            availability: AgentProviderAvailability(
+                providerId: .codex,
+                executablePath: "/opt/homebrew/bin/codex"
+            )
+        )
 
         XCTAssertTrue(supportsFastMode)
+        XCTAssertTrue(supportsGoalMode)
         let commands = await shellRunner.commands()
-        XCTAssertEqual(commands, [versionCommand, featuresCommand])
+        XCTAssertEqual(commands, [versionCommand, featuresCommand, versionCommand])
     }
 
     func testFeatureCheckerCachesByExecutableAndVersion() async throws {
@@ -66,7 +76,7 @@ final class CodexFeatureSupportTests: XCTestCase {
         let featuresCommand = ShellCommand(executable: "/opt/homebrew/bin/codex", arguments: ["features", "list"])
         let shellRunner = FakeShellRunner(results: [
             versionCommand: .success(ShellCommandResult(exitCode: 0, stdout: "codex-cli 1.0\n", stderr: "")),
-            featuresCommand: .success(ShellCommandResult(exitCode: 0, stdout: "fast_mode stable true\n", stderr: ""))
+            featuresCommand: .success(ShellCommandResult(exitCode: 0, stdout: "fast_mode stable true\ngoals stable true\n", stderr: ""))
         ])
         let checker = DefaultCodexFeatureSupportChecker(shellRunner: shellRunner, cacheTimeToLive: 60)
         let configuration = CodexProviderAdapter.Configuration(
@@ -75,7 +85,7 @@ final class CodexFeatureSupportTests: XCTestCase {
         )
 
         let firstResult = await checker.supportsFastMode(configuration: configuration, availability: nil)
-        let secondResult = await checker.supportsFastMode(configuration: configuration, availability: nil)
+        let secondResult = await checker.supportsGoalMode(configuration: configuration, availability: nil)
         let commands = await shellRunner.commands()
 
         XCTAssertTrue(firstResult)
@@ -164,7 +174,7 @@ final class CodexFeatureSupportTests: XCTestCase {
     }
 
     func testCodexProviderCapabilitySourceOverlaysSpeedSupportOnlyForCodex() async {
-        let checker = FixedCodexFeatureSupportChecker(supportsFastMode: true)
+        let checker = FixedCodexFeatureSupportChecker(supportsFastMode: true, supportsGoalMode: true)
         let configuration = CodexProviderAdapter.Configuration(featureSupportChecker: checker)
         let source = CodexProviderCapabilitySource(configuration: configuration)
 
@@ -178,7 +188,23 @@ final class CodexFeatureSupportTests: XCTestCase {
         )
 
         XCTAssertTrue(codexCapabilities.supportsSpeedMode)
+        XCTAssertTrue(codexCapabilities.supportsGoalMode)
+        XCTAssertEqual(codexCapabilities.supportedGoalActions, [.pause, .resume, .delete])
         XCTAssertFalse(claudeCapabilities.supportsSpeedMode)
+    }
+
+    func testCodexProviderCapabilitySourceDisablesGoalModeWhenFeatureProbeDoesNotSupportIt() async {
+        let checker = FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: false)
+        let configuration = CodexProviderAdapter.Configuration(featureSupportChecker: checker)
+        let source = CodexProviderCapabilitySource(configuration: configuration)
+
+        let capabilities = await source.capabilities(
+            for: CodexProviderDefinition.definition,
+            availability: AgentProviderAvailability(providerId: .codex, executablePath: "/usr/bin/codex")
+        )
+
+        XCTAssertFalse(capabilities.supportsGoalMode)
+        XCTAssertEqual(capabilities.supportedGoalActions, [])
     }
 }
 

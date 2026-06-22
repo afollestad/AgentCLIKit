@@ -85,6 +85,8 @@ public enum AgentEvent: Codable, Equatable, Sendable {
     case subAgent(AgentSubAgentEvent)
     /// Provider context compaction lifecycle event.
     case contextCompaction(AgentContextCompactionEvent)
+    /// Provider-reported goal state changed.
+    case goal(AgentGoalEvent)
     /// Provider session metadata changed.
     case sessionMetadata(AgentSessionMetadataEvent)
     /// Provider session continuity changed during launch.

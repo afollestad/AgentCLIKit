@@ -109,7 +109,8 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
                     threadId: bootstrap.threadId,
                     name: bootstrap.name,
                     preview: bootstrap.preview,
-                    forkedFromId: bootstrap.forkedFromId
+                    forkedFromId: bootstrap.forkedFromId,
+                    goal: bootstrap.goal
                 )
             ],
             workingDirectory: spawnConfig.workingDirectory,
@@ -135,12 +136,16 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         if let forkedFromId = payload.forkedFromId {
             metadata["codex_forked_from_id"] = .string(forkedFromId)
         }
-        return [.sessionMetadata(AgentSessionMetadataEvent(
+        var events: [AgentEvent] = [.sessionMetadata(AgentSessionMetadataEvent(
             providerSessionId: threadId,
             name: payload.name,
             preview: payload.preview,
             metadata: metadata
         ))]
+        if let goal = payload.goal {
+            events.append(.goal(AgentGoalEvent(snapshot: goal)))
+        }
+        return events
     }
 
     /// Extracts Codex's App Server thread identifier from session metadata and legacy bootstrap diagnostics.
@@ -182,6 +187,11 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         try await client.reconfigure(context: context)
     }
 
+    /// Performs native Codex goal actions through App Server goal APIs.
+    public func performGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws {
+        try await client.performGoalAction(action, context: context)
+    }
+
     /// Archives a Codex App Server thread without starting or resuming a runtime session.
     public func archiveSession(_ record: AgentSessionRecord) async throws {
         try validateSessionActionRecord(record)
@@ -209,14 +219,16 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         threadId: AgentSessionID,
         name: String?,
         preview: String?,
-        forkedFromId: AgentSessionID?
+        forkedFromId: AgentSessionID?,
+        goal: AgentGoalSnapshot?
     ) throws -> String {
         let payload = CodexBootstrapPayload(
             codexAppServerBootstrap: true,
             threadId: threadId.rawValue,
             name: name,
             preview: preview,
-            forkedFromId: forkedFromId?.rawValue
+            forkedFromId: forkedFromId?.rawValue,
+            goal: goal
         )
         let data = try JSONEncoder().encode(payload)
         guard let line = String(data: data, encoding: .utf8) else {
@@ -232,6 +244,7 @@ private struct CodexBootstrapPayload: Codable {
     let name: String?
     let preview: String?
     let forkedFromId: String?
+    let goal: AgentGoalSnapshot?
 }
 
 extension CodexProviderAdapter.Configuration {

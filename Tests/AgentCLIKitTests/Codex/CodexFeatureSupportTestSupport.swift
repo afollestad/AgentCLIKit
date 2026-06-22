@@ -4,11 +4,19 @@ import Foundation
 
 struct FixedCodexFeatureSupportChecker: CodexFeatureSupportChecking {
     let supportsFastMode: Bool
+    var supportsGoalMode = true
 
     func supportsFastMode(
         configuration: CodexProviderAdapter.Configuration,
         availability: AgentProviderAvailability?
     ) async -> Bool {
         supportsFastMode
+    }
+
+    func supportsGoalMode(
+        configuration: CodexProviderAdapter.Configuration,
+        availability: AgentProviderAvailability?
+    ) async -> Bool {
+        supportsGoalMode
     }
 }

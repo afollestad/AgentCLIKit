@@ -7,6 +7,11 @@ public protocol CodexFeatureSupportChecking: Sendable {
         configuration: CodexProviderAdapter.Configuration,
         availability: AgentProviderAvailability?
     ) async -> Bool
+    /// Returns whether the configured Codex executable supports native goal mode.
+    func supportsGoalMode(
+        configuration: CodexProviderAdapter.Configuration,
+        availability: AgentProviderAvailability?
+    ) async -> Bool
 }
 
 /// Default Codex feature support checker backed by `codex features list`.
@@ -18,6 +23,7 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
 
     private struct CacheEntry {
         let supportsFastMode: Bool
+        let supportsGoalMode: Bool
         let fetchedAt: Date
     }
 
@@ -53,9 +59,41 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
             if let entry = cache[key], currentDate.timeIntervalSince(entry.fetchedAt) < cacheTimeToLive {
                 return entry.supportsFastMode
             }
-            let supportsFastMode = try await liveSupportsFastMode(configuration: resolvedConfiguration)
-            cache[key] = CacheEntry(supportsFastMode: supportsFastMode, fetchedAt: currentDate)
-            return supportsFastMode
+            let support = try await liveFeatureSupport(configuration: resolvedConfiguration)
+            cache[key] = CacheEntry(
+                supportsFastMode: support.supportsFastMode,
+                supportsGoalMode: support.supportsGoalMode,
+                fetchedAt: currentDate
+            )
+            return support.supportsFastMode
+        } catch {
+            return false
+        }
+    }
+
+    /// Returns whether the configured Codex executable supports native goal mode.
+    public func supportsGoalMode(
+        configuration: CodexProviderAdapter.Configuration,
+        availability: AgentProviderAvailability? = nil
+    ) async -> Bool {
+        do {
+            let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(
+                for: CodexProviderDefinition.definition,
+                availability: availability
+            )
+            let version = try await versionDescription(configuration: resolvedConfiguration, availability: availability)
+            let key = CacheKey(executablePath: resolvedConfiguration.executablePath, version: version)
+            let currentDate = now()
+            if let entry = cache[key], currentDate.timeIntervalSince(entry.fetchedAt) < cacheTimeToLive {
+                return entry.supportsGoalMode
+            }
+            let support = try await liveFeatureSupport(configuration: resolvedConfiguration)
+            cache[key] = CacheEntry(
+                supportsFastMode: support.supportsFastMode,
+                supportsGoalMode: support.supportsGoalMode,
+                fetchedAt: currentDate
+            )
+            return support.supportsGoalMode
         } catch {
             return false
         }
@@ -73,12 +111,13 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
         return result.exitCode == 0 ? output.trimmingCharacters(in: .whitespacesAndNewlines) : ""
     }
 
-    private func liveSupportsFastMode(configuration: CodexProviderAdapter.Configuration) async throws -> Bool {
+    private func liveFeatureSupport(configuration: CodexProviderAdapter.Configuration) async throws -> (supportsFastMode: Bool, supportsGoalMode: Bool) {
         let result = try await runFeatureProbeCommand(arguments: ["features", "list"], configuration: configuration)
         guard result.exitCode == 0 else {
-            return false
+            return (false, false)
         }
-        return Self.parseFeatureNames(from: result.stdout).contains("fast_mode")
+        let featureNames = Self.parseFeatureNames(from: result.stdout)
+        return (featureNames.contains("fast_mode"), featureNames.contains("goals"))
     }
 
     private func runFeatureProbeCommand(
@@ -161,7 +200,13 @@ public struct CodexProviderCapabilitySource: AgentProviderCapabilitySource {
             configuration: configuration,
             availability: availability
         )
-        return definition.capabilities.withSpeedModeSupport(supportsFastMode)
+        let supportsGoalMode = await configuration.featureSupportChecker.supportsGoalMode(
+            configuration: configuration,
+            availability: availability
+        )
+        return definition.capabilities
+            .withSpeedModeSupport(supportsFastMode)
+            .withGoalModeSupport(supportsGoalMode, supportedGoalActions: [.pause, .resume, .delete])
     }
 }
 

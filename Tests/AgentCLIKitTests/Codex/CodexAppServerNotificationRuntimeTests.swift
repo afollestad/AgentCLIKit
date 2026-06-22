@@ -359,6 +359,58 @@ final class CodexAppServerNotificationRuntimeTests: XCTestCase {
         XCTAssertEqual(events.map(\.event), [])
     }
 
+    func testDecodesThreadGoalUpdatedNotification() {
+        let events = decoder.decode(notification(
+            method: "thread/goal/updated",
+            params: [
+                "threadId": .string("thread-1"),
+                "goal": .object([
+                    "threadId": .string("thread-1"),
+                    "objective": .string("Ship goal mode"),
+                    "status": .string("completed"),
+                    "tokensUsed": .number(123),
+                    "timeUsedSeconds": .number(9)
+                ])
+            ]
+        )).map(\.event)
+
+        XCTAssertEqual(events, [
+            .goal(AgentGoalEvent(snapshot: AgentGoalSnapshot(
+                objective: "Ship goal mode",
+                status: .achieved,
+                availableActions: [],
+                elapsedSeconds: 9,
+                tokenCount: 123,
+                metadata: [
+                    "codex_goal_status": .string("completed"),
+                    "codex_goal": .object([
+                        "threadId": .string("thread-1"),
+                        "objective": .string("Ship goal mode"),
+                        "status": .string("completed"),
+                        "tokensUsed": .number(123),
+                        "timeUsedSeconds": .number(9)
+                    ]),
+                    "codex_thread_id": .string("thread-1"),
+                    "codex_method": .string("thread/goal/updated")
+                ]
+            )))
+        ])
+    }
+
+    func testDecodesThreadGoalClearedNotification() {
+        let events = decoder.decode(notification(
+            method: "thread/goal/cleared",
+            params: ["threadId": .string("thread-1")]
+        )).map(\.event)
+
+        XCTAssertEqual(events, [
+            .goal(.cleared(metadata: [
+                "codex_method": .string("thread/goal/cleared"),
+                "codex_thread_id": .string("thread-1")
+            ]))
+        ])
+    }
+
     private func notification(method: String, params: [String: JSONValue]) -> CodexAppServerNotification {
         CodexAppServerNotification(method: method, params: .object(params))
     }

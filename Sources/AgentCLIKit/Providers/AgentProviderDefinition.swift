@@ -66,6 +66,10 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsPlanMode: Bool
     /// Whether the provider supports provider-neutral standard/fast speed mode.
     public let supportsSpeedMode: Bool
+    /// Whether the provider supports provider-neutral goal mode.
+    public let supportsGoalMode: Bool
+    /// Provider-native goal actions supported by this provider/session.
+    public let supportedGoalActions: [AgentGoalAction]
     /// Whether the provider emits task-list or todo snapshots.
     public let supportsTaskLists: Bool
     /// Whether the provider emits provider-neutral sub-agent lifecycle events.
@@ -99,6 +103,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         supportsGroupedToolOutput: Bool = false,
         supportsPlanMode: Bool = false,
         supportsSpeedMode: Bool = false,
+        supportsGoalMode: Bool = false,
+        supportedGoalActions: [AgentGoalAction] = [],
         supportsTaskLists: Bool = false,
         supportsSubagents: Bool = false,
         supportsPromptRequests: Bool = false,
@@ -120,6 +126,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsGroupedToolOutput = supportsGroupedToolOutput
         self.supportsPlanMode = supportsPlanMode
         self.supportsSpeedMode = supportsSpeedMode
+        self.supportsGoalMode = supportsGoalMode
+        self.supportedGoalActions = supportedGoalActions
         self.supportsTaskLists = supportsTaskLists
         self.supportsSubagents = supportsSubagents
         self.supportsPromptRequests = supportsPromptRequests
@@ -145,6 +153,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsGroupedToolOutput = try container.decodeIfPresent(Bool.self, forKey: .supportsGroupedToolOutput) ?? false
         self.supportsPlanMode = try container.decodeIfPresent(Bool.self, forKey: .supportsPlanMode) ?? false
         self.supportsSpeedMode = try container.decodeIfPresent(Bool.self, forKey: .supportsSpeedMode) ?? false
+        self.supportsGoalMode = try container.decodeIfPresent(Bool.self, forKey: .supportsGoalMode) ?? false
+        self.supportedGoalActions = try container.decodeIfPresent([AgentGoalAction].self, forKey: .supportedGoalActions) ?? []
         self.supportsTaskLists = try container.decodeIfPresent(Bool.self, forKey: .supportsTaskLists) ?? false
         self.supportsSubagents = try container.decodeIfPresent(Bool.self, forKey: .supportsSubagents) ?? false
         self.supportsPromptRequests = try container.decodeIfPresent(Bool.self, forKey: .supportsPromptRequests) ?? false
@@ -171,6 +181,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         try container.encode(supportsGroupedToolOutput, forKey: .supportsGroupedToolOutput)
         try container.encode(supportsPlanMode, forKey: .supportsPlanMode)
         try container.encode(supportsSpeedMode, forKey: .supportsSpeedMode)
+        try container.encode(supportsGoalMode, forKey: .supportsGoalMode)
+        try container.encode(supportedGoalActions, forKey: .supportedGoalActions)
         try container.encode(supportsTaskLists, forKey: .supportsTaskLists)
         try container.encode(supportsSubagents, forKey: .supportsSubagents)
         try container.encode(supportsPromptRequests, forKey: .supportsPromptRequests)
@@ -194,6 +206,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         case supportsGroupedToolOutput
         case supportsPlanMode
         case supportsSpeedMode
+        case supportsGoalMode
+        case supportedGoalActions
         case supportsTaskLists
         case supportsSubagents
         case supportsPromptRequests
@@ -221,6 +235,35 @@ extension AgentProviderCapabilities {
             supportsGroupedToolOutput: self.supportsGroupedToolOutput,
             supportsPlanMode: self.supportsPlanMode,
             supportsSpeedMode: supportsSpeedMode,
+            supportsGoalMode: self.supportsGoalMode,
+            supportedGoalActions: self.supportedGoalActions,
+            supportsTaskLists: self.supportsTaskLists,
+            supportsSubagents: self.supportsSubagents,
+            supportsPromptRequests: self.supportsPromptRequests,
+            supportsContextWindow: self.supportsContextWindow,
+            supportsContextCompaction: self.supportsContextCompaction,
+            supportsNativeThreadFork: self.supportsNativeThreadFork,
+            supportsPermissionPrompts: self.supportsPermissionPrompts,
+            supportsModelOptions: self.supportsModelOptions,
+            supportsSessionArchiving: self.supportsSessionArchiving,
+            supportsSessionUnarchiving: self.supportsSessionUnarchiving
+        )
+    }
+
+    func withGoalModeSupport(_ supportsGoalMode: Bool, supportedGoalActions: [AgentGoalAction]) -> AgentProviderCapabilities {
+        AgentProviderCapabilities(
+            supportsSessionResume: self.supportsSessionResume,
+            supportsHooks: self.supportsHooks,
+            supportsMCP: self.supportsMCP,
+            supportsApprovals: self.supportsApprovals,
+            supportsUsage: self.supportsUsage,
+            supportsMidTurnSteering: self.supportsMidTurnSteering,
+            supportsToolEvents: self.supportsToolEvents,
+            supportsGroupedToolOutput: self.supportsGroupedToolOutput,
+            supportsPlanMode: self.supportsPlanMode,
+            supportsSpeedMode: self.supportsSpeedMode,
+            supportsGoalMode: supportsGoalMode,
+            supportedGoalActions: supportsGoalMode ? supportedGoalActions : [],
             supportsTaskLists: self.supportsTaskLists,
             supportsSubagents: self.supportsSubagents,
             supportsPromptRequests: self.supportsPromptRequests,
