@@ -10,12 +10,25 @@ public struct AgentTaskListItem: Codable, Equatable, Identifiable, Sendable {
         case inProgress = "in_progress"
         /// The task is complete.
         case completed
+        /// The task was interrupted before it completed.
+        case interrupted
 
         /// Decodes a status, defaulting unknown future provider values to pending.
         public init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             let rawValue = try container.decode(String.self)
-            self = Self(rawValue: rawValue) ?? .pending
+            switch rawValue {
+            case Self.pending.rawValue:
+                self = .pending
+            case Self.inProgress.rawValue, "inProgress":
+                self = .inProgress
+            case Self.completed.rawValue:
+                self = .completed
+            case Self.interrupted.rawValue, "cancelled", "canceled":
+                self = .interrupted
+            default:
+                self = .pending
+            }
         }
     }
 

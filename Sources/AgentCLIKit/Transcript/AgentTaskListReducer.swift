@@ -367,6 +367,8 @@ private extension [String: JSONValue] {
         switch value {
         case "inProgress":
             return .inProgress
+        case "cancelled", "canceled":
+            return .interrupted
         default:
             return nil
         }

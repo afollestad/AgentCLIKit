@@ -220,6 +220,12 @@ The runtime deduplicates repeated `id` plus phase pairs. If a provider reports o
 synthetic `.started` first. If a provider process is cancelled or exits after a compaction start without a terminal phase,
 the runtime emits a synthetic failed compaction so host UI can replace in-progress state.
 
+## Task Lists
+
+Providers that report `supportsTaskLists` can emit task-list state through `AgentTaskListSnapshot`.
+`AgentTaskListItem.Status` values are `pending`, `in_progress`, `completed`, and `interrupted`. `interrupted` is terminal
+for the stopped work, but later provider updates may move the same task back to another status if work restarts.
+
 ## Sessions And Archive
 
 `AgentSessionStore` stores provider session mappings keyed by host conversation and provider. `JSONFileAgentSessionStore`

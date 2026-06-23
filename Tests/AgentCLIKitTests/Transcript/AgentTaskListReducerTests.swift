@@ -84,6 +84,22 @@ final class AgentTaskListReducerTests: XCTestCase {
         XCTAssertEqual(nextSnapshot?.items.map(\.subject), ["Second"])
     }
 
+    func testInterruptedTaskCanRestartOnLaterUpdate() {
+        var reducer = AgentTaskListReducer()
+
+        _ = reducer.append(taskCreateEnvelope(index: 0, id: "create-1", subject: "Inspect"))
+        _ = reducer.append(taskCreateResultEnvelope(index: 1, id: "create-1", taskId: "1", subject: "Inspect"))
+        let interruptedSnapshot = reducer.append(taskUpdateEnvelope(index: 2, id: "update-1a", taskId: "1", status: .interrupted))
+        let restartedSnapshot = reducer.append(taskUpdateEnvelope(index: 3, id: "update-1b", taskId: "1", status: .inProgress))
+        let completedSnapshot = reducer.append(taskUpdateEnvelope(index: 4, id: "update-1c", taskId: "1", status: .completed))
+
+        XCTAssertEqual(interruptedSnapshot?.items.map(\.status), [.interrupted])
+        XCTAssertEqual(interruptedSnapshot?.isComplete, false)
+        XCTAssertEqual(restartedSnapshot?.items.map(\.status), [.inProgress])
+        XCTAssertEqual(completedSnapshot?.items.map(\.status), [.completed])
+        XCTAssertEqual(completedSnapshot?.isComplete, true)
+    }
+
     func testTaskEventMetadataReplacesTaskListSnapshot() {
         var reducer = AgentTaskListReducer()
         let snapshot = reducer.append(envelope(
@@ -101,14 +117,38 @@ final class AgentTaskListReducerTests: XCTestCase {
                         "id": .string("todo-2"),
                         "subject": .string("Implement"),
                         "status": .string("inProgress")
+                    ]),
+                    .object([
+                        "id": .string("todo-3"),
+                        "subject": .string("Verify"),
+                        "status": .string("cancelled")
                     ])
                 ])]
             ))
         ))
 
         XCTAssertEqual(snapshot?.id, "tasks-plan-1")
-        XCTAssertEqual(snapshot?.items.map(\.subject), ["Inspect", "Implement"])
-        XCTAssertEqual(snapshot?.items.map(\.status), [.completed, .inProgress])
+        XCTAssertEqual(snapshot?.items.map(\.subject), ["Inspect", "Implement", "Verify"])
+        XCTAssertEqual(snapshot?.items.map(\.status), [.completed, .inProgress, .interrupted])
+    }
+
+    func testToolResultJSONReplacementParsesInterruptedStatus() {
+        var reducer = AgentTaskListReducer()
+        let snapshot = reducer.append(toolResultEnvelope(
+            index: 0,
+            id: "task-list",
+            content: """
+            {
+              "tasks": [
+                { "id": "task-1", "subject": "Inspect", "status": "interrupted" },
+                { "id": "task-2", "subject": "Patch", "status": "canceled" }
+              ]
+            }
+            """
+        ))
+
+        XCTAssertEqual(snapshot?.id, "tasks-task-list")
+        XCTAssertEqual(snapshot?.items.map(\.status), [.interrupted, .interrupted])
     }
 
     func testSessionMetadataDoesNotMutateTaskListSnapshot() {
@@ -138,8 +178,14 @@ final class AgentTaskListReducerTests: XCTestCase {
     func testCodableCompatibilityDefaults() throws {
         let itemData = Data(#"{"id":"1","subject":"Read index.html","status":"blocked"}"#.utf8)
         let item = try JSONDecoder().decode(AgentTaskListItem.self, from: itemData)
+        let interruptedData = Data(#"{"id":"2","subject":"Patch","status":"interrupted"}"#.utf8)
+        let interrupted = try JSONDecoder().decode(AgentTaskListItem.self, from: interruptedData)
+        let canceledData = Data(#"{"id":"3","subject":"Verify","status":"canceled"}"#.utf8)
+        let canceled = try JSONDecoder().decode(AgentTaskListItem.self, from: canceledData)
 
         XCTAssertEqual(item.status, .pending)
+        XCTAssertEqual(interrupted.status, .interrupted)
+        XCTAssertEqual(canceled.status, .interrupted)
 
         let snapshotData = Data(#"{"id":"tasks-1"}"#.utf8)
         let snapshot = try JSONDecoder().decode(AgentTaskListSnapshot.self, from: snapshotData)
