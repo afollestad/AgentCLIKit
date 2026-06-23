@@ -73,6 +73,40 @@ final class ClaudeStreamDecoderTests: XCTestCase {
         ])
     }
 
+    func testSuppressesGoalCommandAcknowledgementMessages() throws {
+        let decoder = ClaudeStreamDecoder()
+        let events = try decoder.decodeLine(#"""
+        {
+          "type": "assistant",
+          "message": {
+            "role": "assistant",
+            "content": [
+              {"type": "text", "text": "Goal acknowledged: Ship goal mode"}
+            ]
+          }
+        }
+        """#)
+
+        XCTAssertEqual(events, [])
+    }
+
+    func testSuppressesGoalCommandEchoMessages() throws {
+        let decoder = ClaudeStreamDecoder()
+        let events = try decoder.decodeLine(#"""
+        {
+          "type": "user",
+          "message": {
+            "role": "user",
+            "content": [
+              {"type": "text", "text": "/goal Ship goal mode"}
+            ]
+          }
+        }
+        """#)
+
+        XCTAssertEqual(events, [])
+    }
+
     func testDecodesAssistantMessageUsageEventAsInterimUsageUpdate() throws {
         let decoder = ClaudeStreamDecoder()
         let line = #"""

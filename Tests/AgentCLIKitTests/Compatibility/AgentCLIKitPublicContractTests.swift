@@ -31,6 +31,8 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentProviderInputContext.self)
         assertSendable(AgentProviderRuntimeContext.self)
         assertSendable(AgentProviderInterruptContext.self)
+        assertSendable(AgentProviderEncodedGoalStart.self)
+        assertSendable(AgentProviderGoalStartContext.self)
         assertSendable(AgentProviderGoalActionContext.self)
         assertSendable(AgentProviderReconfigureContext.self)
         assertSendable(AgentProviderReconfigureResult.self)

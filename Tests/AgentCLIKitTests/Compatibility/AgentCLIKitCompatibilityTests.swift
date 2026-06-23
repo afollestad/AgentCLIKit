@@ -214,6 +214,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertTrue(capabilities.supportsPlanMode)
         XCTAssertTrue(capabilities.supportsSpeedMode)
         XCTAssertFalse(capabilities.supportsGoalMode)
+        XCTAssertFalse(capabilities.supportsExistingSessionGoalStart)
         XCTAssertEqual(capabilities.supportedGoalActions, [])
     }
 

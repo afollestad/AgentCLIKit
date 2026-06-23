@@ -191,6 +191,123 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
+    func testExistingSessionGoalStartEncodesInputAndMarksTurnActive() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            GoalStartProviderAdapter(command: shell("""
+            while IFS= read -r line; do
+              if [ "$line" = "goal-start:Ship goal mode" ]; then
+                printf 'goal:active:Ship goal mode\\n'
+              fi
+            done
+            """))
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        try await runtime.startGoal("Ship goal mode", conversationId: "conversation")
+
+        let status = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.goal?.objective == "Ship goal mode" && status.goal?.status == .active
+        }
+
+        XCTAssertTrue(status?.isTurnActive == true)
+        XCTAssertEqual(status?.inputAvailability, .available)
+
+        await runtime.shutdown()
+    }
+
+    func testExistingSessionGoalStartAllowsTerminalSnapshot() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            GoalStartProviderAdapter(command: shell("""
+            printf 'goal:achieved:Old goal\\n'
+            while IFS= read -r line; do
+              if [ "$line" = "goal-start:New goal" ]; then
+                printf 'goal:active:New goal\\n'
+              fi
+            done
+            """))
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        _ = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.goal?.status == .achieved
+        }
+        try await runtime.startGoal("New goal", conversationId: "conversation")
+
+        let status = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.goal?.objective == "New goal" && status.goal?.status == .active
+        }
+
+        XCTAssertEqual(status?.goal?.objective, "New goal")
+        XCTAssertTrue(status?.isTurnActive == true)
+
+        await runtime.shutdown()
+    }
+
+    func testExistingSessionGoalStartRejectsNonTerminalGoal() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            GoalStartProviderAdapter(command: shell("printf 'goal:active:Ship goal mode\\n'; sleep 1"))
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        _ = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.goal?.status == .active
+        }
+
+        do {
+            try await runtime.startGoal("New goal", conversationId: "conversation")
+            XCTFail("Expected active goal to block another goal start.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .goalUnavailable)
+            XCTAssertEqual(error.metadata["reason"], .string("A goal is already active."))
+        }
+
+        await runtime.shutdown()
+    }
+
+    func testExistingSessionGoalStartUnsupportedThrowsProviderError() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            StatusReportingProviderAdapter(command: shell("sleep 1"))
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+
+        do {
+            try await runtime.startGoal("Ship goal mode", conversationId: "conversation")
+            XCTFail("Expected unsupported provider goal start to throw.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .unsupportedCapability)
+            XCTAssertEqual(error.metadata["provider_id"], .string("claude"))
+            XCTAssertEqual(error.metadata["capability"], .string("existing-session goal start"))
+        }
+
+        await runtime.shutdown()
+    }
+
+    func testGoalActionUnavailableWhenProviderRemovesActionForActiveTurn() async throws {
+        let runtime = DefaultAgentRuntime(adapters: [
+            GoalActionProviderAdapter(
+                command: shell("printf 'goal:active:Ship goal mode\\n'; sleep 1"),
+                hideActionsWhileTurnActive: true
+            )
+        ])
+
+        try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
+        _ = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
+            status.goal?.status == .active
+        }
+        try await runtime.send(.userMessage(AgentMessageInput(text: "Continue")), conversationId: "conversation")
+
+        do {
+            try await runtime.performGoalAction(.delete, conversationId: "conversation")
+            XCTFail("Expected active turn to make goal action unavailable.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .goalUnavailable)
+            XCTAssertEqual(error.metadata["reason"], .string("Goal action 'delete' is unavailable."))
+        }
+
+        await runtime.shutdown()
+    }
+
     func testStatusUpdatesPublishStoppedProcessAfterCancellation() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
             StatusReportingProviderAdapter(command: shell("sleep 5"))
@@ -517,6 +634,7 @@ private struct GoalActionProviderAdapter: AgentProviderAdapter {
         capabilities: AgentProviderCapabilities(supportsGoalMode: true, supportedGoalActions: [.delete])
     )
     let command: AgentLaunchConfiguration
+    var hideActionsWhileTurnActive = false
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -559,11 +677,65 @@ private struct GoalActionProviderAdapter: AgentProviderAdapter {
         return Data()
     }
 
+    func availableGoalActions(for goal: AgentGoalSnapshot, context: AgentProviderGoalActionContext) -> [AgentGoalAction] {
+        guard !hideActionsWhileTurnActive || !context.isTurnActive else {
+            return []
+        }
+        return goal.availableActions
+    }
+
     func encodeGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws -> Data? {
         guard action == .delete else {
             throw AgentCLIError.unsupportedCapability(providerId: definition.id, capability: "goal \(action.rawValue)")
         }
         return Data("goal-clear\n".utf8)
+    }
+}
+
+private struct GoalStartProviderAdapter: AgentProviderAdapter {
+    let definition = AgentProviderDefinition(
+        id: .claude,
+        displayName: "Fake",
+        executableNames: ["fake"],
+        capabilities: AgentProviderCapabilities(
+            supportsGoalMode: true,
+            supportsExistingSessionGoalStart: true,
+            supportedGoalActions: [.delete]
+        )
+    )
+    let command: AgentLaunchConfiguration
+
+    func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?
+    ) async throws -> AgentLaunchConfiguration {
+        command
+    }
+
+    func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        if line.hasPrefix("goal:") {
+            let components = line.split(separator: ":", maxSplits: 2).map(String.init)
+            guard components.count == 3, let status = AgentGoalStatus(rawValue: components[1]) else {
+                return []
+            }
+            return [.goal(AgentGoalEvent(snapshot: AgentGoalSnapshot(
+                objective: components[2],
+                status: status,
+                availableActions: status == .active ? [.delete] : []
+            )))]
+        }
+        return []
+    }
+
+    func encodeInput(_ input: AgentInput) async throws -> Data {
+        if case let .userMessage(message) = input {
+            return Data((message.text + "\n").utf8)
+        }
+        return Data()
+    }
+
+    func encodeGoalStart(_ objective: String, context: AgentProviderGoalStartContext) async throws -> AgentProviderEncodedGoalStart? {
+        AgentProviderEncodedGoalStart(data: Data("goal-start:\(objective)\n".utf8), marksTurnActive: true)
     }
 }
 

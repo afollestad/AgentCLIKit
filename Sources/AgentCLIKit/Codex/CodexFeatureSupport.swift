@@ -206,7 +206,11 @@ public struct CodexProviderCapabilitySource: AgentProviderCapabilitySource {
         )
         return definition.capabilities
             .withSpeedModeSupport(supportsFastMode)
-            .withGoalModeSupport(supportsGoalMode, supportedGoalActions: [.pause, .resume, .delete])
+            .withGoalModeSupport(
+                supportsGoalMode,
+                supportsExistingSessionGoalStart: supportsGoalMode,
+                supportedGoalActions: [.pause, .resume, .delete]
+            )
     }
 }
 

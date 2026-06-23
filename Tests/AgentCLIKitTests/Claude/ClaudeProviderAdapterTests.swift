@@ -120,6 +120,28 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(text, "/goal clear")
     }
 
+    func testExistingSessionGoalStartEncodesGoalSlashCommandAndMarksTurnActive() async throws {
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
+
+        let encoded = try await adapter.encodeGoalStart("Ship goal mode", context: Self.goalStartContext())
+        let unwrappedEncoded = try XCTUnwrap(encoded)
+        let text = try Self.encodedClaudeText(unwrappedEncoded.data)
+
+        XCTAssertEqual(text, "/goal Ship goal mode")
+        XCTAssertTrue(unwrappedEncoded.marksTurnActive)
+    }
+
+    func testGoalDeleteActionUnavailableWhileTurnIsActive() {
+        let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
+
+        let actions = adapter.availableGoalActions(
+            for: AgentGoalSnapshot(objective: "Ship goal mode", status: .active, availableActions: [.delete]),
+            context: Self.goalActionContext(isTurnActive: true)
+        )
+
+        XCTAssertEqual(actions, [])
+    }
+
     func testUnsupportedGoalActionThrows() async throws {
         let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
 
@@ -574,12 +596,28 @@ private extension ClaudeProviderAdapterTests {
     }
 
     static func goalActionContext() -> AgentProviderGoalActionContext {
+        goalActionContext(isTurnActive: false)
+    }
+
+    static func goalActionContext(isTurnActive: Bool) -> AgentProviderGoalActionContext {
         AgentProviderGoalActionContext(
             conversationId: "conversation",
             processToken: UUID(),
             providerSessionId: "session-id",
             spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
-            goal: AgentGoalSnapshot(objective: "Ship goal mode", status: .active, availableActions: [.delete])
+            goal: AgentGoalSnapshot(objective: "Ship goal mode", status: .active, availableActions: [.delete]),
+            isTurnActive: isTurnActive
+        )
+    }
+
+    static func goalStartContext() -> AgentProviderGoalStartContext {
+        AgentProviderGoalStartContext(
+            conversationId: "conversation",
+            processToken: UUID(),
+            providerSessionId: "session-id",
+            spawnConfig: AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            isTurnActive: false,
+            inputAvailability: .available
         )
     }
 

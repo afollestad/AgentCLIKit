@@ -174,9 +174,21 @@ public struct ClaudeStreamDecoder: Sendable {
         if role == .user, ClaudeInterruptionMarker.isUserInterruption(text) {
             return [.lifecycle(AgentLifecycleEvent(state: .cancelled, message: "Interrupted"))]
         }
+        guard !Self.isGoalCommandStatusText(text) else {
+            return []
+        }
         // Claude reports local command output as user text; hosts render it as provider output, not as a user-authored prompt.
         let eventRole: AgentMessageRole = role == .user ? .assistant : role
         return [.message(AgentMessageEvent(role: eventRole, text: text, metadata: metadata))]
+    }
+
+    private static func isGoalCommandStatusText(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == "/goal"
+            || trimmed.hasPrefix("/goal ")
+            || trimmed == "No goal set"
+            || trimmed.hasPrefix("Goal acknowledged:")
+            || trimmed.hasPrefix("Goal cleared:")
     }
 
     private func toolUseEvents(from content: ClaudeContent, metadata: [String: JSONValue]) -> [AgentEvent] {

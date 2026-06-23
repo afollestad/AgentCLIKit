@@ -97,6 +97,50 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         })
     }
 
+    func testExistingSessionGoalStartSetsNativeGoalWithoutStartingTurn() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexProviderAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: true)
+        ))
+        let runtime = DefaultAgentRuntime(adapters: [adapter])
+        let conversationId = AgentConversationID(rawValue: "codex-existing-goal-start")
+        let spawnConfig = AgentSpawnConfig(
+            providerId: .codex,
+            workingDirectory: FileManager.default.temporaryDirectory,
+            model: "model-a"
+        )
+
+        let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
+        try await runtime.spawn(conversationId: conversationId, config: spawnConfig)
+        try await runtime.startGoal("Refactor the cache", conversationId: conversationId)
+        let requestLog = await waitForRequestLog(transport) { log in
+            log.map(\.method).contains("thread/goal/set")
+        }
+        let events = await Self.collect(subscription.events, limit: 6) { envelopes in
+            envelopes.contains { envelope in
+                guard case let .goal(goal) = envelope.event else {
+                    return false
+                }
+                return goal.snapshot?.objective == "Refactor the cache"
+            }
+        }
+        let status = await runtime.status(conversationId: conversationId)
+        await runtime.destroy(conversationId: conversationId)
+
+        XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "thread/goal/set"])
+        let goalSetParams = try XCTUnwrap(requestLog.first { $0.method == "thread/goal/set" }?.params?.objectValue)
+        XCTAssertEqual(goalSetParams["threadId"], .string("thread-123"))
+        XCTAssertEqual(goalSetParams["objective"], .string("Refactor the cache"))
+        XCTAssertTrue(events.contains {
+            guard case let .goal(goal) = $0.event else {
+                return false
+            }
+            return goal.snapshot?.objective == "Refactor the cache" && goal.snapshot?.status == .active
+        })
+        XCTAssertFalse(status?.isTurnActive == true)
+    }
+
     func testStartsTurnAndSteersActiveTurn() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))

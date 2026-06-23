@@ -20,6 +20,7 @@ public enum CodexProviderDefinition {
             supportsGroupedToolOutput: true,
             supportsPlanMode: true,
             supportsGoalMode: true,
+            supportsExistingSessionGoalStart: true,
             supportedGoalActions: [.pause, .resume, .delete],
             supportsTaskLists: true,
             supportsSubagents: true,

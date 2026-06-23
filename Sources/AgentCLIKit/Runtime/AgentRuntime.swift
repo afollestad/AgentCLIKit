@@ -309,6 +309,8 @@ public protocol AgentRuntime: Sendable {
     func send(_ input: AgentInput, conversationId: AgentConversationID) async throws
     /// Resolves a pending interaction and forwards the resolution to providers that accept one over input.
     func resolveInteraction(_ resolution: AgentInteractionResolution, conversationId: AgentConversationID) async throws
+    /// Starts a provider-native goal in an already-running session.
+    func startGoal(_ objective: String, conversationId: AgentConversationID) async throws
     /// Performs a provider-native goal action.
     func performGoalAction(_ action: AgentGoalAction, conversationId: AgentConversationID) async throws
     /// Sends an interrupt request and terminates the provider process.

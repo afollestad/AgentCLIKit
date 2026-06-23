@@ -327,6 +327,23 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         return try inputEncoder.encode(input)
     }
 
+    /// Encodes Claude's confirmed existing-session goal start surface.
+    public func encodeGoalStart(_ objective: String, context: AgentProviderGoalStartContext) async throws -> AgentProviderEncodedGoalStart? {
+        AgentProviderEncodedGoalStart(
+            data: try inputEncoder.encode(.userMessage(AgentMessageInput(text: Self.goalCommand(objective)))),
+            marksTurnActive: true
+        )
+    }
+
+    /// Hides Claude goal actions when stream-json stdin cannot process them immediately.
+    public func availableGoalActions(for goal: AgentGoalSnapshot, context: AgentProviderGoalActionContext) -> [AgentGoalAction] {
+        guard !context.isTurnActive,
+              case .available = context.inputAvailability else {
+            return goal.availableActions.filter { $0 != .delete }
+        }
+        return goal.availableActions
+    }
+
     /// Encodes Claude's confirmed goal clear surface. Pause/resume are intentionally unsupported.
     public func encodeGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws -> Data? {
         guard action == .delete else {

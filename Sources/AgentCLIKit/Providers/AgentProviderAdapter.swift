@@ -58,6 +58,15 @@ public protocol AgentProviderAdapter: Sendable {
     /// Sends a provider-native interruption request for the active turn, if supported.
     func interrupt(context: AgentProviderInterruptContext) async throws
 
+    /// Starts a provider-native goal in an already-running session, if supported.
+    func startGoal(_ objective: String, context: AgentProviderGoalStartContext) async throws
+
+    /// Encodes provider-native stdin bytes for starting a goal in an already-running session.
+    func encodeGoalStart(_ objective: String, context: AgentProviderGoalStartContext) async throws -> AgentProviderEncodedGoalStart?
+
+    /// Returns currently actionable goal controls after provider-specific runtime restrictions are applied.
+    func availableGoalActions(for goal: AgentGoalSnapshot, context: AgentProviderGoalActionContext) -> [AgentGoalAction]
+
     /// Performs a provider-native goal action, if supported.
     func performGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws
 
@@ -142,6 +151,21 @@ public extension AgentProviderAdapter {
     /// Performs no provider-native interruption for process-only providers.
     func interrupt(context: AgentProviderInterruptContext) async throws {}
 
+    /// Throws for providers that do not support existing-session goal start.
+    func startGoal(_ objective: String, context: AgentProviderGoalStartContext) async throws {
+        throw AgentCLIError.unsupportedCapability(providerId: definition.id, capability: "existing-session goal start")
+    }
+
+    /// Returns no stdin bytes for providers that do not start existing-session goals through stdin.
+    func encodeGoalStart(_ objective: String, context: AgentProviderGoalStartContext) async throws -> AgentProviderEncodedGoalStart? {
+        nil
+    }
+
+    /// Returns provider-reported actions by default.
+    func availableGoalActions(for goal: AgentGoalSnapshot, context: AgentProviderGoalActionContext) -> [AgentGoalAction] {
+        goal.availableActions
+    }
+
     /// Throws for providers that do not support provider-native goal actions.
     func performGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws {
         throw AgentCLIError.unsupportedCapability(providerId: definition.id, capability: "goal \(action.rawValue)")
@@ -191,6 +215,53 @@ public extension AgentProviderAdapter {
     }
 }
 
+/// Provider-encoded input for starting a goal in an already-running session.
+public struct AgentProviderEncodedGoalStart: Sendable {
+    /// Provider stdin bytes.
+    public let data: Data
+    /// Whether the input starts provider work and should make the runtime mark a turn active.
+    public let marksTurnActive: Bool
+
+    /// Creates encoded goal-start input.
+    public init(data: Data, marksTurnActive: Bool) {
+        self.data = data
+        self.marksTurnActive = marksTurnActive
+    }
+}
+
+/// Runtime context supplied for provider-native existing-session goal start.
+public struct AgentProviderGoalStartContext: Sendable {
+    /// Host conversation identifier.
+    public let conversationId: AgentConversationID
+    /// Runtime process generation token.
+    public let processToken: UUID
+    /// Provider session identifier known to the runtime.
+    public let providerSessionId: AgentSessionID?
+    /// Spawn configuration for the active process generation.
+    public let spawnConfig: AgentSpawnConfig
+    /// Whether the runtime currently considers a provider turn active.
+    public let isTurnActive: Bool
+    /// Whether host input can currently be sent to the provider.
+    public let inputAvailability: AgentInputAvailability
+
+    /// Creates provider goal-start context.
+    public init(
+        conversationId: AgentConversationID,
+        processToken: UUID,
+        providerSessionId: AgentSessionID?,
+        spawnConfig: AgentSpawnConfig,
+        isTurnActive: Bool,
+        inputAvailability: AgentInputAvailability
+    ) {
+        self.conversationId = conversationId
+        self.processToken = processToken
+        self.providerSessionId = providerSessionId
+        self.spawnConfig = spawnConfig
+        self.isTurnActive = isTurnActive
+        self.inputAvailability = inputAvailability
+    }
+}
+
 /// Runtime context supplied for provider-native goal actions.
 public struct AgentProviderGoalActionContext: Sendable {
     /// Host conversation identifier.
@@ -203,6 +274,10 @@ public struct AgentProviderGoalActionContext: Sendable {
     public let spawnConfig: AgentSpawnConfig
     /// Latest provider-reported goal snapshot.
     public let goal: AgentGoalSnapshot?
+    /// Whether the runtime currently considers a provider turn active.
+    public let isTurnActive: Bool
+    /// Whether host input can currently be sent to the provider.
+    public let inputAvailability: AgentInputAvailability
 
     /// Creates provider goal action context.
     public init(
@@ -210,13 +285,17 @@ public struct AgentProviderGoalActionContext: Sendable {
         processToken: UUID,
         providerSessionId: AgentSessionID?,
         spawnConfig: AgentSpawnConfig,
-        goal: AgentGoalSnapshot?
+        goal: AgentGoalSnapshot?,
+        isTurnActive: Bool = false,
+        inputAvailability: AgentInputAvailability = .available
     ) {
         self.conversationId = conversationId
         self.processToken = processToken
         self.providerSessionId = providerSessionId
         self.spawnConfig = spawnConfig
         self.goal = goal
+        self.isTurnActive = isTurnActive
+        self.inputAvailability = inputAvailability
     }
 }
 

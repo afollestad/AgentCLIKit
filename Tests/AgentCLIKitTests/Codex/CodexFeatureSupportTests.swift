@@ -189,6 +189,7 @@ final class CodexFeatureSupportTests: XCTestCase {
 
         XCTAssertTrue(codexCapabilities.supportsSpeedMode)
         XCTAssertTrue(codexCapabilities.supportsGoalMode)
+        XCTAssertTrue(codexCapabilities.supportsExistingSessionGoalStart)
         XCTAssertEqual(codexCapabilities.supportedGoalActions, [.pause, .resume, .delete])
         XCTAssertFalse(claudeCapabilities.supportsSpeedMode)
     }
@@ -204,6 +205,7 @@ final class CodexFeatureSupportTests: XCTestCase {
         )
 
         XCTAssertFalse(capabilities.supportsGoalMode)
+        XCTAssertFalse(capabilities.supportsExistingSessionGoalStart)
         XCTAssertEqual(capabilities.supportedGoalActions, [])
     }
 }

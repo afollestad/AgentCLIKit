@@ -122,6 +122,20 @@ extension CodexAppServerClient {
         return cleared
     }
 
+    func startGoal(_ objective: String, context: AgentProviderGoalStartContext) async throws {
+        guard await configuration.featureSupportChecker.supportsGoalMode(configuration: configuration, availability: nil) else {
+            throw AgentCLIError.unsupportedCapability(providerId: CodexProviderAdapter.providerId, capability: "goal mode")
+        }
+        guard let binding = bindingsByConversation[context.conversationId],
+              binding.processToken == context.processToken else {
+            throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex App Server thread is unavailable.")
+        }
+        guard let snapshot = try await setThreadGoal(binding.threadId, objective: objective) else {
+            throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex did not return an active goal.")
+        }
+        yieldGoal(snapshot, conversationId: context.conversationId)
+    }
+
     func performGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws {
         guard await configuration.featureSupportChecker.supportsGoalMode(configuration: configuration, availability: nil) else {
             throw AgentCLIError.unsupportedCapability(providerId: CodexProviderAdapter.providerId, capability: "goal mode")

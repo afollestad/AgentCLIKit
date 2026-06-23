@@ -192,6 +192,11 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         try await client.performGoalAction(action, context: context)
     }
 
+    /// Starts a native Codex goal through App Server goal APIs without starting a turn.
+    public func startGoal(_ objective: String, context: AgentProviderGoalStartContext) async throws {
+        try await client.startGoal(objective, context: context)
+    }
+
     /// Archives a Codex App Server thread without starting or resuming a runtime session.
     public func archiveSession(_ record: AgentSessionRecord) async throws {
         try validateSessionActionRecord(record)
