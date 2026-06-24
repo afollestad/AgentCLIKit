@@ -14,7 +14,7 @@ import PackageDescription
 let package = Package(
     name: "AgentCLIKitConsumer",
     platforms: [
-        .macOS("26.0")
+        .macOS("15.0")
     ],
     dependencies: [
         .package(path: "$repo_root")
