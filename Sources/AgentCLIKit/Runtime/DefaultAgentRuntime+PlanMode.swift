@@ -326,6 +326,7 @@ private extension AgentSpawnConfig {
             environment: environment,
             model: model,
             effort: effort,
+            reasoningSummaryMode: reasoningSummaryMode,
             permissionMode: permissionMode,
             collaborationMode: collaborationMode,
             speedMode: speedMode,

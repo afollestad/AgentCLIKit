@@ -200,6 +200,9 @@ extension CodexAppServerClient {
         if let effort = spawnConfig.effort {
             config["model_reasoning_effort"] = .string(effort)
         }
+        if let reasoningSummaryMode = spawnConfig.reasoningSummaryMode {
+            config["model_reasoning_summary"] = .string(reasoningSummaryMode.rawValue)
+        }
         mergeSpeedModeConfig(spawnConfig: spawnConfig, supportsFastMode: supportsFastMode, into: &config)
         return config.isEmpty ? nil : .object(config)
     }

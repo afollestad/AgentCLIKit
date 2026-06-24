@@ -14,6 +14,11 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     public let model: String?
     /// Optional provider effort setting.
     public let effort: String?
+    /// Optional provider reasoning summary mode.
+    ///
+    /// Providers may use this to request live, model-authored reasoning summaries. A `nil`
+    /// value leaves provider behavior unchanged.
+    public let reasoningSummaryMode: AgentReasoningSummaryMode?
     /// Optional provider approval policy.
     public let permissionMode: String?
     /// Optional provider-neutral collaboration mode override.
@@ -50,6 +55,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         environment: [String: String] = [:],
         model: String? = nil,
         effort: String? = nil,
+        reasoningSummaryMode: AgentReasoningSummaryMode? = nil,
         permissionMode: String? = nil,
         collaborationMode: AgentCollaborationMode? = nil,
         speedMode: AgentSpeedMode? = nil,
@@ -64,6 +70,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.environment = environment
         self.model = model
         self.effort = effort
+        self.reasoningSummaryMode = reasoningSummaryMode
         self.permissionMode = permissionMode
         self.collaborationMode = collaborationMode
         self.speedMode = speedMode
@@ -82,6 +89,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.environment = try container.decodeIfPresent([String: String].self, forKey: .environment) ?? [:]
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
         self.effort = try container.decodeIfPresent(String.self, forKey: .effort)
+        self.reasoningSummaryMode = try container.decodeIfPresent(AgentReasoningSummaryMode.self, forKey: .reasoningSummaryMode)
         self.permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode)
         self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
         self.speedMode = try container.decodeIfPresent(AgentSpeedMode.self, forKey: .speedMode)
@@ -144,6 +152,18 @@ public enum AgentSpeedMode: String, Codable, Equatable, Sendable {
     case standard
     /// Faster provider behavior, where supported by the provider.
     case fast
+}
+
+/// Provider-neutral reasoning summary mode for agent sessions.
+public enum AgentReasoningSummaryMode: String, Codable, Equatable, Sendable {
+    /// Let the provider decide the summary verbosity.
+    case auto
+    /// Ask the provider for concise reasoning summaries.
+    case concise
+    /// Ask the provider for detailed reasoning summaries.
+    case detailed
+    /// Disable provider reasoning summaries.
+    case none
 }
 
 /// Runtime status for a host conversation.

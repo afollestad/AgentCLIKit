@@ -5,12 +5,6 @@ final class CodexAppServerProtocolFixtureTests: XCTestCase {
     func testProtocolValidationFixtureDocumentsRequiredCodexAppServerCoverage() throws {
         let fixture = try Self.fixture()
 
-        XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.142.0-alpha.6")
-        XCTAssertEqual(fixture.value(at: ["documentation", "transport", "default"]) as? String, "stdio://")
-        XCTAssertEqual(fixture.value(at: ["documentation", "jsonRPC", "wireOmitsJsonrpcHeader"]) as? Bool, true)
-        XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireLiveCodexAuth"]) as? Bool, false)
-        XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireNetwork"]) as? Bool, false)
-
         let serverNotifications = try XCTUnwrap(fixture.value(at: ["schema", "serverNotificationsRelevantToV1"]) as? [String])
         XCTAssertTrue(serverNotifications.contains("thread/started"))
         XCTAssertTrue(serverNotifications.contains("thread/name/updated"))
@@ -62,6 +56,33 @@ final class CodexAppServerProtocolFixtureTests: XCTestCase {
                 at: ["schema", "approvalResponses", "permissionProfile", "denialSemantics", "liveProbeStatus"]
             ) as? String,
             "notTriggeredByPromptedRequest"
+        )
+    }
+
+    func testProtocolValidationFixtureDocumentsTransportPolicy() throws {
+        let fixture = try Self.fixture()
+
+        XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.142.0")
+        XCTAssertEqual(fixture.value(at: ["documentation", "transport", "default"]) as? String, "stdio://")
+        XCTAssertEqual(fixture.value(at: ["documentation", "jsonRPC", "wireOmitsJsonrpcHeader"]) as? Bool, true)
+        XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireLiveCodexAuth"]) as? Bool, false)
+        XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireNetwork"]) as? Bool, false)
+    }
+
+    func testProtocolValidationFixtureDocumentsReasoningNotifications() throws {
+        let fixture = try Self.fixture()
+        let serverNotifications = try XCTUnwrap(fixture.value(at: ["schema", "serverNotificationsRelevantToV1"]) as? [String])
+
+        XCTAssertTrue(serverNotifications.contains("item/reasoning/summaryPartAdded"))
+        XCTAssertTrue(serverNotifications.contains("item/reasoning/summaryTextDelta"))
+        XCTAssertTrue(serverNotifications.contains("item/reasoning/textDelta"))
+        XCTAssertEqual(
+            fixture.value(at: ["schema", "reasoningNotifications", "summaryTextDelta", "fields", "summaryIndex"]) as? String,
+            "number"
+        )
+        XCTAssertEqual(
+            fixture.value(at: ["schema", "reasoningNotifications", "textDelta", "fields", "contentIndex"]) as? String,
+            "number"
         )
     }
 

@@ -1,6 +1,6 @@
 {
   "codexCLI": {
-    "version": "codex-cli 0.142.0-alpha.6",
+    "version": "codex-cli 0.142.0",
     "schemaCommands": [
       "codex app-server generate-json-schema --out <redacted:path>",
       "codex app-server generate-ts --out <redacted:path>"
@@ -88,11 +88,48 @@
       "item/started",
       "item/completed",
       "item/agentMessage/delta",
+      "item/reasoning/summaryPartAdded",
+      "item/reasoning/summaryTextDelta",
+      "item/reasoning/textDelta",
       "fileChange/patch/updated",
       "model/rerouted",
       "model/verification",
       "serverRequest/resolved"
     ],
+    "reasoningNotifications": {
+      "summaryPartAdded": {
+        "method": "item/reasoning/summaryPartAdded",
+        "fields": {
+          "threadId": "string",
+          "turnId": "string",
+          "itemId": "string",
+          "summaryIndex": "number"
+        },
+        "v1Guidance": "Part lifecycle notification only; live text arrives through summaryTextDelta."
+      },
+      "summaryTextDelta": {
+        "method": "item/reasoning/summaryTextDelta",
+        "fields": {
+          "threadId": "string",
+          "turnId": "string",
+          "itemId": "string",
+          "summaryIndex": "number",
+          "delta": "string"
+        },
+        "v1Guidance": "Map to provider-neutral reasoning using summary metadata."
+      },
+      "textDelta": {
+        "method": "item/reasoning/textDelta",
+        "fields": {
+          "threadId": "string",
+          "turnId": "string",
+          "itemId": "string",
+          "contentIndex": "number",
+          "delta": "string"
+        },
+        "v1Guidance": "Keep passively decoded for raw reasoning if a provider emits it; do not enable raw reasoning solely for v1."
+      }
+    },
     "threadMetadata": {
       "threadObject": {
         "id": "opaque string",

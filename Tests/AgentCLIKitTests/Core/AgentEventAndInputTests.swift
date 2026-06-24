@@ -259,6 +259,7 @@ final class AgentEventAndInputTests: XCTestCase {
         let config = AgentSpawnConfig(
             providerId: .claude,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            reasoningSummaryMode: .auto,
             permissionMode: "on-request",
             collaborationMode: .plan
         )
@@ -266,14 +267,17 @@ final class AgentEventAndInputTests: XCTestCase {
         let data = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: data)
         var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        legacyObject.removeValue(forKey: "reasoningSummaryMode")
         legacyObject.removeValue(forKey: "permissionMode")
         legacyObject.removeValue(forKey: "collaborationMode")
         let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
         let legacyDecoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: legacyData)
 
+        XCTAssertEqual(decoded.reasoningSummaryMode, .auto)
         XCTAssertEqual(decoded.permissionMode, "on-request")
         XCTAssertEqual(decoded.collaborationMode, .plan)
         XCTAssertEqual(decoded, config)
+        XCTAssertNil(legacyDecoded.reasoningSummaryMode)
         XCTAssertNil(legacyDecoded.permissionMode)
         XCTAssertNil(legacyDecoded.collaborationMode)
     }

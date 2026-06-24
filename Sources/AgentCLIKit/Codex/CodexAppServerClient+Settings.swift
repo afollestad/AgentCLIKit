@@ -66,6 +66,9 @@ extension CodexAppServerClient {
         if let effort = spawnConfig.effort {
             params["effort"] = .string(effort)
         }
+        if let reasoningSummaryMode = spawnConfig.reasoningSummaryMode {
+            params["summary"] = .string(reasoningSummaryMode.rawValue)
+        }
         if let collaborationMode = try collaborationModeValue(spawnConfig: spawnConfig) {
             params["collaborationMode"] = collaborationMode
         }

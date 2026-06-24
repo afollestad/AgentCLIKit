@@ -293,6 +293,7 @@ struct ClaudeStreamEvent: Decodable {
 struct ClaudeStreamDelta: Decodable {
     let type: String
     let text: String?
+    let thinking: String?
 }
 
 struct ClaudeToolCaller: Decodable {

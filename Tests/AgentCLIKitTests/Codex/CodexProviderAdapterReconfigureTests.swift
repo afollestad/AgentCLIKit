@@ -12,6 +12,7 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
             model: "model-a",
             effort: "high",
+            reasoningSummaryMode: .auto,
             permissionMode: "on-request",
             collaborationMode: .plan,
             initialPrompt: "Implement it"
@@ -31,8 +32,10 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
         XCTAssertEqual(settingsParams["cwd"], .string("/tmp/project"))
         XCTAssertEqual(settingsParams["model"], .string("model-a"))
         XCTAssertEqual(settingsParams["effort"], .string("high"))
+        XCTAssertEqual(settingsParams["summary"], .string("auto"))
         XCTAssertEqual(settingsParams["approvalPolicy"], .string("on-request"))
         XCTAssertEqual(settingsParams["collaborationMode"], Self.collaborationModeValue(mode: "plan", model: "model-a", effort: "high"))
+        XCTAssertEqual(turnStartParams["summary"], .string("auto"))
         XCTAssertEqual(turnStartParams["collaborationMode"], settingsParams["collaborationMode"])
         XCTAssertEqual(turnStartParams["input"], Self.inputValue("Implement it"))
     }
@@ -50,6 +53,7 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
             workingDirectory: URL(fileURLWithPath: "/tmp/other-project"),
             model: "model-b",
             effort: "medium",
+            reasoningSummaryMode: .detailed,
             permissionMode: "on-request",
             collaborationMode: .default
         )
@@ -72,9 +76,11 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
         XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "thread/settings/update", "turn/start"])
         XCTAssertEqual(settingsParams["cwd"], .string("/tmp/other-project"))
         XCTAssertEqual(settingsParams["model"], .string("model-b"))
+        XCTAssertEqual(settingsParams["summary"], .string("detailed"))
         XCTAssertEqual(settingsParams["collaborationMode"], Self.collaborationModeValue(mode: "default", model: "model-b", effort: "medium"))
         XCTAssertEqual(turnStartParams["cwd"], .string("/tmp/other-project"))
         XCTAssertEqual(turnStartParams["model"], .string("model-b"))
+        XCTAssertEqual(turnStartParams["summary"], .string("detailed"))
         XCTAssertEqual(turnStartParams["collaborationMode"], settingsParams["collaborationMode"])
     }
 
@@ -161,6 +167,7 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
             providerId: .codex,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
             model: "model-a",
+            reasoningSummaryMode: .concise,
             collaborationMode: .plan
         )
 
@@ -183,6 +190,7 @@ final class CodexProviderAdapterReconfigureTests: XCTestCase {
 
         XCTAssertEqual(result, .nextTurnRequired)
         XCTAssertEqual(requestLog.map(\.method), ["initialize", "thread/start", "turn/start"])
+        XCTAssertEqual(turnStartParams["summary"], .string("concise"))
         XCTAssertEqual(turnStartParams["collaborationMode"], Self.collaborationModeValue(mode: "plan", model: "model-a", effort: nil))
     }
 

@@ -233,16 +233,6 @@ public struct ClaudeStreamDecoder: Sendable {
         ))]
     }
 
-    private func streamEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
-        guard envelope.event?.type == "content_block_delta",
-              envelope.event?.delta?.type == "text_delta",
-              let text = envelope.event?.delta?.text,
-              !text.isEmpty else {
-            return []
-        }
-        return [.messageDelta(AgentMessageDeltaEvent(role: .assistant, text: text, metadata: envelope.parentMetadata))]
-    }
-
     private func resultEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
         var events: [AgentEvent] = []
         let matchedModelUsage = envelope.matchedModelUsage()
