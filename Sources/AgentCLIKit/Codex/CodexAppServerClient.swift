@@ -248,6 +248,7 @@ actor CodexAppServerClient {
             throw AgentCLIError.invalidInput("Codex App Server thread is unavailable.")
         }
         let transport = try await initializedTransport()
+        try await validateAppshotPolicyIfNeeded(message, transport: transport)
         if message.metadata[AgentGoalMetadata.isInitialGoalTransport] == .bool(true),
            case let .string(objective)? = message.metadata[AgentGoalMetadata.objective],
            !objective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -291,6 +292,7 @@ actor CodexAppServerClient {
             throw AgentCLIError.invalidInput("Codex active turn id is unavailable for steering.")
         }
         let transport = try await initializedTransport()
+        try await validateAppshotPolicyIfNeeded(message, transport: transport)
         let pendingSteeringInput = try pendingSteeringInput(for: message)
         if let pendingSteeringInput {
             binding.pendingSteeringInputs[pendingSteeringInput.inputId] = pendingSteeringInput
@@ -299,7 +301,7 @@ actor CodexAppServerClient {
         var params: [String: JSONValue] = [
             "threadId": .string(binding.threadId.rawValue),
             "expectedTurnId": .string(activeTurnId),
-            "input": userInputArray(message)
+            "input": try userInputArray(message)
         ]
         if let pendingSteeringInput {
             params["clientUserMessageId"] = .string(pendingSteeringInput.inputId)

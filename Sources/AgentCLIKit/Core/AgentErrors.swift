@@ -18,6 +18,8 @@ public enum AgentErrorCode: String, Codable, Hashable, Sendable {
     case invalidInput
     /// The host requested a provider capability that is not currently supported.
     case unsupportedCapability
+    /// The host sent an input attachment that the provider cannot encode.
+    case unsupportedInputAttachment
     /// The provider supports a capability, but it is unavailable for the current session or project.
     case goalUnavailable
 }
@@ -40,6 +42,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
     case invalidInput(String)
     /// The host requested a provider capability that is not currently supported.
     case unsupportedCapability(providerId: AgentProviderID, capability: String)
+    /// The host sent an input attachment that the provider cannot encode.
+    case unsupportedInputAttachment(providerId: AgentProviderID, attachmentId: String, type: String, reason: String)
     /// The provider supports Goal mode, but goal control is unavailable for the current session or project.
     case goalUnavailable(providerId: AgentProviderID, reason: String)
 
@@ -62,6 +66,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             .invalidInput
         case .unsupportedCapability:
             .unsupportedCapability
+        case .unsupportedInputAttachment:
+            .unsupportedInputAttachment
         case .goalUnavailable:
             .goalUnavailable
         }
@@ -90,6 +96,13 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
                 "provider_id": .string(providerId.rawValue),
                 "capability": .string(capability)
             ]
+        case let .unsupportedInputAttachment(providerId, attachmentId, type, reason):
+            [
+                "provider_id": .string(providerId.rawValue),
+                "attachment_id": .string(attachmentId),
+                "attachment_type": .string(type),
+                "reason": .string(reason)
+            ]
         case let .goalUnavailable(providerId, reason):
             [
                 "provider_id": .string(providerId.rawValue),
@@ -117,6 +130,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             "Invalid agent input: \(message)"
         case let .unsupportedCapability(providerId, capability):
             "Provider '\(providerId.rawValue)' does not support \(capability)."
+        case let .unsupportedInputAttachment(providerId, attachmentId, type, reason):
+            "Provider '\(providerId.rawValue)' cannot encode attachment '\(attachmentId)' of type '\(type)': \(reason)"
         case let .goalUnavailable(providerId, reason):
             "Provider '\(providerId.rawValue)' cannot control the active goal: \(reason)"
         }

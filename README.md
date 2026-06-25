@@ -142,10 +142,13 @@ Treat `AgentSpawnConfig` as the host-facing settings source of truth. `permissio
 collaboration uses `collaborationMode`: pass `.plan` to enter plan mode, `.default` to leave it, and `nil` when the host is
 not overriding provider collaboration state. Speed uses `speedMode`: pass `.fast` only when
 `AgentProviderCapabilities.supportsSpeedMode` is true, `.standard` to force supported providers back to normal behavior,
-and `nil` to preserve provider defaults. Claude exposes `bypassPermissions` as an explicit dangerous approval policy;
-AgentCLIKit unlocks that mode for the launch without using `--dangerously-skip-permissions`. Codex plan mode requires a
-concrete selected `model`. To fork provider context into a new host conversation, pass `sessionFork` with the source
-provider session ID and the target `workingDirectory`; copied host transcript records are not provider context.
+and `nil` to preserve provider defaults. Local image input uses `AgentMessageInput.attachments`; show image-attachment UI
+only when `AgentProviderCapabilities.supportsLocalImageInput` is true. Providers that cannot encode an attachment throw
+`AgentCLIError.unsupportedInputAttachment`, so hosts should fall back to visible prompt text such as Markdown image links
+before sending. Claude exposes `bypassPermissions` as an explicit dangerous approval policy; AgentCLIKit unlocks that mode
+for the launch without using `--dangerously-skip-permissions`. Codex plan mode requires a concrete selected `model`. To
+fork provider context into a new host conversation, pass `sessionFork` with the source provider session ID and the target
+`workingDirectory`; copied host transcript records are not provider context.
 
 For one final answer without a runtime conversation, use `DefaultAgentOneShotPromptRunner`. It invokes provider CLIs in
 read-only mode and does not create AgentCLIKit runtime state. Codex uses `codex exec --ephemeral --json` rather than Codex

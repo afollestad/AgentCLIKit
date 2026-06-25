@@ -487,6 +487,26 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(data.last, 0x0A)
     }
 
+    func testInputEncoderRejectsAttachments() throws {
+        let input = AgentInput.userMessage(AgentMessageInput(
+            text: "Look at this",
+            attachments: [
+                .localImage(id: "image-1", fileURL: URL(fileURLWithPath: "/tmp/screenshot.png"))
+            ]
+        ))
+
+        XCTAssertThrowsError(try ClaudeInputEncoder().encode(input)) { error in
+            guard case let AgentCLIError.unsupportedInputAttachment(providerId, attachmentId, type, reason) = error else {
+                XCTFail("Expected unsupportedInputAttachment, got \(error).")
+                return
+            }
+            XCTAssertEqual(providerId, .claude)
+            XCTAssertEqual(attachmentId, "image-1")
+            XCTAssertEqual(type, "localImage")
+            XCTAssertEqual(reason, "Claude input transport is text-only.")
+        }
+    }
+
     func testInputEncoderEncodesInteractionResolutionAsEmptyData() throws {
         // The Claude CLI has no stdin message type for interaction resolutions; they resolve via hooks instead.
         let resolution = AgentInteractionResolution(

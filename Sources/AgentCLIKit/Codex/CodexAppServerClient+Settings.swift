@@ -41,7 +41,7 @@ extension CodexAppServerClient {
     ) throws -> JSONValue {
         var params: [String: JSONValue] = [
             "threadId": .string(binding.threadId.rawValue),
-            "input": userInputArray(message)
+            "input": try userInputArray(message)
         ]
         if includeSettings {
             params.merge(try stickySettingsParams(
@@ -155,11 +155,62 @@ extension CodexAppServerClient {
         ])
     }
 
-    func userInputArray(_ message: AgentMessageInput) -> JSONValue {
-        .array([.object([
+    func validateAppshotPolicyIfNeeded(
+        _ message: AgentMessageInput,
+        transport: any CodexAppServerTransport
+    ) async throws {
+        guard message.metadata[CodexInputMetadata.isAppshot] == .bool(true) else {
+            return
+        }
+        let response = try await transport.sendRequest(method: "configRequirements/read", params: .null)
+        guard response.requirementsAllowAppshots == false else {
+            return
+        }
+        throw AgentCLIError.unsupportedCapability(
+            providerId: CodexProviderAdapter.providerId,
+            capability: "app shots"
+        )
+    }
+
+    func userInputArray(_ message: AgentMessageInput) throws -> JSONValue {
+        var input: [JSONValue] = [.object([
             "type": .string("text"),
             "text": .string(message.text),
             "text_elements": .array([])
-        ])])
+        ])]
+        for attachment in message.attachments {
+            guard attachment.isLocalImage else {
+                throw AgentCLIError.unsupportedInputAttachment(
+                    providerId: CodexProviderAdapter.providerId,
+                    attachmentId: attachment.id,
+                    type: attachment.type,
+                    reason: "Codex only supports local image attachments."
+                )
+            }
+            guard let fileURL = attachment.fileURL, fileURL.isFileURL, !fileURL.path.isEmpty else {
+                throw AgentCLIError.unsupportedInputAttachment(
+                    providerId: CodexProviderAdapter.providerId,
+                    attachmentId: attachment.id,
+                    type: attachment.type,
+                    reason: "Local image attachments require a file URL."
+                )
+            }
+            input.append(.object([
+                "type": .string("localImage"),
+                "path": .string(fileURL.path)
+            ]))
+        }
+        return .array(input)
+    }
+}
+
+private extension JSONValue {
+    var requirementsAllowAppshots: Bool? {
+        guard case let .object(response) = self,
+              case let .object(requirements)? = response["requirements"],
+              case let .bool(allowAppshots)? = requirements["allowAppshots"] else {
+            return nil
+        }
+        return allowAppshots
     }
 }

@@ -236,6 +236,9 @@ final class AgentEventAndInputTests: XCTestCase {
         let input = AgentInput.userMessage(
             AgentMessageInput(
                 text: "Implement it",
+                attachments: [
+                    .localImage(id: "image-1", fileURL: URL(fileURLWithPath: "/tmp/screenshot.png"))
+                ],
                 metadata: ["priority": .string("normal")]
             )
         )
@@ -244,6 +247,21 @@ final class AgentEventAndInputTests: XCTestCase {
         let decoded = try JSONDecoder().decode(AgentInput.self, from: data)
 
         XCTAssertEqual(decoded, input)
+    }
+
+    func testAttachmentHelpersExposeLocalImageType() {
+        let attachment = AgentInputAttachment.localImage(
+            id: "image-1",
+            fileURL: URL(fileURLWithPath: "/tmp/screenshot.png")
+        )
+
+        XCTAssertEqual(attachment.id, "image-1")
+        XCTAssertEqual(attachment.type, "localImage")
+        XCTAssertTrue(attachment.isLocalImage)
+    }
+
+    func testCodexInputMetadataKeysAreStable() {
+        XCTAssertEqual(CodexInputMetadata.isAppshot, "codex_input_is_appshot")
     }
 
     func testSteeringMetadataKeysAreStable() {

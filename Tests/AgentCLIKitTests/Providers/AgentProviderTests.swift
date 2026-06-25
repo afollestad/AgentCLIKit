@@ -160,7 +160,8 @@ final class AgentProviderTests: XCTestCase {
                 supportsPermissionPrompts: true,
                 supportsModelOptions: true,
                 supportsSessionArchiving: true,
-                supportsSessionUnarchiving: true
+                supportsSessionUnarchiving: true,
+                supportsLocalImageInput: true
             ),
             supportedPermissionModes: [
                 AgentProviderOption(value: "plan", label: "Plan", description: "Read-only planning.")
@@ -184,7 +185,13 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertTrue(decoded.capabilities.supportsSpeedMode)
         XCTAssertTrue(decoded.capabilities.supportsSessionArchiving)
         XCTAssertTrue(decoded.capabilities.supportsSessionUnarchiving)
+        XCTAssertTrue(decoded.capabilities.supportsLocalImageInput)
         assertLegacyProviderDefinitionDefaults(legacy)
+    }
+
+    func testProviderDefinitionsReportLocalImageSupport() {
+        XCTAssertTrue(CodexProviderDefinition.definition.capabilities.supportsLocalImageInput)
+        XCTAssertFalse(ClaudeProviderDefinition.definition.capabilities.supportsLocalImageInput)
     }
 
     func testProviderCapabilitiesDecodeLegacyModelListingKey() throws {

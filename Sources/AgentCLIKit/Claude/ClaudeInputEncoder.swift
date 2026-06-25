@@ -14,6 +14,7 @@ public struct ClaudeInputEncoder: Sendable {
         let payload: ClaudeInputPayload
         switch input {
         case let .userMessage(message):
+            try Self.validateNoAttachments(message)
             payload = ClaudeInputPayload.user(text: message.text)
         case .interrupt:
             payload = ClaudeInputPayload(type: "interrupt", message: nil)
@@ -23,6 +24,18 @@ public struct ClaudeInputEncoder: Sendable {
         var data = try JSONEncoder().encode(payload)
         data.append(0x0A)
         return data
+    }
+
+    private static func validateNoAttachments(_ message: AgentMessageInput) throws {
+        guard let attachment = message.attachments.first else {
+            return
+        }
+        throw AgentCLIError.unsupportedInputAttachment(
+            providerId: ClaudeProviderAdapter.providerId,
+            attachmentId: attachment.id,
+            type: attachment.type,
+            reason: "Claude input transport is text-only."
+        )
     }
 }
 

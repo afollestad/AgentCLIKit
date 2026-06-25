@@ -92,6 +92,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsSessionArchiving: Bool
     /// Whether the provider can unarchive a native provider session.
     public let supportsSessionUnarchiving: Bool
+    /// Whether the provider can receive local image files as structured message attachments.
+    public let supportsLocalImageInput: Bool
 
     /// Creates provider capability metadata.
     public init(
@@ -117,7 +119,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         supportsPermissionPrompts: Bool = false,
         supportsModelOptions: Bool = false,
         supportsSessionArchiving: Bool = false,
-        supportsSessionUnarchiving: Bool = false
+        supportsSessionUnarchiving: Bool = false,
+        supportsLocalImageInput: Bool = false
     ) {
         self.supportsSessionResume = supportsSessionResume
         self.supportsHooks = supportsHooks
@@ -142,6 +145,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsModelOptions = supportsModelOptions
         self.supportsSessionArchiving = supportsSessionArchiving
         self.supportsSessionUnarchiving = supportsSessionUnarchiving
+        self.supportsLocalImageInput = supportsLocalImageInput
     }
 
     /// Decodes capability metadata, defaulting additive fields for older persisted values.
@@ -174,6 +178,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
             ?? (try container.decodeIfPresent(Bool.self, forKey: .supportsModelListing) ?? false)
         self.supportsSessionArchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionArchiving) ?? false
         self.supportsSessionUnarchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionUnarchiving) ?? false
+        self.supportsLocalImageInput = try container.decodeIfPresent(Bool.self, forKey: .supportsLocalImageInput) ?? false
     }
 
     /// Encodes capability metadata using current public keys.
@@ -202,6 +207,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         try container.encode(supportsModelOptions, forKey: .supportsModelOptions)
         try container.encode(supportsSessionArchiving, forKey: .supportsSessionArchiving)
         try container.encode(supportsSessionUnarchiving, forKey: .supportsSessionUnarchiving)
+        try container.encode(supportsLocalImageInput, forKey: .supportsLocalImageInput)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -229,6 +235,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         case supportsModelListing
         case supportsSessionArchiving
         case supportsSessionUnarchiving
+        case supportsLocalImageInput
     }
 }
 
@@ -257,7 +264,8 @@ extension AgentProviderCapabilities {
             supportsPermissionPrompts: self.supportsPermissionPrompts,
             supportsModelOptions: self.supportsModelOptions,
             supportsSessionArchiving: self.supportsSessionArchiving,
-            supportsSessionUnarchiving: self.supportsSessionUnarchiving
+            supportsSessionUnarchiving: self.supportsSessionUnarchiving,
+            supportsLocalImageInput: self.supportsLocalImageInput
         )
     }
 
@@ -290,7 +298,8 @@ extension AgentProviderCapabilities {
             supportsPermissionPrompts: self.supportsPermissionPrompts,
             supportsModelOptions: self.supportsModelOptions,
             supportsSessionArchiving: self.supportsSessionArchiving,
-            supportsSessionUnarchiving: self.supportsSessionUnarchiving
+            supportsSessionUnarchiving: self.supportsSessionUnarchiving,
+            supportsLocalImageInput: self.supportsLocalImageInput
         )
     }
 }

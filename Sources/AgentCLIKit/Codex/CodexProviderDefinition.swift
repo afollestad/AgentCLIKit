@@ -31,7 +31,8 @@ public enum CodexProviderDefinition {
             supportsPermissionPrompts: true,
             supportsModelOptions: true,
             supportsSessionArchiving: true,
-            supportsSessionUnarchiving: true
+            supportsSessionUnarchiving: true,
+            supportsLocalImageInput: true
         ),
         supportedPermissionModes: [
             AgentProviderOption(

@@ -29,6 +29,9 @@ public struct AgentMessageInput: Codable, Equatable, Sendable {
 
 /// File or data attachment associated with a user message.
 public struct AgentInputAttachment: Codable, Equatable, Sendable {
+    /// Provider-neutral attachment type for local image files.
+    public static let localImageType = "localImage"
+
     /// Stable attachment identifier.
     public let id: String
     /// Local file URL when the attachment lives on disk.
@@ -41,6 +44,16 @@ public struct AgentInputAttachment: Codable, Equatable, Sendable {
         self.id = id
         self.fileURL = fileURL
         self.type = type
+    }
+
+    /// Creates a local image attachment backed by an absolute file URL.
+    public static func localImage(id: String, fileURL: URL) -> AgentInputAttachment {
+        AgentInputAttachment(id: id, fileURL: fileURL, type: localImageType)
+    }
+
+    /// Whether this attachment should be encoded as provider-local image input.
+    public var isLocalImage: Bool {
+        type == Self.localImageType
     }
 }
 

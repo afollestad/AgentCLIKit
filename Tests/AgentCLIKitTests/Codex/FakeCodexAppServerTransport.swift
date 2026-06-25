@@ -25,6 +25,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private var threadPreviews: [String?]
     private var threadForkedFromIds: [String?]
     private var modelListResponses: [JSONValue]
+    private var configRequirementsResponse: JSONValue
     private var goal: [String: JSONValue]?
     private let failModelListRequests: Bool
     private let failModelListRequestsAfterSuccessCount: Int?
@@ -48,6 +49,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         threadPreviews: [String?] = [],
         threadForkedFromIds: [String?] = [],
         modelListResponses: [JSONValue] = [],
+        configRequirementsResponse: JSONValue = .object(["requirements": .null]),
         goal: [String: JSONValue]? = nil,
         failModelListRequests: Bool = false,
         failModelListRequestsAfterSuccessCount: Int? = nil,
@@ -58,6 +60,7 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         self.threadPreviews = threadPreviews
         self.threadForkedFromIds = threadForkedFromIds
         self.modelListResponses = modelListResponses
+        self.configRequirementsResponse = configRequirementsResponse
         self.goal = goal
         self.failModelListRequests = failModelListRequests
         self.failModelListRequestsAfterSuccessCount = failModelListRequestsAfterSuccessCount
@@ -105,6 +108,8 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
             return .object(["turnId": .string("turn-\(turnIndex)")])
         case "turn/interrupt":
             return .object([:])
+        case "configRequirements/read":
+            return configRequirementsResponse
         case "thread/archive", "thread/unarchive", "thread/delete":
             return .object([:])
         case "thread/goal/set":

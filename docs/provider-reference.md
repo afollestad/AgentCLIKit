@@ -44,6 +44,11 @@ Provider-neutral speed lives in `speedMode`: `.fast` requests faster provider be
 behavior, and `nil` means the host is not overriding speed. Inspect
 `AgentProviderCapabilities.supportsSpeedMode` before showing or sending `.fast`.
 
+Provider-neutral local image input lives in `AgentMessageInput.attachments`. Inspect
+`AgentProviderCapabilities.supportsLocalImageInput` before staging image attachments; unsupported providers throw
+`AgentCLIError.unsupportedInputAttachment` instead of rewriting the prompt. Typed or pasted Markdown image links are
+ordinary text from AgentCLIKit's perspective.
+
 Provider-neutral session forks live in `sessionFork`. Hosts create a new conversation with the target
 `workingDirectory`, set `sessionFork.sourceSessionId` to the source provider session, and copy host transcript rows only
 for UI continuity. Provider context comes from the native fork request, not from replaying copied host records.
@@ -64,6 +69,7 @@ Inspect `AgentProviderDefinition.capabilities` before showing provider-specific 
 | Approvals | Supported through hooks | Supported through App Server requests |
 | Plan/default collaboration | `AgentSpawnConfig.collaborationMode`; Claude maps plan to internal `--permission-mode plan` | `AgentSpawnConfig.collaborationMode`; requires a concrete model |
 | Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `AgentSpawnConfig.speedMode` when Codex reports `fast_mode` support |
+| Local image input | Not supported; send image references as prompt text when desired | Supported through App Server `localImage` user input |
 | Runtime reconfigure | Process replacement or resume path | Idle threads use `thread/settings/update`; active turns require next-turn staging |
 | Context compaction | Supported through hooks and stream frames | Supported through App Server notifications and items |
 | MCP | Supported | Supported |
@@ -113,6 +119,10 @@ Claude model options come from `ClaudeModelOptionSource`.
 Claude speed mode is intentionally unsupported. The Claude CLI exposes `--bare`, but that disables hooks and other host
 integration surfaces, so AgentCLIKit does not map it to `AgentSpeedMode.fast`.
 
+Claude input transport is text-only. If a host wants Claude to see a local image path, include that reference in the
+prompt text and grant filesystem access through Claude launch arguments when needed; do not send it as an
+`AgentInputAttachment`.
+
 Claude forks use `AgentSpawnConfig.sessionFork` to locate the source session artifact and launch the target process with
 `--resume <source> --fork-session` from the target `workingDirectory`. Worktree forks should pass the source working
 directory when it differs from the target.
@@ -148,6 +158,11 @@ App Server with global `--enable fast_mode`.
 
 Codex runtime cancellation maps to `turn/interrupt` when Codex reports an active turn. Mid-turn user input uses
 `turn/steer`.
+
+Codex local image attachments encode as App Server `localImage` user input items after the text item on both `turn/start`
+and `turn/steer`. Mark app-shot inputs with `CodexInputMetadata.isAppshot`; AgentCLIKit reads
+`configRequirements/read.requirements.allowAppshots` before sending those marked inputs and blocks only when the managed
+requirement is explicitly `false`. Ordinary local image attachments are not blocked by app-shot policy.
 
 Codex forks use App Server `thread/fork` with the source `threadId` plus target settings accepted by `ThreadForkParams`,
 including `cwd`, `model`, approval policy, and config. Failed fork cleanup can delete unbound target threads with
