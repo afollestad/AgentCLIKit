@@ -44,7 +44,8 @@ Provider-neutral speed lives in `speedMode`: `.fast` requests faster provider be
 behavior, and `nil` means the host is not overriding speed. Inspect
 `AgentProviderCapabilities.supportsSpeedMode` before showing or sending `.fast`.
 
-Provider-neutral local image input lives in `AgentMessageInput.attachments`. Inspect
+Provider-neutral local image input lives in `AgentMessageInput.attachments`. Setup sends can carry the same data through
+`AgentSpawnConfig.initialPromptAttachments` and `initialPromptMetadata`. Inspect
 `AgentProviderCapabilities.supportsLocalImageInput` before staging image attachments; unsupported providers throw
 `AgentCLIError.unsupportedInputAttachment` instead of rewriting the prompt. Typed or pasted Markdown image links are
 ordinary text from AgentCLIKit's perspective.

@@ -46,6 +46,10 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     public let forkSession: Bool
     /// Optional initial prompt sent by the provider launch command.
     public let initialPrompt: String?
+    /// Optional attachments sent with the initial prompt when the provider supports structured input.
+    public let initialPromptAttachments: [AgentInputAttachment]
+    /// Provider-neutral metadata sent with the initial prompt.
+    public let initialPromptMetadata: [String: JSONValue]
 
     /// Creates a spawn configuration.
     public init(
@@ -62,7 +66,9 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         initialGoal: String? = nil,
         sessionFork: AgentSessionForkRequest? = nil,
         forkSession: Bool = false,
-        initialPrompt: String? = nil
+        initialPrompt: String? = nil,
+        initialPromptAttachments: [AgentInputAttachment] = [],
+        initialPromptMetadata: [String: JSONValue] = [:]
     ) {
         self.providerId = providerId
         self.workingDirectory = workingDirectory
@@ -78,6 +84,8 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.sessionFork = sessionFork
         self.forkSession = forkSession || sessionFork != nil
         self.initialPrompt = initialPrompt
+        self.initialPromptAttachments = initialPromptAttachments
+        self.initialPromptMetadata = initialPromptMetadata
     }
 
     /// Decodes spawn configuration, defaulting additive fields for older persisted values.
@@ -97,6 +105,8 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.sessionFork = try container.decodeIfPresent(AgentSessionForkRequest.self, forKey: .sessionFork)
         self.forkSession = (try container.decodeIfPresent(Bool.self, forKey: .forkSession) ?? false) || sessionFork != nil
         self.initialPrompt = try container.decodeIfPresent(String.self, forKey: .initialPrompt)
+        self.initialPromptAttachments = try container.decodeIfPresent([AgentInputAttachment].self, forKey: .initialPromptAttachments) ?? []
+        self.initialPromptMetadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .initialPromptMetadata) ?? [:]
     }
 }
 

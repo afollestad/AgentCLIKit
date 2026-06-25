@@ -142,7 +142,8 @@ Treat `AgentSpawnConfig` as the host-facing settings source of truth. `permissio
 collaboration uses `collaborationMode`: pass `.plan` to enter plan mode, `.default` to leave it, and `nil` when the host is
 not overriding provider collaboration state. Speed uses `speedMode`: pass `.fast` only when
 `AgentProviderCapabilities.supportsSpeedMode` is true, `.standard` to force supported providers back to normal behavior,
-and `nil` to preserve provider defaults. Local image input uses `AgentMessageInput.attachments`; show image-attachment UI
+and `nil` to preserve provider defaults. Local image input uses `AgentMessageInput.attachments`; setup sends can carry
+the same data through `AgentSpawnConfig.initialPromptAttachments` and `initialPromptMetadata`. Show image-attachment UI
 only when `AgentProviderCapabilities.supportsLocalImageInput` is true. Providers that cannot encode an attachment throw
 `AgentCLIError.unsupportedInputAttachment`, so hosts should fall back to visible prompt text such as Markdown image links
 before sending. Claude exposes `bypassPermissions` as an explicit dangerous approval policy; AgentCLIKit unlocks that mode

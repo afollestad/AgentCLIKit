@@ -211,10 +211,16 @@ actor CodexAppServerClient {
         }
         binding.initialPromptStarted = true
         bindingsByConversation[conversationId] = binding
+        let attachments = binding.spawnConfig.initialPromptAttachments
+        let metadata = binding.spawnConfig.initialPromptMetadata
         Task {
             do {
                 try await self.startTurn(
-                    message: AgentMessageInput(text: initialPrompt),
+                    message: AgentMessageInput(
+                        text: initialPrompt,
+                        attachments: attachments,
+                        metadata: metadata
+                    ),
                     conversationId: conversationId
                 )
             } catch {

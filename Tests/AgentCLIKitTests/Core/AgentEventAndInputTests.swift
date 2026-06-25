@@ -279,7 +279,12 @@ final class AgentEventAndInputTests: XCTestCase {
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
             reasoningSummaryMode: .auto,
             permissionMode: "on-request",
-            collaborationMode: .plan
+            collaborationMode: .plan,
+            initialPrompt: "Inspect this",
+            initialPromptAttachments: [
+                .localImage(id: "image-1", fileURL: URL(fileURLWithPath: "/tmp/shot.png"))
+            ],
+            initialPromptMetadata: ["source": .string("test")]
         )
 
         let data = try JSONEncoder().encode(config)
@@ -288,16 +293,22 @@ final class AgentEventAndInputTests: XCTestCase {
         legacyObject.removeValue(forKey: "reasoningSummaryMode")
         legacyObject.removeValue(forKey: "permissionMode")
         legacyObject.removeValue(forKey: "collaborationMode")
+        legacyObject.removeValue(forKey: "initialPromptAttachments")
+        legacyObject.removeValue(forKey: "initialPromptMetadata")
         let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
         let legacyDecoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: legacyData)
 
         XCTAssertEqual(decoded.reasoningSummaryMode, .auto)
         XCTAssertEqual(decoded.permissionMode, "on-request")
         XCTAssertEqual(decoded.collaborationMode, .plan)
+        XCTAssertEqual(decoded.initialPromptAttachments, config.initialPromptAttachments)
+        XCTAssertEqual(decoded.initialPromptMetadata, config.initialPromptMetadata)
         XCTAssertEqual(decoded, config)
         XCTAssertNil(legacyDecoded.reasoningSummaryMode)
         XCTAssertNil(legacyDecoded.permissionMode)
         XCTAssertNil(legacyDecoded.collaborationMode)
+        XCTAssertEqual(legacyDecoded.initialPromptAttachments, [])
+        XCTAssertEqual(legacyDecoded.initialPromptMetadata, [:])
     }
 
     func testAgentSpawnConfigRoundTripsSessionForkThroughJSON() throws {

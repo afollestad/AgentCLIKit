@@ -531,7 +531,7 @@ private extension DefaultAgentRuntime {
                 isTurnActive: true
             )
             let data = try await prepared.adapter.encodeInput(
-                .userMessage(initialPromptInput(initialPrompt, goal: prepared.stateInput.spawnConfig.initialGoal)),
+                .userMessage(initialPromptInput(initialPrompt, spawnConfig: prepared.stateInput.spawnConfig)),
                 context: context
             )
             try writeInputData(
@@ -554,16 +554,16 @@ private extension DefaultAgentRuntime {
         }
     }
 
-    private func initialPromptInput(_ initialPrompt: String, goal: String?) -> AgentMessageInput {
-        guard let goal = goal?.trimmingCharacters(in: .whitespacesAndNewlines), !goal.isEmpty else {
-            return AgentMessageInput(text: initialPrompt)
+    private func initialPromptInput(_ initialPrompt: String, spawnConfig: AgentSpawnConfig) -> AgentMessageInput {
+        var metadata = spawnConfig.initialPromptMetadata
+        if let goal = spawnConfig.initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines), !goal.isEmpty {
+            metadata[AgentGoalMetadata.isInitialGoalTransport] = .bool(true)
+            metadata[AgentGoalMetadata.objective] = .string(goal)
         }
         return AgentMessageInput(
             text: initialPrompt,
-            metadata: [
-                AgentGoalMetadata.isInitialGoalTransport: .bool(true),
-                AgentGoalMetadata.objective: .string(goal)
-            ]
+            attachments: spawnConfig.initialPromptAttachments,
+            metadata: metadata
         )
     }
 }
