@@ -97,7 +97,11 @@ final class CodexAppServerItemEventDecoderTests: XCTestCase {
             .message(AgentMessageEvent(
                 role: .assistant,
                 text: "Done",
-                metadata: completedItemMetadata(itemId: "message-1", type: "agentMessage")
+                metadata: completedItemMetadata(
+                    itemId: "message-1",
+                    type: "agentMessage",
+                    values: ["codex_message_phase": .string("final")]
+                )
             ))
         ])
         XCTAssertEqual(reasoningEvents, [

@@ -268,6 +268,7 @@ struct CodexAppServerItemEventDecoder {
                 "codex_item_type": .string(type),
                 "codex_item_phase": .string(phase),
                 "codex_status": item["status"],
+                "codex_message_phase": (item.codexStringValue("phase") ?? params.codexStringValue("phase")).map(JSONValue.string),
                 "codex_client_user_message_id": item.codexStringValue(
                     "clientUserMessageId",
                     "client_user_message_id",
