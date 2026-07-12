@@ -23,6 +23,8 @@ Host apps should generally depend on:
 - `AgentProviderDiscoveryService`
 - `AgentProviderSetup`
 - `AgentSessionStore`
+- `AgentHostToolDefinition`
+- `AgentHostToolHandling`
 
 Provider adapters own native launch, input encoding, output decoding, session ID extraction, interaction resolution
 encoding, and native in-place reconfiguration when a provider can apply an `AgentSpawnConfig` without replacement.
@@ -72,6 +74,7 @@ Inspect `AgentProviderDefinition.capabilities` before showing provider-specific 
 | Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `AgentSpawnConfig.speedMode` when Codex reports `fast_mode` support |
 | Local image input | Not supported; send image references as prompt text when desired | Supported through App Server `localImage` user input |
 | Runtime reconfigure | Process replacement or resume path | Idle threads use `thread/settings/update`; active turns require next-turn staging |
+| Host tools and roots | Inline process-scoped MCP config plus `--add-dir` | Thread-scoped MCP config plus `runtimeWorkspaceRoots` |
 | Context compaction | Supported through hooks and stream frames | Supported through App Server notifications and items |
 | MCP | Supported | Supported |
 | Native fork | `--resume <source> --fork-session`; source artifact must exist | `thread/fork` |
@@ -262,6 +265,28 @@ CLI does not expose native archive actions.
 AgentCLIKit includes provider-neutral MCP config stores, provider-specific MCP bridges for Claude and Codex, and skill
 directory scanning/sync helpers. These primitives are host-neutral. Apps still own settings UI, enablement policy, and how
 MCP or skill state is presented to users.
+
+Host-owned runtime tools are separate from persisted provider MCP configuration. A host supplies Codable
+`AgentHostToolDefinition` values through `AgentSpawnConfig.hostTools`, a configurable generic server name/instructions
+through `hostToolServer`, and an `AgentHostToolHandling` dispatcher when constructing `DefaultAgentRuntime`. Calls receive
+trusted conversation, provider, process, and JSON-RPC request identity from the runtime; model arguments never supply
+those fields. The SDK advertises input schemas, but host handlers remain responsible for strict argument decoding and
+product authorization.
+
+Each host-tool provider launch gets a unique bearer token and opaque route on one IPv4 loopback listener. Claude receives inline
+HTTP MCP configuration and token environment interpolation for its individual process. Codex receives a dotted
+`mcp_servers.<server>` override and static authorization header on its App Server thread because the App Server process is
+shared. Neither path rewrites the user's global MCP config. Empty tools preserve prior launch behavior; configured tools
+without handling fail explicitly. Additional roots are canonicalized and launch-only. Reconfiguration restarts an idle
+process or returns `.nextTurnRequired` while work is active.
+
+If the loopback listener stops after launch, the runtime retires every affected registration and emits an
+`.hostToolServerUnavailable` error diagnostic with `replacement_required` metadata for each affected conversation.
+
+For Codex, an empty `additionalWorkspaceRoots` list omits the experimental App Server override and preserves Codex's
+native workspace roots. A nonempty list is an exact replacement containing canonical `cwd + grants`; it intentionally
+supersedes roots from the user's Codex configuration and requires Codex 0.144.0 or newer with experimental APIs enabled.
+Pass only the working directory in the list to opt into a `cwd`-only replacement that clears user-configured extra roots.
 
 ## Diagnostics And Errors
 

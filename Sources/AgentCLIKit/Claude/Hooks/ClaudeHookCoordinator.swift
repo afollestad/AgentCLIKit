@@ -27,10 +27,15 @@ public actor ClaudeHookCoordinator {
     private let supportDirectory: URL
     private let fileManager: FileManager
     private let makeListener: @Sendable (ClaudeHookServer, Int) -> any ClaudeHookListeningTransport
+    private let beforeLaunchServerRegistration: @Sendable () async -> Void
     private var listener: (any ClaudeHookListeningTransport)?
     private var listenerPort: Int?
+    private var listenerStartOperation: ClaudeHookListenerStartOperation?
     private var launchTokens: [UUID: String] = [:]
     private var launchSettingsFiles: [UUID: URL] = [:]
+    private var isShutdown = false
+    private var isShutdownComplete = false
+    private var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
 
     /// Creates a Claude hook coordinator.
     public init(
@@ -47,6 +52,23 @@ public actor ClaudeHookCoordinator {
         self.supportDirectory = supportDirectory
         self.fileManager = fileManager
         self.makeListener = makeListener
+        self.beforeLaunchServerRegistration = {}
+    }
+
+    init(
+        tokenStore: AgentHookTokenStore,
+        server: ClaudeHookServer,
+        supportDirectory: URL,
+        fileManager: FileManager = .default,
+        makeListener: @escaping @Sendable (ClaudeHookServer, Int) -> any ClaudeHookListeningTransport,
+        beforeLaunchServerRegistration: @escaping @Sendable () async -> Void
+    ) {
+        self.tokenStore = tokenStore
+        self.server = server
+        self.supportDirectory = supportDirectory
+        self.fileManager = fileManager
+        self.makeListener = makeListener
+        self.beforeLaunchServerRegistration = beforeLaunchServerRegistration
     }
 
     /// Prepares hook settings for one Claude launch.
@@ -59,7 +81,12 @@ public actor ClaudeHookCoordinator {
         timeoutSeconds: Int = ClaudeHookPolicy.defaultHookTimeoutSeconds
     ) async throws -> ClaudeHookLaunchConfiguration {
         let port = try await ensureListenerPort()
+        try ensureCoordinatorIsActive()
         let token = await tokenStore.issueProcessScoped()
+        guard !isShutdown else {
+            await server.invalidateToken(token.value)
+            throw AgentCLIError.invalidInput("Claude hook coordinator has shut down.")
+        }
         let settingsURL = settingsURL(processToken: processToken)
         guard let endpoints = endpointURLs(
             port: port,
@@ -76,15 +103,10 @@ public actor ClaudeHookCoordinator {
             postCompactEndpointURL: endpoints.postCompact,
             timeoutSeconds: timeoutSeconds
         )
-        do {
-            try fileManager.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
-            try settings.encodedData().write(to: settingsURL, options: [.atomic])
-        } catch {
-            await server.invalidateToken(token.value)
-            try? fileManager.removeItem(at: settingsURL)
-            throw error
-        }
-        await registerLaunchState(ClaudeHookLaunchRegistration(
+        try await writeSettings(settings, to: settingsURL, token: token.value)
+        launchTokens[processToken] = token.value
+        launchSettingsFiles[processToken] = settingsURL
+        await registerLaunchServerState(ClaudeHookLaunchRegistration(
             token: token.value,
             processToken: processToken,
             settingsURL: settingsURL,
@@ -93,6 +115,11 @@ public actor ClaudeHookCoordinator {
             workingDirectory: workingDirectory,
             homeDirectory: homeDirectory
         ))
+        try await ensureLaunchRegistrationIsActive(
+            processToken: processToken,
+            token: token.value,
+            settingsURL: settingsURL
+        )
         return ClaudeHookLaunchConfiguration(
             arguments: ["--settings", settingsURL.path],
             environment: [settings.tokenEnvironmentVariable: token.value],
@@ -132,38 +159,87 @@ public actor ClaudeHookCoordinator {
 
     /// Stops the listener and invalidates active launch tokens.
     public func shutdown() async {
+        if isShutdown {
+            guard !isShutdownComplete else {
+                return
+            }
+            await withCheckedContinuation { continuation in
+                shutdownWaiters.append(continuation)
+            }
+            return
+        }
+        isShutdown = true
         let tokens = Array(launchTokens.values)
         let settingsURLs = Array(launchSettingsFiles.values)
+        let activeListener = listener
+        let pendingListenerStart = listenerStartOperation
         launchTokens.removeAll()
         launchSettingsFiles.removeAll()
+        listener = nil
+        listenerPort = nil
+        listenerStartOperation = nil
         for token in tokens {
             await server.invalidateToken(token)
         }
         // Generated hook settings are scoped to one provider launch and should not survive process teardown.
         settingsURLs.forEach { removeSettingsFile(at: $0) }
-        await listener?.stop()
-        listener = nil
-        listenerPort = nil
+        if let pendingListenerStart {
+            await pendingListenerStart.listener.stop()
+        }
+        if let activeListener {
+            await activeListener.stop()
+        } else if let pendingListenerStart,
+                  case let .success(startedListener) = await pendingListenerStart.task.result {
+            await startedListener.listener.stop()
+        }
+        isShutdownComplete = true
+        let waiters = shutdownWaiters
+        shutdownWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 
     private func ensureListenerPort() async throws -> Int {
+        try ensureCoordinatorIsActive()
         if let listenerPort {
             return listenerPort
         }
-        let listener = makeListener(server, 1_000_000)
-        let port = try await listener.start()
-        self.listener = listener
-        self.listenerPort = port
-        return port
+        let operation: ClaudeHookListenerStartOperation
+        if let listenerStartOperation {
+            operation = listenerStartOperation
+        } else {
+            let listener = makeListener(server, 1_000_000)
+            let newTask = Task {
+                let port = try await listener.start()
+                return ClaudeHookStartedListener(listener: listener, port: port)
+            }
+            let newOperation = ClaudeHookListenerStartOperation(id: UUID(), listener: listener, task: newTask)
+            listenerStartOperation = newOperation
+            operation = newOperation
+        }
+        do {
+            let startedListener = try await operation.task.value
+            try ensureCoordinatorIsActive()
+            listener = startedListener.listener
+            listenerPort = startedListener.port
+            if listenerStartOperation?.id == operation.id {
+                listenerStartOperation = nil
+            }
+            return startedListener.port
+        } catch {
+            if listenerStartOperation?.id == operation.id {
+                listenerStartOperation = nil
+            }
+            throw error
+        }
     }
 
     private func settingsURL(processToken: UUID) -> URL {
         supportDirectory.appendingPathComponent("claude-hooks-\(processToken.uuidString).json")
     }
 
-    private func registerLaunchState(_ registration: ClaudeHookLaunchRegistration) async {
+    private func registerLaunchServerState(_ registration: ClaudeHookLaunchRegistration) async {
+        await beforeLaunchServerRegistration()
         await server.updatePermissionMode(registration.permissionMode, for: registration.conversationId)
-        await server.registerCompactHooks(processToken: registration.processToken, token: registration.token)
         if let workingDirectory = registration.workingDirectory {
             await server.registerLaunchContext(
                 processToken: registration.processToken,
@@ -171,8 +247,62 @@ public actor ClaudeHookCoordinator {
                 homeDirectory: registration.homeDirectory
             )
         }
-        launchTokens[registration.processToken] = registration.token
-        launchSettingsFiles[registration.processToken] = registration.settingsURL
+        // Install the token mapping last so a post-registration token invalidation can always find and clear path context.
+        await server.registerCompactHooks(processToken: registration.processToken, token: registration.token)
+    }
+
+    private func ensureCoordinatorIsActive() throws {
+        guard !isShutdown else {
+            throw AgentCLIError.invalidInput("Claude hook coordinator has shut down.")
+        }
+    }
+
+    private func ensureLaunchRegistrationIsActive(
+        processToken: UUID,
+        token: String,
+        settingsURL: URL
+    ) async throws {
+        let mappingIsCurrent = launchTokens[processToken] == token && launchSettingsFiles[processToken] == settingsURL
+        guard !isShutdown, mappingIsCurrent else {
+            await cleanUpFailedLaunchRegistration(
+                processToken: processToken,
+                token: token,
+                settingsURL: settingsURL
+            )
+            let reason = isShutdown
+                ? "Claude hook coordinator has shut down."
+                : "Claude hook launch registration was invalidated."
+            throw AgentCLIError.invalidInput(reason)
+        }
+    }
+
+    private func cleanUpFailedLaunchRegistration(
+        processToken: UUID,
+        token: String,
+        settingsURL: URL
+    ) async {
+        await server.invalidateToken(token)
+        let hasReplacement = launchTokens[processToken].map { $0 != token } == true
+        if launchTokens[processToken] == token {
+            launchTokens[processToken] = nil
+        }
+        if !hasReplacement, launchSettingsFiles[processToken] == settingsURL {
+            launchSettingsFiles[processToken] = nil
+            removeSettingsFile(at: settingsURL)
+        } else if launchSettingsFiles[processToken] == nil {
+            removeSettingsFile(at: settingsURL)
+        }
+    }
+
+    private func writeSettings(_ settings: ClaudeHookSettings, to settingsURL: URL, token: String) async throws {
+        do {
+            try fileManager.createDirectory(at: supportDirectory, withIntermediateDirectories: true)
+            try settings.encodedData().write(to: settingsURL, options: [.atomic])
+        } catch {
+            await server.invalidateToken(token)
+            try? fileManager.removeItem(at: settingsURL)
+            throw error
+        }
     }
 
     private func endpointURLs(port: Int, conversationId: AgentConversationID, processToken: UUID) -> ClaudeHookEndpointURLs? {
@@ -236,10 +366,21 @@ private struct ClaudeHookLaunchRegistration {
     let homeDirectory: URL
 }
 
+private struct ClaudeHookStartedListener: Sendable {
+    let listener: any ClaudeHookListeningTransport
+    let port: Int
+}
+
+private struct ClaudeHookListenerStartOperation: Sendable {
+    let id: UUID
+    let listener: any ClaudeHookListeningTransport
+    let task: Task<ClaudeHookStartedListener, Error>
+}
+
 /// Transport used by `ClaudeHookCoordinator` to accept hook requests.
 public protocol ClaudeHookListeningTransport: Sendable {
     /// Starts listening and returns the bound port.
     func start() async throws -> Int
-    /// Stops listening.
+    /// Idempotently stops listening, including a start that has not reached readiness yet.
     func stop() async
 }

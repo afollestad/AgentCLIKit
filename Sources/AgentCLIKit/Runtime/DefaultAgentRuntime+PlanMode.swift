@@ -335,7 +335,10 @@ private extension AgentSpawnConfig {
             forkSession: forkSession,
             initialPrompt: initialPrompt,
             initialPromptAttachments: initialPromptAttachments,
-            initialPromptMetadata: initialPromptMetadata
+            initialPromptMetadata: initialPromptMetadata,
+            additionalWorkspaceRoots: additionalWorkspaceRoots,
+            hostToolServer: hostToolServer,
+            hostTools: hostTools
         )
     }
 }

@@ -1,7 +1,14 @@
 import Foundation
 
 extension CodexAppServerClient {
-    func bootstrapThread(spawnConfig: AgentSpawnConfig, resumedSession: AgentSessionRecord?) async throws -> CodexThreadBootstrap {
+    func bootstrapThread(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?,
+        hostToolEndpoint: AgentHostToolEndpoint? = nil,
+        processToken: UUID? = nil
+    ) async throws -> CodexThreadBootstrap {
+        let workspaceRoots = runtimeWorkspaceRoots(spawnConfig)
+        try await validateRuntimeWorkspaceRootsIfNeeded(workspaceRoots)
         let supportsFastMode = try await speedModeSupportForSettings(spawnConfig: spawnConfig)
         let legacyForkSourceSessionId = spawnConfig.forkSession ? resumedSession?.providerSessionId : nil
         let forkSourceSessionId = spawnConfig.sessionFork?.sourceSessionId ?? legacyForkSourceSessionId
@@ -11,43 +18,42 @@ extension CodexAppServerClient {
             shouldHydrateExistingGoal: shouldHydrateExistingGoal
         )
         let transport = try await initializedTransport()
-        let method: String
-        let continuity: AgentSessionContinuity
-        if forkSourceSessionId != nil {
-            method = "thread/fork"
-            continuity = .forked
-        } else if resumedSession == nil {
-            method = "thread/start"
-            continuity = .fresh
-        } else {
-            method = "thread/resume"
-            continuity = .resumed
+        let sensitiveValues = hostToolEndpoint.map { [$0.bearerToken] } ?? []
+        if let processToken, !sensitiveValues.isEmpty {
+            await transport.registerSensitiveValues(sensitiveValues, processToken: processToken)
         }
-        let response = try await transport.sendRequest(
-            method: method,
-            params: threadParams(
-                spawnConfig: spawnConfig,
-                resumedSession: resumedSession,
-                forkSourceSessionId: forkSourceSessionId,
-                supportsFastMode: supportsFastMode
-            )
+        let request = Self.threadRequest(resumedSession: resumedSession, forkSourceSessionId: forkSourceSessionId)
+        let params = threadParams(
+            spawnConfig: spawnConfig,
+            resumedSession: resumedSession,
+            forkSourceSessionId: forkSourceSessionId,
+            supportsFastMode: supportsFastMode,
+            hostToolEndpoint: hostToolEndpoint
+        )
+        let response = try await sendThreadRequest(
+            transport: transport,
+            method: request.method,
+            params: params,
+            usesWorkspaceRoots: workspaceRoots != nil,
+            sensitiveValues: sensitiveValues
         )
         guard let threadId = response.threadResponseId else {
-            throw CodexAppServerError.missingThreadID(method: method)
+            throw CodexAppServerError.missingThreadID(method: request.method)
         }
         let providerThreadId = AgentSessionID(rawValue: threadId)
-        let goal = try await bootstrapGoal(
+        let goal = try await bootstrapGoalRedacting(
             threadId: providerThreadId,
             spawnConfig: spawnConfig,
             supportsGoalMode: supportsGoalMode,
-            shouldHydrateExistingGoal: shouldHydrateExistingGoal
+            shouldHydrateExistingGoal: shouldHydrateExistingGoal,
+            sensitiveValues: sensitiveValues
         )
         return CodexThreadBootstrap(
             threadId: providerThreadId,
             name: response.threadResponseName,
             preview: response.threadResponsePreview,
             forkedFromId: response.threadResponseForkedFromId.map(AgentSessionID.init(rawValue:)),
-            continuity: continuity,
+            continuity: request.continuity,
             goal: goal
         )
     }
@@ -170,7 +176,8 @@ extension CodexAppServerClient {
         spawnConfig: AgentSpawnConfig,
         resumedSession: AgentSessionRecord?,
         forkSourceSessionId: AgentSessionID?,
-        supportsFastMode: Bool
+        supportsFastMode: Bool,
+        hostToolEndpoint: AgentHostToolEndpoint?
     ) -> JSONValue {
         var params: [String: JSONValue] = [
             "cwd": .string(spawnConfig.workingDirectory.path)
@@ -189,13 +196,24 @@ extension CodexAppServerClient {
         if let permissionMode = spawnConfig.permissionMode {
             params["approvalPolicy"] = .string(permissionMode)
         }
-        if let config = threadConfig(spawnConfig: spawnConfig, supportsFastMode: supportsFastMode) {
+        if let workspaceRoots = runtimeWorkspaceRoots(spawnConfig) {
+            params["runtimeWorkspaceRoots"] = .array(workspaceRoots.map(JSONValue.string))
+        }
+        if let config = threadConfig(
+            spawnConfig: spawnConfig,
+            supportsFastMode: supportsFastMode,
+            hostToolEndpoint: hostToolEndpoint
+        ) {
             params["config"] = config
         }
         return .object(params)
     }
 
-    private func threadConfig(spawnConfig: AgentSpawnConfig, supportsFastMode: Bool) -> JSONValue? {
+    private func threadConfig(
+        spawnConfig: AgentSpawnConfig,
+        supportsFastMode: Bool,
+        hostToolEndpoint: AgentHostToolEndpoint?
+    ) -> JSONValue? {
         var config: [String: JSONValue] = [:]
         if let effort = spawnConfig.effort {
             config["model_reasoning_effort"] = .string(effort)
@@ -204,7 +222,109 @@ extension CodexAppServerClient {
             config["model_reasoning_summary"] = .string(reasoningSummaryMode.rawValue)
         }
         mergeSpeedModeConfig(spawnConfig: spawnConfig, supportsFastMode: supportsFastMode, into: &config)
+        if let hostToolEndpoint {
+            let toolApprovals = Dictionary(uniqueKeysWithValues: hostToolEndpoint.enabledToolNames.map {
+                ($0, JSONValue.object(["approval_mode": .string("approve")]))
+            })
+            config["mcp_servers.\(hostToolEndpoint.serverName)"] = .object([
+                "url": .string(hostToolEndpoint.url.absoluteString),
+                "http_headers": .object([
+                    "Authorization": .string("Bearer \(hostToolEndpoint.bearerToken)")
+                ]),
+                "enabled": .bool(true),
+                "required": .bool(false),
+                "enabled_tools": .array(hostToolEndpoint.enabledToolNames.map(JSONValue.string)),
+                "tools": .object(toolApprovals)
+            ])
+        }
         return config.isEmpty ? nil : .object(config)
+    }
+
+    private func runtimeWorkspaceRoots(_ spawnConfig: AgentSpawnConfig) -> [String]? {
+        guard !spawnConfig.additionalWorkspaceRoots.isEmpty else {
+            return nil
+        }
+        let workingDirectory = AgentPathHelpers.canonicalFileURL(spawnConfig.workingDirectory)
+        let additional = spawnConfig.additionalWorkspaceRoots.filter {
+            !AgentPathHelpers.isSameCanonicalPath($0, workingDirectory)
+        }
+        return [workingDirectory.path] + additional.map(\.path)
+    }
+
+    private func validateRuntimeWorkspaceRootsIfNeeded(_ workspaceRoots: [String]?) async throws {
+        guard workspaceRoots != nil else {
+            return
+        }
+        guard configuration.experimentalAPIEnabled,
+              await configuration.featureSupportChecker.supportsRuntimeWorkspaceRoots(
+                  configuration: configuration,
+                  availability: nil
+              ) else {
+            throw Self.unsupportedWorkspaceRootsError()
+        }
+    }
+
+    private func sendThreadRequest(
+        transport: any CodexAppServerTransport,
+        method: String,
+        params: JSONValue,
+        usesWorkspaceRoots: Bool,
+        sensitiveValues: [String]
+    ) async throws -> JSONValue {
+        do {
+            return try await transport.sendRequest(method: method, params: params)
+        } catch let error as CodexAppServerError {
+            if usesWorkspaceRoots, Self.isUnsupportedWorkspaceRootError(error) {
+                throw Self.unsupportedWorkspaceRootsError()
+            }
+            throw error.redacting(sensitiveValues: sensitiveValues)
+        }
+    }
+
+    private func bootstrapGoalRedacting(
+        threadId: AgentSessionID,
+        spawnConfig: AgentSpawnConfig,
+        supportsGoalMode: Bool,
+        shouldHydrateExistingGoal: Bool,
+        sensitiveValues: [String]
+    ) async throws -> AgentGoalSnapshot? {
+        do {
+            return try await bootstrapGoal(
+                threadId: threadId,
+                spawnConfig: spawnConfig,
+                supportsGoalMode: supportsGoalMode,
+                shouldHydrateExistingGoal: shouldHydrateExistingGoal
+            )
+        } catch let error as CodexAppServerError {
+            throw error.redacting(sensitiveValues: sensitiveValues)
+        }
+    }
+
+    private static func threadRequest(
+        resumedSession: AgentSessionRecord?,
+        forkSourceSessionId: AgentSessionID?
+    ) -> (method: String, continuity: AgentSessionContinuity) {
+        if forkSourceSessionId != nil {
+            return ("thread/fork", .forked)
+        }
+        if resumedSession == nil {
+            return ("thread/start", .fresh)
+        }
+        return ("thread/resume", .resumed)
+    }
+
+    private static func isUnsupportedWorkspaceRootError(_ error: CodexAppServerError) -> Bool {
+        guard case let .jsonRPCError(_, _, message) = error else {
+            return false
+        }
+        return message.localizedCaseInsensitiveContains("runtimeWorkspaceRoots")
+    }
+
+    private static func unsupportedWorkspaceRootsError() -> AgentCLIError {
+        AgentCLIError.unsupportedCapability(
+            providerId: CodexProviderAdapter.providerId,
+            capability: "runtime workspace roots (requires Codex 0.144.0 or newer with experimental APIs enabled)"
+        )
     }
 
     private func threadActionParams(_ threadId: AgentSessionID) -> JSONValue {

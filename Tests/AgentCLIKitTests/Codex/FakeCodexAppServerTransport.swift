@@ -30,6 +30,8 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     private let failModelListRequests: Bool
     private let failModelListRequestsAfterSuccessCount: Int?
     private let failingMethods: Set<String>
+    private let requestErrors: [String: CodexAppServerError]
+    private let startGate: FakeCodexTransportStartGate?
     private var turnIndex = 0
     private var successfulModelListRequestCount = 0
     private var incomingContinuations: [UUID: AsyncStream<CodexAppServerIncomingMessage>.Continuation] = [:]
@@ -53,7 +55,9 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         goal: [String: JSONValue]? = nil,
         failModelListRequests: Bool = false,
         failModelListRequestsAfterSuccessCount: Int? = nil,
-        failingMethods: Set<String> = []
+        failingMethods: Set<String> = [],
+        requestErrors: [String: CodexAppServerError] = [:],
+        startGate: FakeCodexTransportStartGate? = nil
     ) {
         self.threadIds = threadIds
         self.threadNames = threadNames
@@ -65,10 +69,13 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         self.failModelListRequests = failModelListRequests
         self.failModelListRequestsAfterSuccessCount = failModelListRequestsAfterSuccessCount
         self.failingMethods = failingMethods
+        self.requestErrors = requestErrors
+        self.startGate = startGate
     }
 
     func start() async throws {
         startCount += 1
+        try await startGate?.suspendStart()
     }
 
     nonisolated func incomingMessages() -> AsyncStream<CodexAppServerIncomingMessage> {
@@ -179,6 +186,9 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     }
 
     private func failIfNeeded(_ method: String) throws {
+        if let error = requestErrors[method] {
+            throw error
+        }
         if failingMethods.contains(method) {
             throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "\(method) failed.")
         }
@@ -230,6 +240,35 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
     func finishIncomingMessages() {
         incomingContinuations.values.forEach { $0.finish() }
         incomingContinuations.removeAll()
+    }
+}
+
+actor FakeCodexTransportStartGate {
+    private var didStart = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var startContinuation: CheckedContinuation<Void, Error>?
+
+    func suspendStart() async throws {
+        didStart = true
+        startWaiters.forEach { $0.resume() }
+        startWaiters.removeAll()
+        try await withCheckedThrowingContinuation { continuation in
+            startContinuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !didStart else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func resume() {
+        startContinuation?.resume()
+        startContinuation = nil
     }
 }
 

@@ -10,6 +10,16 @@ struct CodexThreadBootstrap: Sendable {
 }
 
 actor CodexAppServerClient {
+    struct TransportStartOperation {
+        let id: UUID
+        let task: Task<any CodexAppServerTransport, Error>
+    }
+
+    struct InitializationOperation {
+        let id: UUID
+        let task: Task<any CodexAppServerTransport, Error>
+    }
+
     struct PendingSteeringInput {
         let inputId: String
         let text: String
@@ -30,9 +40,14 @@ actor CodexAppServerClient {
 
     let configuration: CodexProviderAdapter.Configuration
     var transport: (any CodexAppServerTransport)?
-    private var incomingTask: Task<Void, Never>?
-    private var incomingTaskID: UUID?
-    private var isInitialized = false
+    var transportStartOperation: TransportStartOperation?
+    var initializationOperation: InitializationOperation?
+    var incomingTask: Task<Void, Never>?
+    var incomingTaskID: UUID?
+    var isInitialized = false
+    var isShutdown = false
+    var isShutdownComplete = false
+    var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
     var bindingsByConversation: [AgentConversationID: ConversationBinding] = [:]
     var conversationByThreadId: [AgentSessionID: AgentConversationID] = [:]
     var pendingServerRequests: [AgentInteractionID: CodexPendingServerRequest] = [:]
@@ -40,8 +55,8 @@ actor CodexAppServerClient {
     private let transcriptPlanReader: CodexSessionTranscriptPlanReader
     let serverRequestMapper: CodexAppServerServerRequestMapper
     let resolutionEncoder = CodexInteractionResolutionEncoder()
-    private var recoveredPlanKeysByConversation: [AgentConversationID: Set<CodexSessionTranscriptPlanRecoveryKey>] = [:]
-    private var transcriptPlanSessionFileURLsByThreadId: [AgentSessionID: URL] = [:]
+    var recoveredPlanKeysByConversation: [AgentConversationID: Set<CodexSessionTranscriptPlanRecoveryKey>] = [:]
+    var transcriptPlanSessionFileURLsByThreadId: [AgentSessionID: URL] = [:]
 
     init(configuration: CodexProviderAdapter.Configuration) {
         self.configuration = configuration
@@ -53,23 +68,12 @@ actor CodexAppServerClient {
         )
     }
 
-    func shutdown() async {
-        incomingTask?.cancel()
-        incomingTask = nil
-        incomingTaskID = nil
-        bindingsByConversation.values.forEach { $0.continuation?.finish() }
-        bindingsByConversation.removeAll()
-        conversationByThreadId.removeAll()
-        pendingServerRequests.removeAll()
-        recoveredPlanKeysByConversation.removeAll()
-        transcriptPlanSessionFileURLsByThreadId.removeAll()
-        await transport?.shutdown()
-        transport = nil
-        isInitialized = false
-    }
-
     func runtimeEvents(context: AgentProviderRuntimeContext) -> AsyncStream<AgentProviderRuntimeEvent> {
         let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+        guard !isShutdown else {
+            stream.continuation.finish()
+            return stream.stream
+        }
         registerRuntimeEvents(context: context, continuation: stream.continuation)
         stream.continuation.onTermination = { _ in
             Task {
@@ -121,6 +125,11 @@ actor CodexAppServerClient {
         guard var binding = binding(for: context.conversationId, processToken: context.processToken) else {
             return .restartRequired
         }
+        if context.currentConfig.hostTools != context.newConfig.hostTools ||
+            context.currentConfig.hostToolServer != context.newConfig.hostToolServer ||
+            context.currentConfig.additionalWorkspaceRoots != context.newConfig.additionalWorkspaceRoots {
+            return context.isTurnActive || binding.activeTurnId != nil ? .nextTurnRequired : .restartRequired
+        }
         guard !context.isTurnActive, binding.activeTurnId == nil else {
             binding.spawnConfig = context.newConfig
             bindingsByConversation[context.conversationId] = binding
@@ -130,18 +139,6 @@ actor CodexAppServerClient {
         binding.spawnConfig = context.newConfig
         bindingsByConversation[context.conversationId] = binding
         return .appliedInPlace
-    }
-
-    func initializedTransport() async throws -> any CodexAppServerTransport {
-        let transport = try await transport()
-        startIncomingPumpIfNeeded(transport: transport)
-        guard !isInitialized else {
-            return transport
-        }
-        _ = try await transport.sendRequest(method: "initialize", params: initializeParams())
-        try await transport.sendNotification(method: "initialized", params: nil)
-        isInitialized = true
-        return transport
     }
 
     private func registerRuntimeEvents(
@@ -326,7 +323,7 @@ actor CodexAppServerClient {
         }
     }
 
-    private func startIncomingPumpIfNeeded(transport: any CodexAppServerTransport) {
+    func startIncomingPumpIfNeeded(transport: any CodexAppServerTransport) {
         guard incomingTask == nil else {
             return
         }
@@ -347,6 +344,9 @@ actor CodexAppServerClient {
         }
         incomingTask = nil
         incomingTaskID = nil
+        if !isShutdown {
+            isInitialized = false
+        }
     }
 
     private func handleIncomingMessage(_ message: CodexAppServerIncomingMessage) {
@@ -583,31 +583,6 @@ actor CodexAppServerClient {
             message: "\(message) \(error.localizedDescription)",
             metadata: ["codex_error": .string(error.localizedDescription)]
         ))))
-    }
-
-    private func transport() async throws -> any CodexAppServerTransport {
-        if let transport {
-            return transport
-        }
-        let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(for: CodexProviderDefinition.definition)
-        let transport = resolvedConfiguration.makeTransport(resolvedConfiguration)
-        try await transport.start()
-        self.transport = transport
-        return transport
-    }
-
-    private func initializeParams() -> JSONValue {
-        .object([
-            "clientInfo": .object([
-                "name": .string("AgentCLIKit"),
-                "title": .string("AgentCLIKit"),
-                "version": .string("0")
-            ]),
-            "capabilities": .object([
-                "experimentalApi": .bool(configuration.experimentalAPIEnabled),
-                "requestAttestation": .bool(false)
-            ])
-        ])
     }
 
 }

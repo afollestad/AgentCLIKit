@@ -12,6 +12,21 @@ public protocol CodexFeatureSupportChecking: Sendable {
         configuration: CodexProviderAdapter.Configuration,
         availability: AgentProviderAvailability?
     ) async -> Bool
+    /// Returns whether the configured Codex executable supports thread-scoped runtime workspace roots.
+    func supportsRuntimeWorkspaceRoots(
+        configuration: CodexProviderAdapter.Configuration,
+        availability: AgentProviderAvailability?
+    ) async -> Bool
+}
+
+public extension CodexFeatureSupportChecking {
+    /// Defaults custom feature checkers to unsupported until they positively opt into runtime workspace roots.
+    func supportsRuntimeWorkspaceRoots(
+        configuration: CodexProviderAdapter.Configuration,
+        availability: AgentProviderAvailability?
+    ) async -> Bool {
+        false
+    }
 }
 
 /// Default Codex feature support checker backed by `codex features list`.
@@ -53,7 +68,10 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
                 for: CodexProviderDefinition.definition,
                 availability: availability
             )
-            let version = try await versionDescription(configuration: resolvedConfiguration, availability: availability)
+            let version = try await versionDescription(
+                configuration: resolvedConfiguration,
+                availability: availability
+            )
             let key = CacheKey(executablePath: resolvedConfiguration.executablePath, version: version)
             let currentDate = now()
             if let entry = cache[key], currentDate.timeIntervalSince(entry.fetchedAt) < cacheTimeToLive {
@@ -94,6 +112,23 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
                 fetchedAt: currentDate
             )
             return support.supportsGoalMode
+        } catch {
+            return false
+        }
+    }
+
+    /// Returns whether Codex is new enough to honor `runtimeWorkspaceRoots` instead of silently ignoring it.
+    public func supportsRuntimeWorkspaceRoots(
+        configuration: CodexProviderAdapter.Configuration,
+        availability: AgentProviderAvailability? = nil
+    ) async -> Bool {
+        do {
+            let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(
+                for: CodexProviderDefinition.definition,
+                availability: availability
+            )
+            let version = try await versionDescription(configuration: resolvedConfiguration, availability: availability)
+            return Self.version(version, isAtLeast: [0, 144, 0])
         } catch {
             return false
         }
@@ -176,6 +211,26 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
             }
             return String(name)
         })
+    }
+
+    static func version(_ description: String, isAtLeast required: [Int]) -> Bool {
+        let candidates = description.split { character in
+            !character.isNumber && character != "."
+        }
+        guard let candidate = candidates.first(where: { $0.contains(".") }) else {
+            return false
+        }
+        var components = candidate.split(separator: ".").compactMap { Int($0) }
+        guard components.count >= 2 else {
+            return false
+        }
+        while components.count < required.count {
+            components.append(0)
+        }
+        for (actual, minimum) in zip(components, required) where actual != minimum {
+            return actual > minimum
+        }
+        return true
     }
 }
 

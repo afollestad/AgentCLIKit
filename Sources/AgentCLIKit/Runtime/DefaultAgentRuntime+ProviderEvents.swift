@@ -18,6 +18,12 @@ extension DefaultAgentRuntime {
                 await self.consumeProviderRuntimeEvent(providerEvent, conversationId: conversationId, processToken: processToken)
             }
         }
+        // Teardown can reenter while the provider constructs its stream. Cancel the new consumer
+        // instead of leaving a provider subscription alive after its process generation is gone.
+        guard states[conversationId]?.processToken == processToken else {
+            task.cancel()
+            return
+        }
         states[conversationId]?.providerEventTasks.append(task)
     }
 

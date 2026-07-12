@@ -486,6 +486,8 @@ public enum AgentDiagnosticCode: String, Codable, Hashable, Sendable {
     case codexAppServerShutdownTimeout
     /// The runtime could not start implementation after a plan-mode approval.
     case planImplementationStartFailed
+    /// The process-scoped host MCP listener stopped after provider launch.
+    case hostToolServerUnavailable
 }
 
 /// Severity for diagnostic events.

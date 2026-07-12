@@ -15,6 +15,12 @@
 - **Track collaboration separately:** Keep `collaborationMode` in runtime state/status and events separate from `permissionMode`, which is approval policy.
 - **Keep speed provider-reported:** Hosts choose `AgentSpawnConfig.speedMode`, but provider support comes from `AgentProviderCapabilities.supportsSpeedMode`; do not add runtime speed status unless a provider starts reporting it natively.
 
+## Process-Scoped Resources
+
+- **Register before launch:** Create host-tool routes before context-aware provider launch so launch arguments never reference an unregistered endpoint.
+- **Preserve cancellation ownership:** Destruction and shutdown may invalidate a suspended start early, but keep its tombstone until it resumes and performs final idempotent cleanup.
+- **Detach before awaiting teardown:** Remove conversation state and finish subscribers before cleanup awaits so input, status, and output cannot reenter a conversation being destroyed.
+
 ## Validation
 
 - Add or update focused runtime tests when changing process replacement, replay buffers, event cursors, deferred-tool stop handling, or interaction resolution.

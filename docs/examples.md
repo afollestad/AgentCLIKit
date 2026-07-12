@@ -89,6 +89,59 @@ func runOneOffConversation(projectURL: URL) async throws {
 
 Change `providerId: .claude` to `providerId: .codex` to run the same host flow through Codex App Server.
 
+## Host-Owned Tools And Additional Roots
+
+**Complete snippet.** Exposes one read-only MCP tool to either built-in provider without changing the user's global MCP
+configuration. Production handlers should strictly decode the advertised schema and apply product authorization before
+reading or mutating host state.
+
+```swift
+import AgentCLIKit
+import Foundation
+
+func makeRuntimeWithHostTools() -> (DefaultAgentRuntime, AgentSpawnConfig) {
+    let tool = AgentHostToolDefinition(
+        name: "list_jobs",
+        description: "Lists jobs owned by this host application when the user asks about them.",
+        inputSchema: .object([
+            "type": .string("object"),
+            "properties": .object([:]),
+            "additionalProperties": .bool(false)
+        ]),
+        annotations: AgentHostToolAnnotations(
+            readOnlyHint: true,
+            destructiveHint: false,
+            idempotentHint: true,
+            openWorldHint: false
+        )
+    )
+    let runtime = DefaultAgentRuntime(hostToolHandling: AgentHostToolHandling { context, call in
+        guard call.name == "list_jobs" else {
+            return AgentHostToolResult(text: "Unknown tool.", isError: true)
+        }
+        return AgentHostToolResult(
+            text: "No jobs are configured for \(context.conversationId.rawValue).",
+            structuredContent: .object(["jobs": .array([])])
+        )
+    })
+    let config = AgentSpawnConfig(
+        providerId: .claude,
+        workingDirectory: URL(fileURLWithPath: "/tmp/agent-workspace"),
+        additionalWorkspaceRoots: [URL(fileURLWithPath: "/tmp/shared-input")],
+        hostToolServer: AgentHostToolServerMetadata(
+            name: "example_host",
+            instructions: "Use these tools only for jobs owned by the example host."
+        ),
+        hostTools: [tool]
+    )
+    return (runtime, config)
+}
+```
+
+Use the same config with `.codex`; provider-specific MCP launch details remain inside AgentCLIKit. Keep handlers
+cancellation-cooperative and return bounded text/structured output. Tool or root changes are launch-only, so
+`runtime.reconfigure` defers them with `.nextTurnRequired` during an active turn.
+
 ## Persist And Resume Sessions
 
 **Complete snippet.** Uses `JSONFileAgentSessionStore` so provider session IDs can be reused across app launches.

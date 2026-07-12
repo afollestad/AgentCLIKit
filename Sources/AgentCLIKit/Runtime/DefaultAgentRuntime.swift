@@ -3,8 +3,14 @@ import Foundation
 
 /// Default process-backed implementation of `AgentRuntime`.
 public actor DefaultAgentRuntime: AgentRuntime {
+    struct InFlightStartResources {
+        let adapter: any AgentProviderAdapter
+        let processToken: UUID
+    }
+
     let adapters: [AgentProviderID: any AgentProviderAdapter]
     let sessionStore: any AgentSessionStore
+    let hostToolServer: (any AgentHostToolServing)?
     let replayLimit: Int
     let subscriberBufferLimit: Int
     let processFactory: AgentRuntimeProcessFactory
@@ -14,6 +20,14 @@ public actor DefaultAgentRuntime: AgentRuntime {
     let deferredStopKillGraceNanoseconds: UInt64
     var states: [AgentConversationID: ConversationState] = [:]
     var startTokens: [AgentConversationID: UUID] = [:]
+    var cancelledStartTokens = Set<UUID>()
+    var inFlightStartResources: [AgentConversationID: InFlightStartResources] = [:]
+    var sensitiveValuesByProcessToken: [UUID: Set<String>] = [:]
+    var hostToolFailureMonitorStartTask: Task<AsyncStream<AgentHostToolServerFailure>, Never>?
+    var hostToolFailureTask: Task<Void, Never>?
+    var isShutdown = false
+    var isShutdownComplete = false
+    var shutdownWaiters: [CheckedContinuation<Void, Never>] = []
     var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
     var statusSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentRuntimeStatus>.Continuation]] = [:]
 
@@ -24,15 +38,18 @@ public actor DefaultAgentRuntime: AgentRuntime {
     ///   - replayLimit: Number of acknowledged events retained as replay history. Values below one are clamped to one.
     ///   - subscriberBufferLimit: Maximum live events buffered per subscriber while the host is not consuming. Values below one
     ///     are clamped to one; replay remains available through `subscribe(conversationId:afterIndex:)`.
+    ///   - hostToolHandling: Optional dispatcher for process-scoped host-owned MCP tools.
     public init(
         adapterSet: AgentProviderAdapterSet = .default,
         sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
         replayLimit: Int = 500,
-        subscriberBufferLimit: Int = 1_000
+        subscriberBufferLimit: Int = 1_000,
+        hostToolHandling: AgentHostToolHandling? = nil
     ) {
         self.init(
             adapters: adapterSet.adapters,
             sessionStore: sessionStore,
+            hostToolServer: hostToolHandling.map { DefaultAgentHostToolServer(handling: $0) },
             replayLimit: replayLimit,
             subscriberBufferLimit: subscriberBufferLimit,
             processFactory: defaultAgentRuntimeProcessFactory,
@@ -50,15 +67,18 @@ public actor DefaultAgentRuntime: AgentRuntime {
     ///   - replayLimit: Number of acknowledged events retained as replay history. Values below one are clamped to one.
     ///   - subscriberBufferLimit: Maximum live events buffered per subscriber while the host is not consuming. Values below one
     ///     are clamped to one; replay remains available through `subscribe(conversationId:afterIndex:)`.
+    ///   - hostToolHandling: Optional dispatcher for process-scoped host-owned MCP tools.
     public init(
         adapters: [any AgentProviderAdapter],
         sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
         replayLimit: Int = 500,
-        subscriberBufferLimit: Int = 1_000
+        subscriberBufferLimit: Int = 1_000,
+        hostToolHandling: AgentHostToolHandling? = nil
     ) {
         self.init(
             adapters: adapters,
             sessionStore: sessionStore,
+            hostToolServer: hostToolHandling.map { DefaultAgentHostToolServer(handling: $0) },
             replayLimit: replayLimit,
             subscriberBufferLimit: subscriberBufferLimit,
             processFactory: defaultAgentRuntimeProcessFactory,
@@ -72,6 +92,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     init(
         adapters: [any AgentProviderAdapter],
         sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
+        hostToolServer: (any AgentHostToolServing)? = nil,
         replayLimit: Int = 500,
         subscriberBufferLimit: Int = 1_000,
         processFactory: @escaping AgentRuntimeProcessFactory = defaultAgentRuntimeProcessFactory,
@@ -82,6 +103,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     ) {
         self.adapters = Dictionary(adapters.map { ($0.definition.id, $0) }, uniquingKeysWith: { _, new in new })
         self.sessionStore = sessionStore
+        self.hostToolServer = hostToolServer
         self.replayLimit = max(1, replayLimit)
         self.subscriberBufferLimit = max(1, subscriberBufferLimit)
         self.processFactory = processFactory
@@ -105,6 +127,10 @@ public actor DefaultAgentRuntime: AgentRuntime {
         let stream = AsyncStream<AgentEventEnvelope>.makeStream(
             bufferingPolicy: bufferingPolicy(conversationId: conversationId, afterIndex: afterIndex)
         )
+        guard !isShutdown else {
+            stream.continuation.finish()
+            return AgentEventSubscription(generation: 1, events: stream.stream)
+        }
         // Register while still isolated so callers can immediately spawn or reconfigure without missing fast events.
         addSubscriber(stream.continuation, conversationId: conversationId, afterIndex: afterIndex)
         let generation = states[conversationId]?.generation ?? 1
@@ -114,6 +140,10 @@ public actor DefaultAgentRuntime: AgentRuntime {
     /// Subscribes to runtime status snapshots for a conversation.
     public func statusUpdates(conversationId: AgentConversationID) async -> AsyncStream<AgentRuntimeStatus> {
         let stream = AsyncStream<AgentRuntimeStatus>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        guard !isShutdown else {
+            stream.continuation.finish()
+            return stream.stream
+        }
         let id = UUID()
         statusSubscribers[conversationId, default: [:]][id] = stream.continuation
         stream.continuation.onTermination = { _ in
@@ -390,6 +420,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     /// Destroys runtime state for a conversation.
     public func destroy(conversationId: AgentConversationID) async {
         cancelStart(conversationId: conversationId)
+        let inFlight = inFlightStartResources[conversationId]
         let removedState = states.removeValue(forKey: conversationId)
         let removedPendingSubscribers = pendingSubscribers.removeValue(forKey: conversationId)
         removedState?.subscribers.values.forEach { $0.finish() }
@@ -397,31 +428,63 @@ public actor DefaultAgentRuntime: AgentRuntime {
         statusSubscribers.removeValue(forKey: conversationId)?.values.forEach { $0.finish() }
         removedState?.outputPumps.forEach { $0.cancel() }
         removedState?.providerEventTasks.forEach { $0.cancel() }
-        if let removedState {
-            await removedState.adapter.processDidTerminate(processToken: removedState.processToken)
-        }
-        // Remove runtime state before killing so the process termination callback cannot publish stale lifecycle events.
+        // Remove visible state before teardown awaits so input and status cannot race with destruction.
         forceKill(removedState?.process)
+        if let inFlight {
+            // Keep the tracked tombstone so a suspended launch performs one final cleanup after it resumes.
+            await invalidateProcessResources(adapter: inFlight.adapter, processToken: inFlight.processToken)
+        }
+        if let removedState {
+            await invalidateProcessResources(adapter: removedState.adapter, processToken: removedState.processToken)
+        }
     }
 
     /// Shuts down runtime-owned shared resources.
     public func shutdown() async {
-        cancelAllStarts()
-        for state in states.values {
-            state.outputPumps.forEach { $0.cancel() }
-            state.providerEventTasks.forEach { $0.cancel() }
-            state.subscribers.values.forEach { $0.finish() }
-            await state.adapter.processDidTerminate(processToken: state.processToken)
-            forceKill(state.process)
+        if isShutdown {
+            guard !isShutdownComplete else {
+                return
+            }
+            await withCheckedContinuation { continuation in
+                shutdownWaiters.append(continuation)
+            }
+            return
         }
+        isShutdown = true
+        hostToolFailureMonitorStartTask?.cancel()
+        hostToolFailureMonitorStartTask = nil
+        hostToolFailureTask?.cancel()
+        hostToolFailureTask = nil
+        cancelAllStarts()
+        let inFlightStarts = Array(inFlightStartResources.values)
+        let activeStates = Array(states.values)
         states.removeAll()
         pendingSubscribers.values.flatMap(\.values).forEach { $0.finish() }
         pendingSubscribers.removeAll()
         statusSubscribers.values.flatMap(\.values).forEach { $0.finish() }
         statusSubscribers.removeAll()
+        for state in activeStates {
+            state.outputPumps.forEach { $0.cancel() }
+            state.providerEventTasks.forEach { $0.cancel() }
+            state.subscribers.values.forEach { $0.finish() }
+            forceKill(state.process)
+        }
+        for inFlight in inFlightStarts {
+            // Retain in-flight tombstones until suspended launches resume and perform final cleanup.
+            await invalidateProcessResources(adapter: inFlight.adapter, processToken: inFlight.processToken)
+        }
+        for state in activeStates {
+            await invalidateProcessResources(adapter: state.adapter, processToken: state.processToken)
+        }
         for adapter in adapters.values {
             await adapter.shutdownProviderResources()
         }
+        await hostToolServer?.shutdown()
+        sensitiveValuesByProcessToken.removeAll()
+        isShutdownComplete = true
+        let waiters = shutdownWaiters
+        shutdownWaiters.removeAll()
+        waiters.forEach { $0.resume() }
     }
 
     /// Reconfigures a conversation by asking the provider to apply settings in place, then falling back to replacement.
@@ -431,6 +494,15 @@ public actor DefaultAgentRuntime: AgentRuntime {
         config: AgentSpawnConfig
     ) async throws -> AgentRuntimeReconfigureResult {
         guard let state = states[conversationId] else {
+            try await start(conversationId: conversationId, config: config, fresh: false)
+            return .restarted
+        }
+        if state.spawnConfig.hostTools != config.hostTools ||
+            state.spawnConfig.hostToolServer != config.hostToolServer ||
+            state.spawnConfig.additionalWorkspaceRoots != config.additionalWorkspaceRoots {
+            guard !state.isTurnActive, state.waitingState == .idle else {
+                return .nextTurnRequired
+            }
             try await start(conversationId: conversationId, config: config, fresh: false)
             return .restarted
         }
@@ -504,6 +576,12 @@ public actor DefaultAgentRuntime: AgentRuntime {
         process.terminate()
         // SIGINT/SIGTERM are advisory; SIGKILL makes `kill` reliable for providers that trap softer signals.
         Darwin.kill(process.processIdentifier, SIGKILL)
+    }
+
+    func invalidateProcessResources(adapter: any AgentProviderAdapter, processToken: UUID) async {
+        await hostToolServer?.invalidate(processToken: processToken)
+        await adapter.processDidTerminate(processToken: processToken)
+        sensitiveValuesByProcessToken[processToken] = nil
     }
 }
 

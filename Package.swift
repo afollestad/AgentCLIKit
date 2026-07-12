@@ -1,4 +1,4 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 
 import PackageDescription
 
@@ -17,9 +17,18 @@ let package = Package(
             targets: ["AgentCLIKitDemo"]
         )
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/modelcontextprotocol/swift-sdk.git",
+            exact: "0.12.1"
+        )
+    ],
     targets: [
         .target(
             name: "AgentCLIKit",
+            dependencies: [
+                .product(name: "MCP", package: "swift-sdk")
+            ],
             exclude: [
                 "Claude/AGENTS.md",
                 "Claude/CLAUDE.md",
@@ -27,6 +36,8 @@ let package = Package(
                 "Claude/Hooks/CLAUDE.md",
                 "Codex/AGENTS.md",
                 "Codex/CLAUDE.md",
+                "MCP/AGENTS.md",
+                "MCP/CLAUDE.md",
                 "Runtime/AGENTS.md",
                 "Runtime/CLAUDE.md"
             ],

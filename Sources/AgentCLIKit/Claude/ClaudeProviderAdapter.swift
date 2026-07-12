@@ -181,31 +181,42 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         spawnConfig: AgentSpawnConfig,
         resumedSession: AgentSessionRecord?
     ) async throws -> AgentLaunchConfiguration {
+        guard spawnConfig.hostTools.isEmpty else {
+            throw AgentCLIError.hostToolsUnavailable(reason: "Context-aware launch is required for host tools.")
+        }
+        return try await makeLaunchConfiguration(
+            spawnConfig: spawnConfig,
+            resumedSession: resumedSession,
+            hostToolEndpoint: nil
+        )
+    }
+
+    /// Builds a Claude launch with process-scoped host tools and workspace roots.
+    public func makeLaunchConfiguration(context: AgentProviderLaunchContext) async throws -> AgentLaunchConfiguration {
+        let endpoint = try context.validatedHostToolEndpoint()
+        return try await makeLaunchConfiguration(
+            spawnConfig: context.spawnConfig,
+            resumedSession: context.resumedSession,
+            hostToolEndpoint: endpoint
+        )
+    }
+
+    private func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?,
+        hostToolEndpoint: AgentHostToolEndpoint?
+    ) async throws -> AgentLaunchConfiguration {
+        try spawnConfig.validateAdditionalWorkspaceRoots()
         if spawnConfig.speedMode == .fast {
             // Claude's fast-like `--bare` mode disables hooks, so reject Fast instead of mapping it to launch flags.
             throw AgentCLIError.unsupportedCapability(providerId: Self.providerId, capability: "fast mode")
         }
         let launchExecutable = await resolvedLaunchExecutable()
-        var arguments = launchExecutable.arguments
-        arguments.append(contentsOf: [
-            "-p",
-            "--output-format",
-            "stream-json",
-            "--input-format",
-            "stream-json",
-            "--verbose",
-            "--include-partial-messages"
-        ])
-        if let permissionMode = effectivePermissionMode(for: spawnConfig) {
-            if ClaudePermissionModes.requiresDangerousModeUnlock(permissionMode) {
-                arguments.append("--allow-dangerously-skip-permissions")
-            }
-            arguments.append(contentsOf: ["--permission-mode", permissionMode])
-        }
-        arguments.append(contentsOf: ["--model", ClaudeModelAliases.normalizedModel(spawnConfig.model)])
-        if let effort = ClaudeModelAliases.normalizedEffort(spawnConfig.effort, model: spawnConfig.model) {
-            arguments.append(contentsOf: ["--effort", effort])
-        }
+        var (arguments, launchEnvironment) = try baseLaunchArguments(
+            executableArguments: launchExecutable.arguments,
+            spawnConfig: spawnConfig,
+            hostToolEndpoint: hostToolEndpoint
+        )
         let forkRequest = spawnConfig.sessionFork
         var sessionContinuity: AgentSessionContinuity = resumedSession == nil && forkRequest == nil ? .fresh : .resumed
         if let sessionId = forkRequest?.sourceSessionId ?? resumedSession?.providerSessionId {
@@ -230,12 +241,51 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         return AgentLaunchConfiguration(
             executable: launchExecutable.executable,
             arguments: arguments,
-            environment: spawnConfig.environment,
+            environment: launchEnvironment,
             workingDirectory: spawnConfig.workingDirectory,
             sessionContinuity: sessionContinuity,
             includesSpawnArguments: true,
             sendsInitialPromptOverStdin: true
         )
+    }
+
+    private func baseLaunchArguments(
+        executableArguments: [String],
+        spawnConfig: AgentSpawnConfig,
+        hostToolEndpoint: AgentHostToolEndpoint?
+    ) throws -> (arguments: [String], environment: [String: String]) {
+        var arguments = executableArguments + [
+            "-p",
+            "--output-format",
+            "stream-json",
+            "--input-format",
+            "stream-json",
+            "--verbose",
+            "--include-partial-messages"
+        ]
+        if let permissionMode = effectivePermissionMode(for: spawnConfig) {
+            if ClaudePermissionModes.requiresDangerousModeUnlock(permissionMode) {
+                arguments.append("--allow-dangerously-skip-permissions")
+            }
+            arguments.append(contentsOf: ["--permission-mode", permissionMode])
+        }
+        var environment = spawnConfig.environment
+        try ClaudeHostToolLaunch.augment(
+            arguments: &arguments,
+            environment: &environment,
+            spawnConfig: spawnConfig,
+            endpoint: hostToolEndpoint
+        )
+        arguments.append(contentsOf: ["--model", ClaudeModelAliases.normalizedModel(spawnConfig.model)])
+        if let effort = ClaudeModelAliases.normalizedEffort(spawnConfig.effort, model: spawnConfig.model) {
+            arguments.append(contentsOf: ["--effort", effort])
+        }
+        return (arguments, environment)
+    }
+
+    /// Defers active-turn changes and otherwise requests process replacement.
+    public func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
+        context.isTurnActive ? .nextTurnRequired : .restartRequired
     }
 
     func resolvedLaunchExecutable() async -> (executable: String, arguments: [String]) {

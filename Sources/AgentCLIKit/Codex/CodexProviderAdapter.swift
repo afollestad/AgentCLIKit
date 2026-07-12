@@ -97,7 +97,49 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         spawnConfig: AgentSpawnConfig,
         resumedSession: AgentSessionRecord?
     ) async throws -> AgentLaunchConfiguration {
-        let bootstrap = try await client.bootstrapThread(spawnConfig: spawnConfig, resumedSession: resumedSession)
+        guard spawnConfig.hostTools.isEmpty else {
+            throw AgentCLIError.hostToolsUnavailable(reason: "Context-aware launch is required for host tools.")
+        }
+        return try await makeLaunchConfiguration(
+            spawnConfig: spawnConfig,
+            resumedSession: resumedSession,
+            hostToolEndpoint: nil,
+            processToken: nil
+        )
+    }
+
+    /// Bootstraps Codex with process-scoped host tools and workspace roots.
+    public func makeLaunchConfiguration(context: AgentProviderLaunchContext) async throws -> AgentLaunchConfiguration {
+        let endpoint = try context.validatedHostToolEndpoint()
+        return try await makeLaunchConfiguration(
+            spawnConfig: context.spawnConfig,
+            resumedSession: context.resumedSession,
+            hostToolEndpoint: endpoint,
+            processToken: context.processToken
+        )
+    }
+
+    private func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?,
+        hostToolEndpoint: AgentHostToolEndpoint?,
+        processToken: UUID?
+    ) async throws -> AgentLaunchConfiguration {
+        try spawnConfig.validateAdditionalWorkspaceRoots()
+        let bootstrap: CodexThreadBootstrap
+        do {
+            bootstrap = try await client.bootstrapThread(
+                spawnConfig: spawnConfig,
+                resumedSession: resumedSession,
+                hostToolEndpoint: hostToolEndpoint,
+                processToken: processToken
+            )
+        } catch {
+            if let processToken {
+                await client.processDidTerminate(processToken: processToken)
+            }
+            throw error
+        }
         return AgentLaunchConfiguration(
             executable: "/usr/bin/env",
             arguments: [
@@ -118,6 +160,11 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
             providerSessionId: bootstrap.threadId,
             includesSpawnArguments: true
         )
+    }
+
+    /// Retires process-scoped App Server redaction values after the host route is invalidated.
+    public func processDidTerminate(processToken: UUID) async {
+        await client.processDidTerminate(processToken: processToken)
     }
 
     /// Decodes Codex bootstrap sentinel output.

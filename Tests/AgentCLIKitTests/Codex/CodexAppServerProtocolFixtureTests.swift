@@ -62,11 +62,32 @@ final class CodexAppServerProtocolFixtureTests: XCTestCase {
     func testProtocolValidationFixtureDocumentsTransportPolicy() throws {
         let fixture = try Self.fixture()
 
-        XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.142.0")
+        XCTAssertEqual(fixture.value(at: ["codexCLI", "version"]) as? String, "codex-cli 0.144.0")
         XCTAssertEqual(fixture.value(at: ["documentation", "transport", "default"]) as? String, "stdio://")
         XCTAssertEqual(fixture.value(at: ["documentation", "jsonRPC", "wireOmitsJsonrpcHeader"]) as? Bool, true)
         XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireLiveCodexAuth"]) as? Bool, false)
         XCTAssertEqual(fixture.value(at: ["ciPolicy", "fixturesRequireNetwork"]) as? Bool, false)
+    }
+
+    func testProtocolValidationFixtureDocumentsThreadScopedRootsAndMCPConfig() throws {
+        let fixture = try Self.fixture()
+
+        XCTAssertEqual(
+            fixture.value(at: ["schema", "threadLaunchOverrides", "runtimeWorkspaceRoots", "requests"]) as? [String],
+            ["thread/start", "thread/resume", "thread/fork"]
+        )
+        XCTAssertEqual(
+            fixture.value(at: ["schema", "threadLaunchOverrides", "config", "mcpServerDottedLeafPreservesOtherServers"]) as? Bool,
+            true
+        )
+        XCTAssertEqual(
+            fixture.value(at: ["schema", "threadLaunchOverrides", "config", "mcpPerToolApproval", "path"]) as? String,
+            "tools.<tool>.approval_mode"
+        )
+        XCTAssertEqual(
+            fixture.value(at: ["schema", "threadLaunchOverrides", "config", "mcpPerToolApproval", "values"]) as? [String],
+            ["auto", "prompt", "writes", "approve"]
+        )
     }
 
     func testProtocolValidationFixtureDocumentsReasoningNotifications() throws {

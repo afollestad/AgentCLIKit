@@ -11,12 +11,15 @@ It gives host apps a reusable layer for:
   permission/collaboration state, context compaction, lifecycle, and interactions.
 - Persisting provider session IDs and provider-reported names so conversations can resume.
 - Checking provider readiness, project trust, speed support, model options, and model-scoped effort options.
+- Exposing host-owned MCP tools and additional workspace roots to either built-in provider without changing global provider config.
 
 Host apps still own UI, durable app data, queueing policy, notifications, and product-specific workflow decisions.
 AgentCLIKit owns process launch, provider sessions, stdin/stdout coordination, App Server transport, event replay, status,
 interaction resolution, and sessionless one-shot provider prompts.
 
 ## Installation
+
+AgentCLIKit requires Swift 6.1 or newer because its exact Swift MCP SDK dependency uses a Swift 6.1 package manifest.
 
 Add AgentCLIKit as a Swift Package dependency. This repository does not currently publish version tags, so use `main`:
 
@@ -164,6 +167,12 @@ the host what happened:
 - `.restarted`: the runtime restarted or resumed the provider process with the new config.
 - `.nextTurnRequired`: the provider has an active turn, so persist or stage the config and pass it before the next turn.
 
+Host-owned tools use `AgentSpawnConfig.hostTools` for Codable definitions and an `AgentHostToolHandling` closure injected
+into `DefaultAgentRuntime` for execution. Each launch receives an authenticated, process-scoped loopback endpoint;
+AgentCLIKit never writes these tools into global Claude or Codex MCP files. Put extra file access in
+`additionalWorkspaceRoots`. Tool/root changes restart an idle provider and return `.nextTurnRequired` during an active
+turn. A nonempty tool list without injected handling fails with `AgentCLIError.hostToolsUnavailable`.
+
 See [docs/examples.md](docs/examples.md) for practical recipes covering:
 
 - One-off conversations.
@@ -224,6 +233,7 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Plan mode | `collaborationMode: .plan` maps to Claude's internal `--permission-mode plan` | Idle threads use `thread/settings/update`; plan mode requires a concrete model |
 | Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `speedMode: .fast` when Codex reports `fast_mode` support |
 | Native fork | `--resume <source> --fork-session` | App Server `thread/fork` |
+| Host tools and extra roots | Inline process MCP config and `--add-dir` | Per-thread MCP config and `runtimeWorkspaceRoots` |
 | Archive/delete | Validated no-op | App Server `thread/archive`, `thread/unarchive`, and `thread/delete` |
 
 Both built-in providers expose provider-neutral events, sessions, provider session metadata, usage, tool events, task

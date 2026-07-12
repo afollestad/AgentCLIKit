@@ -1,6 +1,6 @@
 {
   "codexCLI": {
-    "version": "codex-cli 0.142.0",
+    "version": "codex-cli 0.144.0",
     "schemaCommands": [
       "codex app-server generate-json-schema --out <redacted:path>",
       "codex app-server generate-ts --out <redacted:path>"
@@ -11,8 +11,8 @@
         "codex_app_server_protocol.v2.schemas.json"
       ],
       "jsonBundleByteCounts": {
-        "codex_app_server_protocol.schemas.json": 542339,
-        "codex_app_server_protocol.v2.schemas.json": 454494
+        "codex_app_server_protocol.schemas.json": 560640,
+        "codex_app_server_protocol.v2.schemas.json": 471114
       }
     }
   },
@@ -154,6 +154,29 @@
           "threadId": "string",
           "threadName": "optional string",
           "threadPreview": "optional string"
+        }
+      }
+    },
+    "threadLaunchOverrides": {
+      "runtimeWorkspaceRoots": {
+        "requests": [
+          "thread/start",
+          "thread/resume",
+          "thread/fork"
+        ],
+        "liveValidatedVersion": "0.144.0"
+      },
+      "config": {
+        "acceptsAdditionalProperties": true,
+        "mcpServerDottedLeafPreservesOtherServers": true,
+        "mcpPerToolApproval": {
+          "path": "tools.<tool>.approval_mode",
+          "values": [
+            "auto",
+            "prompt",
+            "writes",
+            "approve"
+          ]
         }
       }
     },

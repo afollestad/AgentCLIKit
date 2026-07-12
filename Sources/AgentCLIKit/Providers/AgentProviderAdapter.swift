@@ -11,6 +11,9 @@ public protocol AgentProviderAdapter: Sendable {
         resumedSession: AgentSessionRecord?
     ) async throws -> AgentLaunchConfiguration
 
+    /// Builds a launch configuration with runtime-owned process context.
+    func makeLaunchConfiguration(context: AgentProviderLaunchContext) async throws -> AgentLaunchConfiguration
+
     /// Builds a CLI command for a sessionless one-shot prompt.
     func makeOneShotPromptCommand(request: AgentOneShotPromptRequest) async throws -> ShellCommand
 
@@ -23,7 +26,7 @@ public protocol AgentProviderAdapter: Sendable {
 
     /// Gives the provider a chance to augment a launch before the runtime starts the process.
     /// - Parameters:
-    ///   - launch: Base launch configuration returned by `makeLaunchConfiguration(spawnConfig:resumedSession:)`.
+    ///   - launch: Base launch configuration returned by `makeLaunchConfiguration(context:)`.
     ///   - spawnConfig: Host spawn configuration for the conversation.
     ///   - conversationId: Runtime conversation identifier for the launch.
     ///   - processToken: Runtime-scoped token that identifies this specific process generation.
@@ -89,14 +92,32 @@ public protocol AgentProviderAdapter: Sendable {
     func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async
 
     /// Notifies the provider that a process generation has ended or been superseded.
+    /// Cleanup must be idempotent because cancelled launches can receive an early invalidation and a final post-cancellation invalidation.
     func processDidTerminate(processToken: UUID) async
 
-    /// Shuts down provider-owned resources retained across process launches.
+    /// Permanently shuts down provider-owned resources retained across process launches.
+    /// Implementations must be idempotent and prevent suspended or future launches from recreating shared resources after this returns.
     func shutdownProviderResources() async
 }
 
 /// Default behavior for optional provider adapter capabilities.
 public extension AgentProviderAdapter {
+    /// Bridges context-aware launches to the legacy launch requirement for source compatibility.
+    func makeLaunchConfiguration(context: AgentProviderLaunchContext) async throws -> AgentLaunchConfiguration {
+        guard context.hostToolEndpoint == nil,
+              context.spawnConfig.hostTools.isEmpty,
+              context.spawnConfig.additionalWorkspaceRoots.isEmpty else {
+            throw AgentCLIError.unsupportedCapability(
+                providerId: definition.id,
+                capability: "host tools or additional workspace roots"
+            )
+        }
+        return try await makeLaunchConfiguration(
+            spawnConfig: context.spawnConfig,
+            resumedSession: context.resumedSession
+        )
+    }
+
     /// Throws by default for providers that do not support sessionless one-shot prompts.
     func makeOneShotPromptCommand(request: AgentOneShotPromptRequest) async throws -> ShellCommand {
         throw AgentOneShotPromptError.unsupportedProvider(definition.id)

@@ -187,6 +187,9 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertNil(config.sessionFork)
         XCTAssertNil(config.speedMode)
         XCTAssertNil(config.initialGoal)
+        XCTAssertEqual(config.additionalWorkspaceRoots, [])
+        XCTAssertEqual(config.hostToolServer, AgentHostToolServerMetadata())
+        XCTAssertEqual(config.hostTools, [])
     }
 
     func testOlderRuntimeStatusPayloadDefaultsLifecycleSnapshotFields() throws {

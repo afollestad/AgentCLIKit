@@ -5,50 +5,69 @@ import Network
 public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchecked Sendable {
     private let server: ClaudeHookServer
     private let maxBodyBytes: Int
+    private let startupTimeout: DispatchTimeInterval
     private let queue = DispatchQueue(label: "AgentCLIKit.ClaudeHookHTTPListener")
     private let lock = NSLock()
     private var listener: NWListener?
+    private var isStopped = false
 
     /// Creates a Claude hook HTTP listener.
-    public init(server: ClaudeHookServer, maxBodyBytes: Int = 1_000_000) {
+    public init(
+        server: ClaudeHookServer,
+        maxBodyBytes: Int = 1_000_000,
+        startupTimeout: DispatchTimeInterval = .seconds(5)
+    ) {
         self.server = server
         self.maxBodyBytes = maxBodyBytes
+        self.startupTimeout = startupTimeout
     }
 
     /// Starts a loopback listener on an ephemeral port.
     public func start() async throws -> Int {
+        let existing = lock.withLock { (isStopped, listener?.port?.rawValue, listener != nil) }
+        guard !existing.0 else {
+            throw AgentCLIError.invalidInput("Claude hook listener has stopped.")
+        }
+        if let port = existing.1 {
+            return Int(port)
+        }
+        guard !existing.2 else {
+            throw AgentCLIError.invalidInput("Claude hook listener is already starting.")
+        }
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: .any)
         let listener = try NWListener(using: parameters)
+        guard store(listener) else {
+            listener.cancel()
+            throw AgentCLIError.invalidInput("Claude hook listener stopped during startup.")
+        }
         return try await withCheckedThrowingContinuation { continuation in
             let state = ListenerStartState(continuation: continuation)
-            listener.stateUpdateHandler = { [weak self] newState in
-                switch newState {
-                case .ready:
-                    guard let port = listener.port?.rawValue else {
-                        state.resume(throwing: AgentCLIError.invalidInput("Claude hook listener started without a port."))
-                        return
-                    }
-                    self?.store(listener)
-                    state.resume(returning: Int(port))
-                case .failed(let error):
-                    state.resume(throwing: error)
-                case .cancelled:
-                    state.resume(throwing: AgentCLIError.invalidInput("Claude hook listener was cancelled before startup."))
-                default:
-                    break
+            listener.stateUpdateHandler = { [weak self, weak listener] newState in
+                guard let listener else {
+                    return
                 }
+                self?.handleStateUpdate(newState, listener: listener, state: state)
             }
             listener.newConnectionHandler = { [weak self] connection in
                 self?.accept(connection)
             }
             listener.start(queue: queue)
+            queue.asyncAfter(deadline: .now() + startupTimeout) { [weak self] in
+                guard state.hasContinuation else {
+                    return
+                }
+                self?.clear(listener)
+                listener.cancel()
+                state.resume(throwing: AgentCLIError.invalidInput("Claude hook listener startup timed out."))
+            }
         }
     }
 
     /// Stops listening and closes the listener.
     public func stop() async {
         let listener = lock.withLock {
+            isStopped = true
             let current = self.listener
             self.listener = nil
             return current
@@ -56,9 +75,55 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
         listener?.cancel()
     }
 
-    private func store(_ listener: NWListener) {
+    private func store(_ listener: NWListener) -> Bool {
         lock.withLock {
+            guard !isStopped, self.listener == nil else {
+                return false
+            }
             self.listener = listener
+            return true
+        }
+    }
+
+    private func clear(_ listener: NWListener) {
+        lock.withLock {
+            guard self.listener === listener else {
+                return
+            }
+            self.listener = nil
+        }
+    }
+
+    private func isCurrent(_ listener: NWListener) -> Bool {
+        lock.withLock { self.listener === listener && !isStopped }
+    }
+
+    private func handleStateUpdate(
+        _ stateUpdate: NWListener.State,
+        listener: NWListener,
+        state: ListenerStartState
+    ) {
+        switch stateUpdate {
+        case .ready:
+            guard isCurrent(listener) else {
+                listener.cancel()
+                state.resume(throwing: AgentCLIError.invalidInput("Claude hook listener stopped during startup."))
+                return
+            }
+            guard let port = listener.port?.rawValue else {
+                clear(listener)
+                state.resume(throwing: AgentCLIError.invalidInput("Claude hook listener started without a port."))
+                return
+            }
+            state.resume(returning: Int(port))
+        case .failed(let error):
+            clear(listener)
+            state.resume(throwing: error)
+        case .cancelled:
+            clear(listener)
+            state.resume(throwing: AgentCLIError.invalidInput("Claude hook listener was cancelled before startup."))
+        default:
+            break
         }
     }
 
@@ -204,6 +269,10 @@ private final class ListenerStartState: @unchecked Sendable {
 
     init(continuation: CheckedContinuation<Int, Error>) {
         self.continuation = continuation
+    }
+
+    var hasContinuation: Bool {
+        lock.withLock { continuation != nil }
     }
 
     func resume(returning port: Int) {

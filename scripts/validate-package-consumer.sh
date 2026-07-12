@@ -7,7 +7,7 @@ cache_root=$(mktemp -d -t agentclikit-consumer-cache.XXXXXX)
 trap 'rm -rf "$package_root" "$cache_root"' EXIT
 
 cat >"$package_root/Package.swift" <<EOF
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 
 import PackageDescription
 

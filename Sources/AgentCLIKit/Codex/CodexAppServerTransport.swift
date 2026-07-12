@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 
 /// Codex App Server transport family used by `CodexProviderAdapter`.
@@ -26,6 +25,12 @@ public protocol CodexAppServerTransport: Sendable {
 
     /// Sends an error response to a server-originated JSON-RPC request.
     func sendErrorResponse(id: JSONValue, code: Int, message: String, data: JSONValue?) async throws
+
+    /// Registers process-scoped values that must be redacted from provider diagnostics and echoed protocol payloads.
+    func registerSensitiveValues(_ values: [String], processToken: UUID) async
+
+    /// Retires process-scoped values while retaining a small bounded window for late provider frames.
+    func unregisterSensitiveValues(processToken: UUID) async
 
     /// Shuts down the underlying transport and releases resources.
     func shutdown() async
@@ -142,7 +147,11 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     private var pendingResponses: [Int: PendingResponse] = [:]
     private var incomingContinuations: [UUID: AsyncStream<CodexAppServerIncomingMessage>.Continuation] = [:]
     private var stderrTail: [String] = []
+    private var stderrBuffer = CodexStderrRedactingBuffer()
+    private var sensitiveValuesByProcessToken: [UUID: Set<String>] = [:]
+    private var retiredSensitiveValues: [String] = []
     private var rawEventNotificationParser = CodexAppServerRawEventNotificationParser()
+    private var isShutdown = false
 
     /// Creates a stdio App Server transport.
     public init(configuration: CodexProviderAdapter.Configuration) {
@@ -166,6 +175,9 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
 
     /// Starts `codex app-server --stdio` when needed.
     public func start() async throws {
+        guard !isShutdown else {
+            throw AgentCLIError.invalidInput("Codex App Server transport has shut down.")
+        }
         if process?.isRunning == true {
             return
         }
@@ -272,8 +284,38 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
         ]))
     }
 
+    /// Redacts registered bearer values from all subsequent protocol and stderr processing.
+    public func registerSensitiveValues(_ values: [String], processToken: UUID) async {
+        guard !isShutdown else {
+            return
+        }
+        sensitiveValuesByProcessToken[processToken] = Set(values.filter { !$0.isEmpty })
+    }
+
+    /// Retires one process's values after route invalidation while keeping late App Server frames redacted.
+    public func unregisterSensitiveValues(processToken: UUID) async {
+        guard let values = sensitiveValuesByProcessToken.removeValue(forKey: processToken) else {
+            return
+        }
+        for value in values {
+            retiredSensitiveValues.removeAll { $0 == value }
+            retiredSensitiveValues.append(value)
+        }
+        if retiredSensitiveValues.count > 64 {
+            retiredSensitiveValues.removeFirst(retiredSensitiveValues.count - 64)
+        }
+    }
+
+    var retainedSensitiveValueCount: Int {
+        allSensitiveValues.count
+    }
+
     /// Terminates the App Server process and fails any pending responses.
     public func shutdown() async {
+        guard !isShutdown else {
+            return
+        }
+        isShutdown = true
         pendingResponses.values.forEach {
             $0.timeoutTask.cancel()
             $0.continuation.resume(throwing: AgentCLIError.invalidInput("Codex App Server shut down."))
@@ -289,9 +331,18 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
         let processToStop = process
         processToStop?.terminate()
         if let processToStop {
-            await waitForExitOrKill(processToStop)
+            await CodexProcessShutdown.waitForExitOrKill(
+                processToStop,
+                timeout: configuration.shutdownTimeout
+            )
+        }
+        if let finalLine = stderrBuffer.flush(sensitiveValues: allSensitiveValues) {
+            appendStderrLines([finalLine])
         }
         process = nil
+        stdoutBuffer.removeAll()
+        sensitiveValuesByProcessToken.removeAll()
+        retiredSensitiveValues.removeAll()
     }
 
     private func launchArguments() -> (executable: String, arguments: [String]) {
@@ -326,7 +377,7 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     }
 
     private func consumeStdout(_ data: Data) {
-        guard !data.isEmpty else {
+        guard !isShutdown, !data.isEmpty else {
             return
         }
         stdoutBuffer.append(data)
@@ -341,21 +392,22 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     }
 
     private func consumeStderr(_ data: Data) {
-        guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else {
+        guard !isShutdown, !data.isEmpty else {
             return
         }
-        stderrTail.append(contentsOf: text.split(separator: "\n").map(String.init))
-        if stderrTail.count > 20 {
-            stderrTail.removeFirst(stderrTail.count - 20)
-        }
+        let lines = stderrBuffer.append(data, sensitiveValues: allSensitiveValues)
+        appendStderrLines(lines)
     }
 
     private func handleStdoutLine(_ lineData: Data) {
-        guard let value = try? JSONDecoder().decode(JSONValue.self, from: lineData),
-              case let .object(object) = value else {
+        guard let decodedValue = try? JSONDecoder().decode(JSONValue.self, from: lineData) else {
             return
         }
-        if let id = object["id"]?.intValue,
+        let value = decodedValue.transportRedacting(sensitiveValues: allSensitiveValues)
+        guard case let .object(object) = value else {
+            return
+        }
+        if let id = object["id"]?.transportIntValue,
            let pending = pendingResponses.removeValue(forKey: id) {
             handleResponse(object, pending: pending)
             return
@@ -376,7 +428,7 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
 
     private func handleResponse(_ object: [String: JSONValue], pending: PendingResponse) {
         pending.timeoutTask.cancel()
-        if let error = object["error"]?.jsonRPCError {
+        if let error = object["error"]?.transportJSONRPCError {
             pending.continuation.resume(throwing: CodexAppServerError.jsonRPCError(
                 method: pending.method,
                 code: error.code,
@@ -388,6 +440,10 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     }
 
     private func addIncomingContinuation(_ continuation: AsyncStream<CodexAppServerIncomingMessage>.Continuation, id: UUID) {
+        guard !isShutdown else {
+            continuation.finish()
+            return
+        }
         incomingContinuations[id] = continuation
     }
 
@@ -408,6 +464,9 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     }
 
     private func processExited(exitCode: Int32) {
+        if let finalLine = stderrBuffer.flush(sensitiveValues: allSensitiveValues) {
+            appendStderrLines([finalLine])
+        }
         let error = CodexAppServerError.appServerExited(exitCode: exitCode, stderrTail: stderrTail.suffix(5).joined(separator: "\n"))
         pendingResponses.values.forEach {
             $0.timeoutTask.cancel()
@@ -420,73 +479,17 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
         stdin = nil
     }
 
-    private func waitForExitOrKill(_ process: Process) async {
-        let sleepNanoseconds: UInt64 = 50_000_000
-        let attempts = max(1, Int(configuration.shutdownTimeout * 1_000_000_000 / Double(sleepNanoseconds)))
-        for _ in 0..<attempts {
-            guard process.isRunning else {
-                return
-            }
-            try? await Task.sleep(nanoseconds: sleepNanoseconds)
-        }
-        guard process.isRunning else {
-            return
-        }
-        Darwin.kill(process.processIdentifier, SIGKILL)
-    }
-}
-
-private struct CodexJSONRPCError {
-    let code: Int?
-    let message: String
-}
-
-private extension JSONValue {
-    var codexObjectValue: [String: JSONValue]? {
-        guard case let .object(value) = self else {
-            return nil
-        }
-        return value
-    }
-
-    var codexStringValue: String? {
-        guard case let .string(value) = self, !value.isEmpty else {
-            return nil
-        }
-        return value
-    }
-
-    var intValue: Int? {
-        switch self {
-        case let .number(value):
-            Int(value)
-        case let .string(value):
-            Int(value)
-        default:
-            nil
+    private var allSensitiveValues: Set<String> {
+        sensitiveValuesByProcessToken.values.reduce(into: Set(retiredSensitiveValues)) { result, values in
+            result.formUnion(values)
         }
     }
 
-    var jsonRPCError: CodexJSONRPCError? {
-        guard case let .object(object) = self else {
-            return nil
+    private func appendStderrLines(_ lines: [String]) {
+        stderrTail.append(contentsOf: lines)
+        if stderrTail.count > 20 {
+            stderrTail.removeFirst(stderrTail.count - 20)
         }
-        let code = object["code"]?.intValue
-        let message: String
-        if case let .string(value)? = object["message"] {
-            message = value
-        } else {
-            message = "Unknown JSON-RPC error."
-        }
-        return CodexJSONRPCError(code: code, message: message)
     }
-}
 
-private extension [String: JSONValue] {
-    func codexStringValue(_ key: String) -> String? {
-        guard case let .string(value)? = self[key], !value.isEmpty else {
-            return nil
-        }
-        return value
-    }
 }

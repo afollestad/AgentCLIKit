@@ -54,6 +54,7 @@ extension DefaultAgentRuntime {
         guard let state = states[conversationId], state.processToken == processToken else {
             return
         }
+        let line = redactedProviderOutput(line, processToken: processToken)
         if source == .stderr {
             appendStderr(line, conversationId: conversationId)
             append(
@@ -204,7 +205,7 @@ extension DefaultAgentRuntime {
             // Cancellation publishes while the process may still be running; publish again
             // from the termination callback so hosts clear cached process-running flags.
             publishStatus(conversationId: conversationId)
-            await current.adapter.processDidTerminate(processToken: processToken)
+            await invalidateProcessResources(adapter: current.adapter, processToken: processToken)
             return
         case .starting, .running, nil:
             break
@@ -231,7 +232,7 @@ extension DefaultAgentRuntime {
         states[conversationId]?.stdinWriter = nil
         states[conversationId]?.providerEventTasks.forEach { $0.cancel() }
         states[conversationId]?.providerEventTasks = []
-        await latest.adapter.processDidTerminate(processToken: processToken)
+        await invalidateProcessResources(adapter: latest.adapter, processToken: processToken)
     }
 
     func emitLifecycle(

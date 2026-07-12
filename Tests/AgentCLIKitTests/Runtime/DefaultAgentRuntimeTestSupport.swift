@@ -356,6 +356,7 @@ actor ProviderLifecycleProbe {
     private(set) var prepareCount = 0
     private(set) var terminatedProcessTokens: [UUID] = []
     private(set) var shutdownCount = 0
+    private(set) var activeProcessResources = Set<UUID>()
 
     func recordPrepare() {
         prepareCount += 1
@@ -363,6 +364,11 @@ actor ProviderLifecycleProbe {
 
     func recordTermination(processToken: UUID) {
         terminatedProcessTokens.append(processToken)
+        activeProcessResources.remove(processToken)
+    }
+
+    func recordProcessResource(processToken: UUID) {
+        activeProcessResources.insert(processToken)
     }
 
     func recordShutdown() {

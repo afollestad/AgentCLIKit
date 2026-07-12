@@ -18,6 +18,8 @@ public enum AgentErrorCode: String, Codable, Hashable, Sendable {
     case invalidInput
     /// The host requested a provider capability that is not currently supported.
     case unsupportedCapability
+    /// Host-owned tool integration could not be prepared for a launch.
+    case hostToolsUnavailable
     /// The host sent an input attachment that the provider cannot encode.
     case unsupportedInputAttachment
     /// The provider supports a capability, but it is unavailable for the current session or project.
@@ -42,6 +44,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
     case invalidInput(String)
     /// The host requested a provider capability that is not currently supported.
     case unsupportedCapability(providerId: AgentProviderID, capability: String)
+    /// Host-owned tool integration could not be prepared for a launch.
+    case hostToolsUnavailable(reason: String)
     /// The host sent an input attachment that the provider cannot encode.
     case unsupportedInputAttachment(providerId: AgentProviderID, attachmentId: String, type: String, reason: String)
     /// The provider supports Goal mode, but goal control is unavailable for the current session or project.
@@ -66,6 +70,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             .invalidInput
         case .unsupportedCapability:
             .unsupportedCapability
+        case .hostToolsUnavailable:
+            .hostToolsUnavailable
         case .unsupportedInputAttachment:
             .unsupportedInputAttachment
         case .goalUnavailable:
@@ -96,6 +102,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
                 "provider_id": .string(providerId.rawValue),
                 "capability": .string(capability)
             ]
+        case let .hostToolsUnavailable(reason):
+            ["reason": .string(reason)]
         case let .unsupportedInputAttachment(providerId, attachmentId, type, reason):
             [
                 "provider_id": .string(providerId.rawValue),
@@ -130,6 +138,8 @@ public enum AgentCLIError: Error, Equatable, Sendable, LocalizedError {
             "Invalid agent input: \(message)"
         case let .unsupportedCapability(providerId, capability):
             "Provider '\(providerId.rawValue)' does not support \(capability)."
+        case let .hostToolsUnavailable(reason):
+            "Host tools are unavailable: \(reason)"
         case let .unsupportedInputAttachment(providerId, attachmentId, type, reason):
             "Provider '\(providerId.rawValue)' cannot encode attachment '\(attachmentId)' of type '\(type)': \(reason)"
         case let .goalUnavailable(providerId, reason):

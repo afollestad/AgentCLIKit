@@ -3,17 +3,21 @@ import Foundation
 extension DefaultAgentRuntime {
     func start(conversationId: AgentConversationID, config: AgentSpawnConfig, fresh: Bool) async throws {
         let startToken = try claimStart(conversationId: conversationId)
+        let processToken = UUID()
         defer {
             releaseStart(conversationId: conversationId, startToken: startToken)
+            untrackInFlightStart(conversationId: conversationId, processToken: processToken)
         }
 
         let prepared = try await prepareStart(
             conversationId: conversationId,
             config: config,
             fresh: fresh,
-            startToken: startToken
+            startToken: startToken,
+            processToken: processToken
         )
         try await installPreparedProcess(prepared, startToken: startToken)
+        untrackInFlightStart(conversationId: conversationId, processToken: processToken)
         try await ensureStartIsCurrent(prepared, startToken: startToken)
 
         emitInitialPromptPreviewIfNeeded(prepared)
@@ -42,14 +46,17 @@ extension DefaultAgentRuntime {
             processToken: prepared.stateInput.processToken
         )
         await startProviderRuntimeEvents(conversationId: conversationId, processToken: prepared.stateInput.processToken)
+        try await ensureStartIsCurrent(prepared, startToken: startToken)
     }
 
     func cancelStart(conversationId: AgentConversationID) {
-        startTokens.removeValue(forKey: conversationId)
+        if let startToken = startTokens[conversationId] {
+            cancelledStartTokens.insert(startToken)
+        }
     }
 
     func cancelAllStarts() {
-        startTokens.removeAll()
+        cancelledStartTokens.formUnion(startTokens.values)
     }
 }
 
@@ -58,7 +65,8 @@ private extension DefaultAgentRuntime {
         conversationId: AgentConversationID,
         config: AgentSpawnConfig,
         fresh: Bool,
-        startToken: UUID
+        startToken: UUID,
+        processToken: UUID
     ) async throws -> PreparedStart {
         guard let adapter = adapters[config.providerId] else {
             throw AgentCLIError.providerNotRegistered(config.providerId)
@@ -67,11 +75,16 @@ private extension DefaultAgentRuntime {
         let previous = states[conversationId]
         let generation = fresh ? (previous?.generation ?? 0) + 1 : max(previous?.generation ?? 0, 1)
         let resumedSession = fresh ? nil : try await sessionStore.record(conversationId: conversationId, providerId: config.providerId)
-        let processToken = UUID()
-        try ensureStartIsCurrent(conversationId: conversationId, startToken: startToken)
-
-        let baseLaunch = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: resumedSession)
-        try ensureStartIsCurrent(conversationId: conversationId, startToken: startToken)
+        trackInFlightStart(conversationId: conversationId, adapter: adapter, processToken: processToken)
+        let launchInput = BaseLaunchInput(
+            conversationId: conversationId,
+            config: config,
+            adapter: adapter,
+            resumedSession: resumedSession,
+            processToken: processToken,
+            startToken: startToken
+        )
+        let baseLaunch = try await makeBaseLaunch(input: launchInput)
 
         let launch = try await prepareLaunch(
             baseLaunch,
@@ -87,16 +100,67 @@ private extension DefaultAgentRuntime {
             processToken: processToken
         )
 
-        let preparedProcess = makeProcess(launch: launch, config: config)
-        let stateInput = StateInput(
-            conversationId: conversationId,
-            providerId: config.providerId,
+        return makePreparedStart(
+            launch: launch,
+            previous: previous,
             generation: generation,
-            processToken: processToken,
-            adapter: adapter,
+            fresh: fresh,
+            input: launchInput
+        )
+    }
+
+    func makeBaseLaunch(input: BaseLaunchInput) async throws -> AgentLaunchConfiguration {
+        try ensureStartIsCurrent(conversationId: input.conversationId, startToken: input.startToken)
+        try input.config.validateAdditionalWorkspaceRoots()
+        let endpoint = try await registerHostToolsIfNeeded(
+            conversationId: input.conversationId,
+            config: input.config,
+            processToken: input.processToken
+        )
+        registerSensitiveValues(endpoint.map { [$0.bearerToken] } ?? [], processToken: input.processToken)
+        let launch: AgentLaunchConfiguration
+        do {
+            launch = try await input.adapter.makeLaunchConfiguration(context: AgentProviderLaunchContext(
+                conversationId: input.conversationId,
+                processToken: input.processToken,
+                spawnConfig: input.config,
+                resumedSession: input.resumedSession,
+                hostToolEndpoint: endpoint
+            ))
+        } catch {
+            await invalidateTrackedStartResources(
+                conversationId: input.conversationId,
+                adapter: input.adapter,
+                processToken: input.processToken
+            )
+            throw error
+        }
+        try await ensureStartIsCurrent(
+            conversationId: input.conversationId,
+            startToken: input.startToken,
+            adapter: input.adapter,
+            processToken: input.processToken
+        )
+        return launch
+    }
+
+    func makePreparedStart(
+        launch: AgentLaunchConfiguration,
+        previous: ConversationState?,
+        generation: Int,
+        fresh: Bool,
+        input: BaseLaunchInput
+    ) -> PreparedStart {
+        let preparedProcess = makeProcess(launch: launch, config: input.config)
+        let stateInput = StateInput(
+            conversationId: input.conversationId,
+            providerId: input.config.providerId,
+            generation: generation,
+            processToken: input.processToken,
+            adapter: input.adapter,
             preparedProcess: preparedProcess,
-            spawnConfig: config,
-            resumedSession: resumedSession,
+            spawnConfig: input.config,
+            resumedSession: input.resumedSession,
             launchProviderSessionId: launch.providerSessionId,
             fresh: fresh
         )
@@ -105,12 +169,15 @@ private extension DefaultAgentRuntime {
             preparedProcess: preparedProcess,
             previous: previous,
             stateInput: stateInput,
-            adapter: adapter,
-            resumedSession: resumedSession
+            adapter: input.adapter,
+            resumedSession: input.resumedSession
         )
     }
 
     func claimStart(conversationId: AgentConversationID) throws -> UUID {
+        guard !isShutdown else {
+            throw AgentCLIError.invalidInput("Runtime has shut down.")
+        }
         guard startTokens[conversationId] == nil else {
             throw AgentCLIError.invalidInput("Start already in progress for conversation '\(conversationId.rawValue)'.")
         }
@@ -124,10 +191,11 @@ private extension DefaultAgentRuntime {
             return
         }
         startTokens.removeValue(forKey: conversationId)
+        cancelledStartTokens.remove(startToken)
     }
 
     func ensureStartIsCurrent(conversationId: AgentConversationID, startToken: UUID) throws {
-        guard startTokens[conversationId] == startToken else {
+        guard isStartCurrent(conversationId: conversationId, startToken: startToken) else {
             throw startCancelledError(conversationId: conversationId)
         }
     }
@@ -139,9 +207,13 @@ private extension DefaultAgentRuntime {
         processToken: UUID,
         process: Process? = nil
     ) async throws {
-        guard startTokens[conversationId] == startToken else {
+        guard isStartCurrent(conversationId: conversationId, startToken: startToken) else {
             forceKill(process)
-            await adapter.processDidTerminate(processToken: processToken)
+            await invalidateTrackedStartResources(
+                conversationId: conversationId,
+                adapter: adapter,
+                processToken: processToken
+            )
             throw startCancelledError(conversationId: conversationId)
         }
     }
@@ -160,6 +232,10 @@ private extension DefaultAgentRuntime {
         AgentCLIError.invalidInput("Start was cancelled for conversation '\(conversationId.rawValue)'.")
     }
 
+    func isStartCurrent(conversationId: AgentConversationID, startToken: UUID) -> Bool {
+        startTokens[conversationId] == startToken && !cancelledStartTokens.contains(startToken)
+    }
+
     func prepareLaunch(
         _ launch: AgentLaunchConfiguration,
         adapter: any AgentProviderAdapter,
@@ -175,7 +251,11 @@ private extension DefaultAgentRuntime {
                 processToken: processToken
             )
         } catch {
-            await adapter.processDidTerminate(processToken: processToken)
+            await invalidateTrackedStartResources(
+                conversationId: conversationId,
+                adapter: adapter,
+                processToken: processToken
+            )
             // Launch augmentation runs before conversation state exists, so fail rather than silently drop provider-managed resources.
             throw error
         }
@@ -218,19 +298,13 @@ private extension DefaultAgentRuntime {
         )
         let latestPrevious = states[stateInput.conversationId] ?? previous
         let oldProcess = latestPrevious?.process
-        await invalidatePreviousProcessToken(latestPrevious)
-        try await ensureStartIsCurrent(
-            conversationId: stateInput.conversationId,
-            startToken: startToken,
-            adapter: adapter,
-            processToken: stateInput.processToken,
-            process: process
-        )
 
-        // Swap tokens before terminating the previous process so its exit handler is ignored.
+        // Swap tokens before retiring redaction or terminating the previous process so trailing output is ignored.
         states[stateInput.conversationId] = makeState(input: stateInput, previous: latestPrevious)
+        untrackInFlightStart(conversationId: stateInput.conversationId, processToken: stateInput.processToken)
         emitLifecycle(.starting, conversationId: stateInput.conversationId)
         forceKill(oldProcess)
+        await invalidatePreviousProcessToken(latestPrevious)
     }
 
     func waitForPreviousOutputQueuesToBecomeIdle(_ previous: ConversationState?) async {
@@ -249,19 +323,18 @@ private extension DefaultAgentRuntime {
         let adapter = prepared.adapter
 
         let oldProcess = previous?.process
-        await invalidatePreviousProcessToken(previous)
-        try await ensureStartIsCurrent(
-            conversationId: stateInput.conversationId,
-            startToken: startToken,
-            adapter: adapter,
-            processToken: stateInput.processToken
-        )
-
-        // Swap tokens before cleaning up any previous process so delayed callbacks are ignored.
+        // Swap tokens before retiring redaction or cleaning up the previous process so trailing output is ignored.
         states[stateInput.conversationId] = makeState(input: stateInput, previous: previous)
+        untrackInFlightStart(conversationId: stateInput.conversationId, processToken: stateInput.processToken)
         emitLifecycle(.starting, conversationId: stateInput.conversationId)
         forceKill(oldProcess)
-        try await runPreparedProcess(process, launch: prepared.launch, stateInput: stateInput, adapter: adapter, recordsFailure: true)
+        do {
+            try await runPreparedProcess(process, launch: prepared.launch, stateInput: stateInput, adapter: adapter, recordsFailure: true)
+        } catch {
+            await invalidatePreviousProcessToken(previous)
+            throw error
+        }
+        await invalidatePreviousProcessToken(previous)
     }
 
     func runPreparedProcess(
@@ -274,7 +347,7 @@ private extension DefaultAgentRuntime {
         do {
             try runProcess(process, launch: launch, conversationId: stateInput.conversationId, recordsFailure: recordsFailure)
         } catch {
-            await adapter.processDidTerminate(processToken: stateInput.processToken)
+            await invalidateProcessResources(adapter: adapter, processToken: stateInput.processToken)
             throw error
         }
     }
@@ -284,7 +357,7 @@ private extension DefaultAgentRuntime {
             return
         }
         previous.providerEventTasks.forEach { $0.cancel() }
-        await previous.adapter.processDidTerminate(processToken: previous.processToken)
+        await invalidateProcessResources(adapter: previous.adapter, processToken: previous.processToken)
     }
 
     func makeState(input: StateInput, previous: ConversationState?) -> ConversationState {
@@ -549,7 +622,7 @@ private extension DefaultAgentRuntime {
             states[prepared.stateInput.conversationId]?.stdin = nil
             states[prepared.stateInput.conversationId]?.stdinWriter = nil
             forceKill(prepared.preparedProcess.process)
-            await prepared.adapter.processDidTerminate(processToken: prepared.stateInput.processToken)
+            await invalidateProcessResources(adapter: prepared.adapter, processToken: prepared.stateInput.processToken)
             throw error
         }
     }
@@ -566,6 +639,7 @@ private extension DefaultAgentRuntime {
             metadata: metadata
         )
     }
+
 }
 
 private struct PreparedStart {
@@ -575,4 +649,13 @@ private struct PreparedStart {
     let stateInput: StateInput
     let adapter: any AgentProviderAdapter
     let resumedSession: AgentSessionRecord?
+}
+
+private struct BaseLaunchInput {
+    let conversationId: AgentConversationID
+    let config: AgentSpawnConfig
+    let adapter: any AgentProviderAdapter
+    let resumedSession: AgentSessionRecord?
+    let processToken: UUID
+    let startToken: UUID
 }

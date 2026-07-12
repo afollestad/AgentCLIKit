@@ -274,41 +274,29 @@ final class AgentEventAndInputTests: XCTestCase {
     }
 
     func testAgentSpawnConfigRoundTripsPermissionAndCollaborationModeThroughJSON() throws {
-        let config = AgentSpawnConfig(
-            providerId: .claude,
-            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
-            reasoningSummaryMode: .auto,
-            permissionMode: "on-request",
-            collaborationMode: .plan,
-            initialPrompt: "Inspect this",
-            initialPromptAttachments: [
-                .localImage(id: "image-1", fileURL: URL(fileURLWithPath: "/tmp/shot.png"))
-            ],
-            initialPromptMetadata: ["source": .string("test")]
-        )
+        let config = hostToolSpawnConfig()
 
         let data = try JSONEncoder().encode(config)
         let decoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: data)
-        var legacyObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        legacyObject.removeValue(forKey: "reasoningSummaryMode")
-        legacyObject.removeValue(forKey: "permissionMode")
-        legacyObject.removeValue(forKey: "collaborationMode")
-        legacyObject.removeValue(forKey: "initialPromptAttachments")
-        legacyObject.removeValue(forKey: "initialPromptMetadata")
-        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
-        let legacyDecoded = try JSONDecoder().decode(AgentSpawnConfig.self, from: legacyData)
+        let legacyDecoded = try decodeLegacySpawnConfig(from: data)
 
         XCTAssertEqual(decoded.reasoningSummaryMode, .auto)
         XCTAssertEqual(decoded.permissionMode, "on-request")
         XCTAssertEqual(decoded.collaborationMode, .plan)
         XCTAssertEqual(decoded.initialPromptAttachments, config.initialPromptAttachments)
         XCTAssertEqual(decoded.initialPromptMetadata, config.initialPromptMetadata)
+        XCTAssertEqual(decoded.additionalWorkspaceRoots.map(\.path), ["/tmp/grant-a", "/tmp/grant-b"])
+        XCTAssertEqual(decoded.hostToolServer, config.hostToolServer)
+        XCTAssertEqual(decoded.hostTools, config.hostTools)
         XCTAssertEqual(decoded, config)
         XCTAssertNil(legacyDecoded.reasoningSummaryMode)
         XCTAssertNil(legacyDecoded.permissionMode)
         XCTAssertNil(legacyDecoded.collaborationMode)
         XCTAssertEqual(legacyDecoded.initialPromptAttachments, [])
         XCTAssertEqual(legacyDecoded.initialPromptMetadata, [:])
+        XCTAssertEqual(legacyDecoded.additionalWorkspaceRoots, [])
+        XCTAssertEqual(legacyDecoded.hostToolServer, AgentHostToolServerMetadata())
+        XCTAssertEqual(legacyDecoded.hostTools, [])
     }
 
     func testAgentSpawnConfigRoundTripsSessionForkThroughJSON() throws {
@@ -379,5 +367,63 @@ final class AgentEventAndInputTests: XCTestCase {
             dictionary[key] = removingMetadata(from: child)
         }
         return dictionary
+    }
+
+    private func hostToolSpawnConfig() -> AgentSpawnConfig {
+        AgentSpawnConfig(
+            providerId: .claude,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            reasoningSummaryMode: .auto,
+            permissionMode: "on-request",
+            collaborationMode: .plan,
+            initialPrompt: "Inspect this",
+            initialPromptAttachments: [
+                .localImage(id: "image-1", fileURL: URL(fileURLWithPath: "/tmp/shot.png"))
+            ],
+            initialPromptMetadata: ["source": .string("test")],
+            additionalWorkspaceRoots: [
+                URL(fileURLWithPath: "/tmp/grant-a"),
+                URL(fileURLWithPath: "/tmp/grant-a"),
+                URL(fileURLWithPath: "/tmp/grant-b")
+            ],
+            hostToolServer: AgentHostToolServerMetadata(
+                name: "alveary_host",
+                title: "Alveary",
+                instructions: "Open a proposal."
+            ),
+            hostTools: [AgentHostToolDefinition(
+                name: "propose_scheduled_task",
+                title: "Propose scheduled task",
+                description: "Opens a proposal.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "additionalProperties": .bool(false)
+                ]),
+                outputSchema: .object(["type": .string("object")]),
+                annotations: AgentHostToolAnnotations(
+                    readOnlyHint: false,
+                    destructiveHint: false,
+                    idempotentHint: true,
+                    openWorldHint: false
+                )
+            )]
+        )
+    }
+
+    private func decodeLegacySpawnConfig(from data: Data) throws -> AgentSpawnConfig {
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let newKeys = [
+            "reasoningSummaryMode",
+            "permissionMode",
+            "collaborationMode",
+            "initialPromptAttachments",
+            "initialPromptMetadata",
+            "additionalWorkspaceRoots",
+            "hostToolServer",
+            "hostTools"
+        ]
+        newKeys.forEach { object.removeValue(forKey: $0) }
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        return try JSONDecoder().decode(AgentSpawnConfig.self, from: legacyData)
     }
 }

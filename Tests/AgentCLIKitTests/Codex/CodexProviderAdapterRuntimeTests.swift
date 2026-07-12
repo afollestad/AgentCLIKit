@@ -391,8 +391,10 @@ final class CodexProviderAdapterRuntimeTests: XCTestCase {
         )
 
         let incomingStreamCount = await waitForIncomingStreamCount(transport, count: 2)
+        let requestMethods = await transport.requestMethods
 
         XCTAssertEqual(incomingStreamCount, 2)
+        XCTAssertEqual(requestMethods.filter { $0 == "initialize" }.count, 2)
     }
 
     func testRuntimeEventsMapNotificationsAndSettings() async throws {

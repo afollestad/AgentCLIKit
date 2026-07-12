@@ -21,6 +21,13 @@ final class CodexFeatureSupportTests: XCTestCase {
         ])
     }
 
+    func testRuntimeWorkspaceRootVersionFloorParsing() {
+        XCTAssertFalse(DefaultCodexFeatureSupportChecker.version("codex-cli 0.143.9", isAtLeast: [0, 144, 0]))
+        XCTAssertTrue(DefaultCodexFeatureSupportChecker.version("codex-cli 0.144.0", isAtLeast: [0, 144, 0]))
+        XCTAssertTrue(DefaultCodexFeatureSupportChecker.version("codex-cli 1.0.0-beta.1", isAtLeast: [0, 144, 0]))
+        XCTAssertFalse(DefaultCodexFeatureSupportChecker.version("unknown", isAtLeast: [0, 144, 0]))
+    }
+
     func testFeatureCheckerUsesAvailabilityPathEnvironmentAndCodexHome() async throws {
         let codexHome = URL(fileURLWithPath: "/tmp/codex-home", isDirectory: true)
         let environment = ["CODEX_TEST": "1", "CODEX_HOME": codexHome.path]

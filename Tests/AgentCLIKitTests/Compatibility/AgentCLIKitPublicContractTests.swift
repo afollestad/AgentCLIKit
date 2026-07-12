@@ -25,8 +25,13 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentRuntimeReconfigureResult.self)
         assertSendable(AgentInteractionRecord.self)
         assertSendable(AgentPendingAction.self)
+    }
+
+    func testProviderRuntimeTypesRemainSendable() {
+        assertSendable(AgentSpawnConfig.self)
         assertSendable(AgentProviderAdapterSet.self)
         assertSendable(AgentProviderSessionActionRouter.self)
+        assertSendable(AgentProviderLaunchContext.self)
         assertSendable(AgentProviderOutputContext.self)
         assertSendable(AgentProviderInputContext.self)
         assertSendable(AgentProviderRuntimeContext.self)
@@ -37,6 +42,20 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentProviderReconfigureContext.self)
         assertSendable(AgentProviderReconfigureResult.self)
         assertSendable(AgentProviderRuntimeEvent.self)
+    }
+
+    func testHostToolTypesRemainSendable() {
+        assertSendable(AgentHostToolDefinition.self)
+        assertSendable(AgentHostToolAnnotations.self)
+        assertSendable(AgentHostToolServerMetadata.self)
+        assertSendable(AgentHostToolCallContext.self)
+        assertSendable(AgentHostToolCall.self)
+        assertSendable(AgentHostToolResult.self)
+        assertSendable(AgentHostToolHandling.self)
+        assertSendable(AgentHostToolEndpoint.self)
+    }
+
+    func testProviderServiceTypesRemainSendable() {
         assertSendable(AgentProjectTrustStatus.self)
         assertSendable(DefaultAgentProjectTrustService.self)
         assertSendable(AgentProviderInstallationState.self)

@@ -50,6 +50,13 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     public let initialPromptAttachments: [AgentInputAttachment]
     /// Provider-neutral metadata sent with the initial prompt.
     public let initialPromptMetadata: [String: JSONValue]
+    /// Additional filesystem roots the provider may access for this conversation. For Codex, pass the working directory
+    /// itself as the only entry to explicitly replace native roots with a `cwd`-only sandbox.
+    public let additionalWorkspaceRoots: [URL]
+    /// Host-owned MCP server identity and instructions.
+    public let hostToolServer: AgentHostToolServerMetadata
+    /// Host-owned MCP tools exposed only for this process launch.
+    public let hostTools: [AgentHostToolDefinition]
 
     /// Creates a spawn configuration.
     public init(
@@ -68,7 +75,10 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         forkSession: Bool = false,
         initialPrompt: String? = nil,
         initialPromptAttachments: [AgentInputAttachment] = [],
-        initialPromptMetadata: [String: JSONValue] = [:]
+        initialPromptMetadata: [String: JSONValue] = [:],
+        additionalWorkspaceRoots: [URL] = [],
+        hostToolServer: AgentHostToolServerMetadata = AgentHostToolServerMetadata(),
+        hostTools: [AgentHostToolDefinition] = []
     ) {
         self.providerId = providerId
         self.workingDirectory = workingDirectory
@@ -86,6 +96,9 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.initialPrompt = initialPrompt
         self.initialPromptAttachments = initialPromptAttachments
         self.initialPromptMetadata = initialPromptMetadata
+        self.additionalWorkspaceRoots = Self.normalizedWorkspaceRoots(additionalWorkspaceRoots)
+        self.hostToolServer = hostToolServer
+        self.hostTools = hostTools
     }
 
     /// Decodes spawn configuration, defaulting additive fields for older persisted values.
@@ -107,6 +120,21 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.initialPrompt = try container.decodeIfPresent(String.self, forKey: .initialPrompt)
         self.initialPromptAttachments = try container.decodeIfPresent([AgentInputAttachment].self, forKey: .initialPromptAttachments) ?? []
         self.initialPromptMetadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .initialPromptMetadata) ?? [:]
+        self.additionalWorkspaceRoots = Self.normalizedWorkspaceRoots(
+            try container.decodeIfPresent([URL].self, forKey: .additionalWorkspaceRoots) ?? []
+        )
+        self.hostToolServer = try container.decodeIfPresent(AgentHostToolServerMetadata.self, forKey: .hostToolServer)
+            ?? AgentHostToolServerMetadata()
+        self.hostTools = try container.decodeIfPresent([AgentHostToolDefinition].self, forKey: .hostTools) ?? []
+    }
+
+    private static func normalizedWorkspaceRoots(_ roots: [URL]) -> [URL] {
+        var seen = Set<String>()
+        return roots.compactMap { root in
+            let normalized = root.isFileURL ? AgentPathHelpers.canonicalFileURL(root) : root.standardized
+            let key = normalized.isFileURL ? normalized.path : normalized.absoluteString
+            return seen.insert(key).inserted ? normalized : nil
+        }
     }
 }
 
