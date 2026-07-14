@@ -301,14 +301,57 @@ private struct CodexBootstrapPayload: Codable {
 
 extension CodexProviderAdapter.Configuration {
     func resolvingExecutableIfNeeded(for definition: AgentProviderDefinition) async -> Self {
-        guard executablePath == "/usr/bin/env",
-              let resolvedPath = await executableResolver.resolvedExecutablePath(for: definition) else {
+        let resolvedConfiguration: Self
+        if executablePath == "/usr/bin/env",
+           let resolvedPath = await executableResolver.resolvedExecutablePath(for: definition) {
+            resolvedConfiguration = replacingExecutablePath(resolvedPath)
+        } else {
+            resolvedConfiguration = self
+        }
+        return resolvedConfiguration.injectingCodeModeHostPathIfAvailable()
+    }
+
+    func resolvingExecutableIfNeeded(
+        for definition: AgentProviderDefinition,
+        availability: AgentProviderAvailability?
+    ) async -> Self {
+        guard executablePath == "/usr/bin/env" else {
+            return injectingCodeModeHostPathIfAvailable()
+        }
+        if let executablePath = availability?.executablePath, !executablePath.isEmpty {
+            return replacingExecutablePath(executablePath)
+                .injectingCodeModeHostPathIfAvailable()
+        }
+        return await resolvingExecutableIfNeeded(for: definition)
+    }
+
+    private func injectingCodeModeHostPathIfAvailable() -> Self {
+        let environmentKey = "CODEX_CODE_MODE_HOST_PATH"
+        guard environment[environmentKey] == nil,
+              executablePath != "/usr/bin/env" else {
             return self
         }
-        return Self(
-            executablePath: resolvedPath,
+        let canonicalExecutable = AgentPathHelpers.canonicalFileURL(URL(fileURLWithPath: executablePath))
+        let codeModeHost = canonicalExecutable
+            .deletingLastPathComponent()
+            .appendingPathComponent("codex-code-mode-host", isDirectory: false)
+        guard FileManager.default.isExecutableFile(atPath: codeModeHost.path) else {
+            return self
+        }
+        var resolvedEnvironment = environment
+        // Codex resolves this companion relative to its invocation path, which can be a symlink outside the install directory.
+        resolvedEnvironment[environmentKey] = codeModeHost.path
+        return replacingExecutablePath(executablePath, environment: resolvedEnvironment)
+    }
+
+    private func replacingExecutablePath(
+        _ executablePath: String,
+        environment: [String: String]? = nil
+    ) -> Self {
+        Self(
+            executablePath: executablePath,
             codexHomeDirectory: codexHomeDirectory,
-            environment: environment,
+            environment: environment ?? self.environment,
             experimentalAPIEnabled: experimentalAPIEnabled,
             requestTimeout: requestTimeout,
             probeTimeout: probeTimeout,
@@ -320,32 +363,5 @@ extension CodexProviderAdapter.Configuration {
             makeTransport: makeTransport,
             executableResolver: executableResolver
         )
-    }
-
-    func resolvingExecutableIfNeeded(
-        for definition: AgentProviderDefinition,
-        availability: AgentProviderAvailability?
-    ) async -> Self {
-        guard executablePath == "/usr/bin/env" else {
-            return self
-        }
-        if let executablePath = availability?.executablePath, !executablePath.isEmpty {
-            return Self(
-                executablePath: executablePath,
-                codexHomeDirectory: codexHomeDirectory,
-                environment: environment,
-                experimentalAPIEnabled: experimentalAPIEnabled,
-                requestTimeout: requestTimeout,
-                probeTimeout: probeTimeout,
-                shutdownTimeout: shutdownTimeout,
-                transportKind: transportKind,
-                featureSupportChecker: featureSupportChecker,
-                sessionApprovalPolicyStore: sessionApprovalPolicyStore,
-                commandApprovalNormalizationPolicy: commandApprovalNormalizationPolicy,
-                makeTransport: makeTransport,
-                executableResolver: executableResolver
-            )
-        }
-        return await resolvingExecutableIfNeeded(for: definition)
     }
 }

@@ -106,7 +106,10 @@ extension DefaultAgentRuntime {
         }
         let affectedTokens = Set(failure.processTokens)
         for (conversationId, resources) in inFlightStartResources where affectedTokens.contains(resources.processToken) {
-            cancelStart(conversationId: conversationId)
+            cancelStartForHostToolFailure(
+                conversationId: conversationId,
+                reason: failure.message
+            )
         }
         for (conversationId, state) in states where affectedTokens.contains(state.processToken) {
             emitDiagnostic(

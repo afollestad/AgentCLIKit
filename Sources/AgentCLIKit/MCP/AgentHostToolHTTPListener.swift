@@ -73,7 +73,7 @@ final class AgentHostToolHTTPListener: @unchecked Sendable {
     }
 
     func start() async throws -> Int {
-        let existingState = lock.withLock { (isStopped, readyPort, listener != nil) }
+        let existingState = lock.withLock { (isStopped, readyPort, self.listener != nil) }
         guard !existingState.0 else {
             throw AgentCLIError.invalidInput("Host tool listener has stopped.")
         }

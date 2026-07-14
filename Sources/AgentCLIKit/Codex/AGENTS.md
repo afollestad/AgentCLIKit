@@ -6,6 +6,8 @@
 - Do not start a Codex App Server process from provider discovery or static provider metadata.
 - Keep live Codex `model/list` usage behind explicit model option sources; default provider discovery must not launch App Server unless a host injects a live Codex source.
 - `CodexProviderAdapter` owns one shared App Server transport per adapter instance; keep transport startup and initialization single-flight, and make provider shutdown permanently reject late or future startup.
+- App Server ignores `thread/resume` config overrides for a thread that remains loaded. When a resumed runtime needs a new process-scoped host-tool endpoint, use `thread/fork` to retain history while applying the new launch configuration.
+- Pass process-scoped host-tool server instructions through App Server `developerInstructions`; MCP initialization alone does not guarantee those usage rules reach the model.
 - Surface Codex `Thread.name` and `Thread.preview` from bootstrap/resume and thread metadata notifications as provider-neutral `AgentEvent.sessionMetadata`.
 - Keep `turn/start` and `thread/settings/update` sticky settings in one shared builder for `cwd`, `model`, `approvalPolicy`, `effort`, `collaborationMode`, and `speedMode`.
 - Probe fast-mode support with `codex features list`; do not start App Server from discovery and do not use App Server process-wide feature enablement for per-thread speed.

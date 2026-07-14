@@ -26,9 +26,12 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
         Self.assertHostLaunchSettings(params, workingDirectory: "/tmp/project")
     }
 
-    func testResumeIncludesWorkspaceRootsAndDottedHostMCPConfig() async throws {
+    func testResumeWithHostToolsForksToApplyWorkspaceRootsAndDottedMCPConfig() async throws {
         let workingDirectory = URL(fileURLWithPath: "/tmp/project")
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-existing"])
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-forked"],
+            threadForkedFromIds: ["thread-existing"]
+        )
         let adapter = CodexProviderAdapter(configuration: Self.configuration(transport: transport))
         let spawnConfig = Self.spawnConfig(workingDirectory: workingDirectory)
         let resumedSession = AgentSessionRecord(
@@ -46,13 +49,13 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
 
         let requestMethods = await transport.requestMethods
         let requestParams = await transport.requestParams
-        let params = try XCTUnwrap(requestParams["thread/resume"]?.objectValue)
-        XCTAssertEqual(requestMethods, ["initialize", "thread/resume"])
-        XCTAssertEqual(launch.sessionContinuity, .resumed)
-        XCTAssertEqual(launch.providerSessionId, "thread-existing")
+        let params = try XCTUnwrap(requestParams["thread/fork"]?.objectValue)
+        XCTAssertEqual(requestMethods, ["initialize", "thread/fork"])
+        XCTAssertEqual(launch.sessionContinuity, .forked)
+        XCTAssertEqual(launch.providerSessionId, "thread-forked")
         XCTAssertEqual(params["cwd"], .string("/tmp/project"))
         XCTAssertEqual(params["threadId"], .string("thread-existing"))
-        XCTAssertNil(params["ephemeral"])
+        XCTAssertEqual(params["ephemeral"], .bool(false))
         Self.assertHostLaunchSettings(params, workingDirectory: "/tmp/project")
     }
 
@@ -137,7 +140,11 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
         let adapter = CodexProviderAdapter(configuration: Self.configuration(transport: transport))
         let config = AgentSpawnConfig(
             providerId: .codex,
-            workingDirectory: URL(fileURLWithPath: "/tmp/project")
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            hostToolServer: AgentHostToolServerMetadata(
+                name: "alveary_host",
+                instructions: "Use Alveary host tools for scheduled-task requests."
+            )
         )
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
@@ -145,6 +152,7 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
         let requestParams = await transport.requestParams
         let params = try XCTUnwrap(requestParams["thread/start"]?.objectValue)
         XCTAssertNil(params["runtimeWorkspaceRoots"])
+        XCTAssertNil(params["developerInstructions"])
     }
 
     func testWorkingDirectorySentinelReplacesRuntimeWorkspaceRootsWithCwdOnly() async throws {
@@ -343,7 +351,10 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
                 URL(fileURLWithPath: "/tmp/grant-a"),
                 URL(fileURLWithPath: "/tmp/grant-b")
             ],
-            hostToolServer: AgentHostToolServerMetadata(name: "alveary_host"),
+            hostToolServer: AgentHostToolServerMetadata(
+                name: "alveary_host",
+                instructions: "Use Alveary host tools for scheduled-task requests."
+            ),
             hostTools: hostTools
         )
     }
@@ -398,6 +409,12 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
     ) {
         XCTAssertEqual(params["model"], .string("model-a"), file: file, line: line)
         XCTAssertEqual(params["approvalPolicy"], .string("on-request"), file: file, line: line)
+        XCTAssertEqual(
+            params["developerInstructions"],
+            .string("Use Alveary host tools for scheduled-task requests."),
+            file: file,
+            line: line
+        )
         XCTAssertEqual(params["runtimeWorkspaceRoots"], .array([
             .string(workingDirectory),
             .string("/tmp/grant-a"),

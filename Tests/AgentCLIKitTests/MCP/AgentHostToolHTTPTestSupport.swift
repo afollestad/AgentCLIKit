@@ -205,7 +205,7 @@ private final class AgentHostToolRawHTTPExchange: @unchecked Sendable {
             if isComplete {
                 finish(.success(lock.withLock { received }))
             } else if let error {
-                let received = lock.withLock { received }
+                let received = lock.withLock { self.received }
                 finish(received.isEmpty ? .failure(error) : .success(received))
             } else {
                 receive()
@@ -215,8 +215,8 @@ private final class AgentHostToolRawHTTPExchange: @unchecked Sendable {
 
     private func finish(_ result: Result<Data, Error>) {
         let continuation = lock.withLock {
-            let current = continuation
-            continuation = nil
+            let current = self.continuation
+            self.continuation = nil
             return current
         }
         guard let continuation else {

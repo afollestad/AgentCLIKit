@@ -10,8 +10,9 @@ extension CodexAppServerClient {
         let workspaceRoots = runtimeWorkspaceRoots(spawnConfig)
         try await validateRuntimeWorkspaceRootsIfNeeded(workspaceRoots)
         let supportsFastMode = try await speedModeSupportForSettings(spawnConfig: spawnConfig)
-        let legacyForkSourceSessionId = spawnConfig.forkSession ? resumedSession?.providerSessionId : nil
-        let forkSourceSessionId = spawnConfig.sessionFork?.sourceSessionId ?? legacyForkSourceSessionId
+        let forkSourceSessionId = resolvedForkSourceSessionId(
+            spawnConfig: spawnConfig, resumedSession: resumedSession, hostToolEndpoint: hostToolEndpoint
+        )
         let shouldHydrateExistingGoal = resumedSession != nil || forkSourceSessionId != nil
         let supportsGoalMode = try await goalModeSupportForSettings(
             spawnConfig: spawnConfig,
@@ -56,6 +57,22 @@ extension CodexAppServerClient {
             continuity: request.continuity,
             goal: goal
         )
+    }
+
+    private func resolvedForkSourceSessionId(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?,
+        hostToolEndpoint: AgentHostToolEndpoint?
+    ) -> AgentSessionID? {
+        if let explicitSource = spawnConfig.sessionFork?.sourceSessionId {
+            return explicitSource
+        }
+        if spawnConfig.forkSession {
+            return resumedSession?.providerSessionId
+        }
+        // Codex ignores thread/resume config overrides while its shared App Server still has the thread loaded. Host-tool
+        // endpoints are process-scoped, so preserve the conversation by forking when a resumed runtime needs a fresh route.
+        return hostToolEndpoint == nil ? nil : resumedSession?.providerSessionId
     }
 
     func archiveThread(_ threadId: AgentSessionID) async throws {
@@ -198,6 +215,11 @@ extension CodexAppServerClient {
         }
         if let workspaceRoots = runtimeWorkspaceRoots(spawnConfig) {
             params["runtimeWorkspaceRoots"] = .array(workspaceRoots.map(JSONValue.string))
+        }
+        if hostToolEndpoint != nil,
+           let instructions = spawnConfig.hostToolServer.instructions?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !instructions.isEmpty {
+            params["developerInstructions"] = .string(instructions)
         }
         if let config = threadConfig(
             spawnConfig: spawnConfig,

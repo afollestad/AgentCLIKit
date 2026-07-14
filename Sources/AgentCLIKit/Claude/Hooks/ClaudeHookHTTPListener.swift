@@ -24,7 +24,7 @@ public final class ClaudeHookHTTPListener: ClaudeHookListeningTransport, @unchec
 
     /// Starts a loopback listener on an ephemeral port.
     public func start() async throws -> Int {
-        let existing = lock.withLock { (isStopped, listener?.port?.rawValue, listener != nil) }
+        let existing = lock.withLock { (isStopped, self.listener?.port?.rawValue, self.listener != nil) }
         guard !existing.0 else {
             throw AgentCLIError.invalidInput("Claude hook listener has stopped.")
         }

@@ -21,6 +21,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     var states: [AgentConversationID: ConversationState] = [:]
     var startTokens: [AgentConversationID: UUID] = [:]
     var cancelledStartTokens = Set<UUID>()
+    var startCancellationErrors: [UUID: AgentCLIError] = [:]
     var inFlightStartResources: [AgentConversationID: InFlightStartResources] = [:]
     var sensitiveValuesByProcessToken: [UUID: Set<String>] = [:]
     var hostToolFailureMonitorStartTask: Task<AsyncStream<AgentHostToolServerFailure>, Never>?

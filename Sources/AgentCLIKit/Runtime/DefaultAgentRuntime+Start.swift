@@ -52,11 +52,28 @@ extension DefaultAgentRuntime {
     func cancelStart(conversationId: AgentConversationID) {
         if let startToken = startTokens[conversationId] {
             cancelledStartTokens.insert(startToken)
+            // Explicit destruction must remain authoritative over an earlier recoverable listener failure.
+            startCancellationErrors[startToken] = nil
         }
     }
 
     func cancelAllStarts() {
-        cancelledStartTokens.formUnion(startTokens.values)
+        let activeStartTokens = startTokens.values
+        cancelledStartTokens.formUnion(activeStartTokens)
+        activeStartTokens.forEach { startCancellationErrors[$0] = nil }
+    }
+
+    func cancelStartForHostToolFailure(
+        conversationId: AgentConversationID,
+        reason: String
+    ) {
+        guard let startToken = startTokens[conversationId],
+              !cancelledStartTokens.contains(startToken) else {
+            // Never convert a host-requested cancellation into a retryable integration failure.
+            return
+        }
+        cancelledStartTokens.insert(startToken)
+        startCancellationErrors[startToken] = .hostToolsUnavailable(reason: reason)
     }
 }
 
@@ -192,11 +209,12 @@ private extension DefaultAgentRuntime {
         }
         startTokens.removeValue(forKey: conversationId)
         cancelledStartTokens.remove(startToken)
+        startCancellationErrors[startToken] = nil
     }
 
     func ensureStartIsCurrent(conversationId: AgentConversationID, startToken: UUID) throws {
         guard isStartCurrent(conversationId: conversationId, startToken: startToken) else {
-            throw startCancelledError(conversationId: conversationId)
+            throw startCancelledError(conversationId: conversationId, startToken: startToken)
         }
     }
 
@@ -214,7 +232,7 @@ private extension DefaultAgentRuntime {
                 adapter: adapter,
                 processToken: processToken
             )
-            throw startCancelledError(conversationId: conversationId)
+            throw startCancelledError(conversationId: conversationId, startToken: startToken)
         }
     }
 
@@ -228,8 +246,12 @@ private extension DefaultAgentRuntime {
         )
     }
 
-    func startCancelledError(conversationId: AgentConversationID) -> AgentCLIError {
-        AgentCLIError.invalidInput("Start was cancelled for conversation '\(conversationId.rawValue)'.")
+    func startCancelledError(
+        conversationId: AgentConversationID,
+        startToken: UUID
+    ) -> AgentCLIError {
+        startCancellationErrors[startToken]
+            ?? AgentCLIError.invalidInput("Start was cancelled for conversation '\(conversationId.rawValue)'.")
     }
 
     func isStartCurrent(conversationId: AgentConversationID, startToken: UUID) -> Bool {
