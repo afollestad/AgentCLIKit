@@ -108,6 +108,14 @@ extension CodexAppServerError {
         }
         return method == "turn/interrupt" && message.localizedCaseInsensitiveContains("no active turn")
     }
+
+    /// Reports that the App Server holds no rollout for the requested thread.
+    var isMissingThreadRollout: Bool {
+        guard case let .jsonRPCError(_, _, message) = self else {
+            return false
+        }
+        return message.localizedCaseInsensitiveContains("no rollout found")
+    }
 }
 
 extension JSONValue {

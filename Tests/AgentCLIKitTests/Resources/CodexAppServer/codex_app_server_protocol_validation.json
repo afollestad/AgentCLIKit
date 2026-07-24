@@ -474,6 +474,22 @@
             "result": {
               "responseResultKeys": []
             }
+          },
+          {
+            "request": "thread/delete on an already-archived thread",
+            "result": {
+              "errorCode": -32603,
+              "message": "failed to delete app-server state for <redacted:threadId>: error returned from database: (code: 1) no such table: agent_jobs",
+              "notes": "The rollout file is removed before this failure, so the delete is destructive despite the error response."
+            }
+          },
+          {
+            "request": "thread/archive on a thread whose rollout is gone",
+            "result": {
+              "errorCode": -32600,
+              "message": "no rollout found for thread id <redacted:threadId>",
+              "notes": "Archive only resolves rollouts the App Server still tracks, so already-deleted threads report this instead of succeeding."
+            }
           }
         ]
       }

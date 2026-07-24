@@ -76,27 +76,15 @@ extension CodexAppServerClient {
     }
 
     func archiveThread(_ threadId: AgentSessionID) async throws {
-        let transport = try await initializedTransport()
-        _ = try await transport.sendRequest(
-            method: "thread/archive",
-            params: threadActionParams(threadId)
-        )
+        try await sendThreadLifecycleRequest(method: "thread/archive", threadId: threadId)
     }
 
     func unarchiveThread(_ threadId: AgentSessionID) async throws {
-        let transport = try await initializedTransport()
-        _ = try await transport.sendRequest(
-            method: "thread/unarchive",
-            params: threadActionParams(threadId)
-        )
+        try await sendThreadLifecycleRequest(method: "thread/unarchive", threadId: threadId)
     }
 
     func deleteThread(_ threadId: AgentSessionID) async throws {
-        let transport = try await initializedTransport()
-        _ = try await transport.sendRequest(
-            method: "thread/delete",
-            params: threadActionParams(threadId)
-        )
+        try await sendThreadLifecycleRequest(method: "thread/delete", threadId: threadId)
     }
 
     func setThreadGoal(_ threadId: AgentSessionID, objective: String) async throws -> AgentGoalSnapshot? {
@@ -351,6 +339,17 @@ extension CodexAppServerClient {
 
     private func threadActionParams(_ threadId: AgentSessionID) -> JSONValue {
         .object(["threadId": .string(threadId.rawValue)])
+    }
+
+    /// Sends a thread lifecycle action, treating a thread the App Server no longer has a rollout for
+    /// as an already-completed action so hosts do not surface failures for cleanup with nothing left to do.
+    private func sendThreadLifecycleRequest(method: String, threadId: AgentSessionID) async throws {
+        let transport = try await initializedTransport()
+        do {
+            _ = try await transport.sendRequest(method: method, params: threadActionParams(threadId))
+        } catch let error as CodexAppServerError where error.isMissingThreadRollout {
+            return
+        }
     }
 
     private func bootstrapGoal(

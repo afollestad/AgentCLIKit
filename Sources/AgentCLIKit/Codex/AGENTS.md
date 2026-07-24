@@ -21,3 +21,4 @@
 - Do not expose encrypted Codex compaction payloads as transcript summaries.
 - Map only observed model-visible Codex tool items or actually executed host requests to provider-neutral tool events; do not synthesize successful tool activity from final assistant text, warnings, or unsupported `item/tool/call` requests.
 - Map Codex `cachedInputTokens` to `AgentUsageEvent.cachedInputTokens`, not `cacheReadInputTokens`; it is a subset of `inputTokens` and must not be added again for context-window occupancy.
+- Treat `thread/archive`, `thread/unarchive`, and `thread/delete` as idempotent: a `no rollout found` error means the thread is already gone, so report success rather than a host-visible failure. Codex 0.144.0 removes the rollout before `thread/delete` fails on missing app-server state, so a host archive fallback hits this path routinely.

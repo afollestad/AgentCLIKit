@@ -520,6 +520,60 @@ final class CodexProviderAdapterTests: XCTestCase {
         }
     }
 
+    func testThreadLifecycleActionsSucceedWhenRolloutIsAlreadyGone() async throws {
+        let actions: [(method: String, perform: (CodexProviderAdapter, AgentSessionRecord) async throws -> Void)] = [
+            ("thread/archive", { try await $0.archiveSession($1) }),
+            ("thread/unarchive", { try await $0.unarchiveSession($1) }),
+            ("thread/delete", { try await $0.deleteSession($1) })
+        ]
+
+        for action in actions {
+            let transport = FakeCodexAppServerTransport(
+                threadIds: [],
+                requestErrors: [
+                    action.method: .jsonRPCError(
+                        method: action.method,
+                        code: -32600,
+                        message: "no rollout found for thread id thread-123"
+                    )
+                ]
+            )
+            let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+            try await action.perform(adapter, sessionRecord(providerId: .codex, workingDirectory: nil))
+
+            let requestMethods = await transport.requestMethods
+
+            XCTAssertEqual(requestMethods, ["initialize", action.method])
+        }
+    }
+
+    func testDeleteSurfacesNonRolloutJSONRPCFailure() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: [],
+            requestErrors: [
+                "thread/delete": .jsonRPCError(
+                    method: "thread/delete",
+                    code: -32603,
+                    message: "failed to delete app-server state: no such table: agent_jobs"
+                )
+            ]
+        )
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        do {
+            try await adapter.deleteSession(sessionRecord(providerId: .codex))
+            XCTFail("Expected JSON-RPC failure.")
+        } catch let error as CodexAppServerError {
+            guard case let .jsonRPCError(method, code, _) = error else {
+                XCTFail("Expected JSON-RPC error, got \(error).")
+                return
+            }
+            XCTAssertEqual(method, "thread/delete")
+            XCTAssertEqual(code, -32603)
+        }
+    }
+
     func testProviderResourcesCanShutdownAfterOneShotArchive() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: [])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
