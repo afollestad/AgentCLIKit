@@ -16,6 +16,8 @@ public struct AgentModelOption: Codable, Equatable, Sendable {
     public let providerId: AgentProviderID
     /// Stable option identifier for host settings.
     public let id: String
+    /// Short provider-defined alias hosts can accept as typed input, falling back to `id` when no alias exists.
+    public let shortName: String
     /// Provider model value to pass into `AgentSpawnConfig.model`, or `nil` to use the provider default.
     public let model: String?
     /// User-facing option label.
@@ -39,6 +41,7 @@ public struct AgentModelOption: Codable, Equatable, Sendable {
         id: String,
         model: String?,
         label: String,
+        shortName: String? = nil,
         description: String? = nil,
         contextWindowSize: Int? = nil,
         isDefault: Bool = false,
@@ -48,6 +51,7 @@ public struct AgentModelOption: Codable, Equatable, Sendable {
     ) {
         self.providerId = providerId
         self.id = id
+        self.shortName = shortName ?? id
         self.model = model
         self.label = label
         self.description = description
@@ -62,7 +66,9 @@ public struct AgentModelOption: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
-        self.id = try container.decode(String.self, forKey: .id)
+        let id = try container.decode(String.self, forKey: .id)
+        self.id = id
+        self.shortName = try container.decodeIfPresent(String.self, forKey: .shortName) ?? id
         self.model = try container.decodeIfPresent(String.self, forKey: .model)
         self.label = try container.decode(String.self, forKey: .label)
         self.description = try container.decodeIfPresent(String.self, forKey: .description)
@@ -71,6 +77,23 @@ public struct AgentModelOption: Codable, Equatable, Sendable {
         self.supportedEffortOptions = try container.decodeIfPresent([AgentProviderOption].self, forKey: .supportedEffortOptions) ?? []
         self.defaultEffortOption = try container.decodeIfPresent(AgentProviderOption.self, forKey: .defaultEffortOption)
         self.metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
+    }
+
+    /// Returns a copy carrying a different short name, for sources that resolve alias collisions after building options.
+    func withShortName(_ shortName: String) -> AgentModelOption {
+        AgentModelOption(
+            providerId: providerId,
+            id: id,
+            model: model,
+            label: label,
+            shortName: shortName,
+            description: description,
+            contextWindowSize: contextWindowSize,
+            isDefault: isDefault,
+            supportedEffortOptions: supportedEffortOptions,
+            defaultEffortOption: defaultEffortOption,
+            metadata: metadata
+        )
     }
 }
 

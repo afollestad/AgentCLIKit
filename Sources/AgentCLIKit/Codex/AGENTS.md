@@ -5,6 +5,7 @@
 - Use the Codex App Server protocol fixture before adding or changing request, notification, or approval behavior.
 - Do not start a Codex App Server process from provider discovery or static provider metadata.
 - Keep live Codex `model/list` usage behind explicit model option sources; default provider discovery must not launch App Server unless a host injects a live Codex source.
+- Codex model ids are too long to type, so `AgentModelOption.shortName` prefers a server-reported `shortName`/`short_name`/`slug` and otherwise derives the id's trailing `-` segment. Keep the derivation conservative: letters only, at least 3 characters, and never a generic size/tier qualifier, so `gpt-5.6-sol` yields `sol` while `gpt-5.4-mini` and `gpt-5.5` keep their ids. Resolve collisions after pagination in `normalized(_:)`; any alias claimed twice or shadowing another model's id reverts to the full id, because hosts match typed input against it.
 - `CodexProviderAdapter` owns one shared App Server transport per adapter instance; keep transport startup and initialization single-flight, and make provider shutdown permanently reject late or future startup.
 - App Server ignores `thread/resume` config overrides for a thread that remains loaded. When a resumed runtime needs a new process-scoped host-tool endpoint, use `thread/fork` to retain history while applying the new launch configuration.
 - Pass process-scoped host-tool server instructions through App Server `developerInstructions`; MCP initialization alone does not guarantee those usage rules reach the model.

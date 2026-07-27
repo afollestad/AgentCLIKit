@@ -208,6 +208,8 @@ computing context-window occupancy.
 
 - `model` for the value passed into `AgentSpawnConfig.model`.
 - `label` and `description` for UI.
+- `shortName` for typed input such as a host slash command; it is a provider-defined alias (`opus`, `sol`) that falls back
+  to `id` when the provider has no unambiguous alias. Do not derive short names host-side.
 - `contextWindowSize` when available.
 - `supportedEffortOptions` to decide whether to show effort controls.
 - `defaultEffortOption` for the model-specific default.

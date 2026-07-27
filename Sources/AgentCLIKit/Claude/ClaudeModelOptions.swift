@@ -20,6 +20,7 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
                 id: ClaudeModelAliases.defaultModel,
                 model: ClaudeModelAliases.defaultModel,
                 label: "Sonnet",
+                shortName: "sonnet",
                 description: "Use Claude's Sonnet model alias.",
                 isDefault: true,
                 supportedEffortOptions: sonnetEfforts,
@@ -30,6 +31,7 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
                 id: "fable",
                 model: "fable",
                 label: "Fable",
+                shortName: "fable",
                 description: "Use Claude's Fable model alias.",
                 supportedEffortOptions: fableEfforts,
                 defaultEffortOption: Self.effortOption("high")
@@ -39,6 +41,7 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
                 id: "opus",
                 model: "opus",
                 label: "Opus",
+                shortName: "opus",
                 description: "Use Claude's Opus model alias.",
                 supportedEffortOptions: opusEfforts,
                 defaultEffortOption: Self.effortOption("high")
@@ -48,6 +51,7 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
                 id: "haiku",
                 model: "haiku",
                 label: "Haiku",
+                shortName: "haiku",
                 description: "Use Claude's Haiku model alias.",
                 supportedEffortOptions: haikuEfforts,
                 defaultEffortOption: Self.effortOption("medium")

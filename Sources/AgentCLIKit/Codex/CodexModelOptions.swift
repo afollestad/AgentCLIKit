@@ -136,11 +136,15 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
             supportedEfforts: supportedEfforts,
             defaultEffortValue: defaultEffortValue
         )
+        let reportedShortName = object["shortName"]?.codexNonEmptyString
+            ?? object["short_name"]?.codexNonEmptyString
+            ?? object["slug"]?.codexNonEmptyString
         return AgentModelOption(
             providerId: CodexProviderAdapter.providerId,
             id: id,
             model: model,
             label: displayName,
+            shortName: reportedShortName ?? derivedShortName(for: id),
             description: object["description"]?.codexNonEmptyString,
             contextWindowSize: contextWindow,
             isDefault: object["isDefault"]?.codexBoolValue ?? false,
@@ -159,8 +163,43 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
             seen.insert(option.id)
             normalized.append(option)
         }
-        return normalized
+        return resolvingShortNameCollisions(in: normalized)
     }
+
+    /// Model ids such as `gpt-5.6-sol` carry a codename suffix that reads as a usable alias, while ids such as
+    /// `gpt-5.5` or `gpt-5.4-mini` do not. Derive only the former so hosts never advertise an ambiguous short name.
+    private static func derivedShortName(for id: String) -> String {
+        guard let suffix = id.split(separator: "-").last.map(String.init),
+              suffix.count >= 3,
+              suffix.allSatisfy(\.isLetter),
+              !genericModelQualifiers.contains(suffix.lowercased()) else {
+            return id
+        }
+        return suffix.lowercased()
+    }
+
+    /// Falls back to the full id whenever a short name is claimed twice or would shadow a different model's id.
+    private static func resolvingShortNameCollisions(in options: [AgentModelOption]) -> [AgentModelOption] {
+        let ids = Set(options.map { $0.id.lowercased() })
+        var shortNameCounts: [String: Int] = [:]
+        for option in options {
+            shortNameCounts[option.shortName.lowercased(), default: 0] += 1
+        }
+        return options.map { option in
+            let shortName = option.shortName.lowercased()
+            guard shortName != option.id.lowercased() else {
+                return option
+            }
+            guard shortNameCounts[shortName, default: 0] > 1 || ids.contains(shortName) else {
+                return option
+            }
+            return option.withShortName(option.id)
+        }
+    }
+
+    private static let genericModelQualifiers: Set<String> = [
+        "codex", "high", "latest", "low", "max", "mini", "nano", "preview", "pro", "turbo"
+    ]
 
     private static func reasoningEffortOptions(from value: JSONValue?) -> [AgentProviderOption] {
         value?.codexArrayValue?.compactMap(reasoningEffortOption(from:)) ?? []
