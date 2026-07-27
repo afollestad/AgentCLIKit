@@ -32,7 +32,7 @@ final class CodexReasoningItemDecoderTests: XCTestCase {
         ])
     }
 
-    func testSummaryPartAddedEmitsNoVisibleEvent() {
+    func testFirstSummaryPartAddedEmitsNoVisibleEvent() {
         let events = decoder.decode(notification(
             method: "item/reasoning/summaryPartAdded",
             params: [
@@ -41,6 +41,46 @@ final class CodexReasoningItemDecoderTests: XCTestCase {
                 "itemId": .string("reasoning-1"),
                 "summaryIndex": .number(0),
                 "text": .string("")
+            ]
+        )).map(\.event)
+
+        XCTAssertEqual(events, [])
+    }
+
+    func testLaterSummaryPartAddedEmitsParagraphBreak() {
+        let events = decoder.decode(notification(
+            method: "item/reasoning/summaryPartAdded",
+            params: [
+                "threadId": .string("thread-1"),
+                "turnId": .string("turn-1"),
+                "itemId": .string("reasoning-1"),
+                "summaryIndex": .number(1),
+                "text": .string("")
+            ]
+        )).map(\.event)
+
+        XCTAssertEqual(events, [
+            .reasoning(AgentReasoningEvent(
+                text: "\n\n",
+                metadata: itemMetadata(
+                    method: "item/reasoning/summaryPartAdded",
+                    itemId: "reasoning-1",
+                    values: [
+                        "codex_reasoning_kind": .string("summary"),
+                        "codex_reasoning_index": .number(1)
+                    ]
+                )
+            ))
+        ])
+    }
+
+    func testSummaryPartAddedWithoutIndexEmitsNoVisibleEvent() {
+        let events = decoder.decode(notification(
+            method: "item/reasoning/summaryPartAdded",
+            params: [
+                "threadId": .string("thread-1"),
+                "turnId": .string("turn-1"),
+                "itemId": .string("reasoning-1")
             ]
         )).map(\.event)
 

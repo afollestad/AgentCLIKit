@@ -288,6 +288,19 @@ struct ClaudeContent: Decodable {
 struct ClaudeStreamEvent: Decodable {
     let type: String
     let delta: ClaudeStreamDelta?
+    let contentBlock: ClaudeStreamContentBlock?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case delta
+        case contentBlock = "content_block"
+    }
+}
+
+/// Only the block type is needed from `content_block_start`; the block's own text arrives as deltas.
+/// Deliberately not `ClaudeContent`: its stricter shape would make an unrecognized block fail the whole line.
+struct ClaudeStreamContentBlock: Decodable {
+    let type: String?
 }
 
 struct ClaudeStreamDelta: Decodable {

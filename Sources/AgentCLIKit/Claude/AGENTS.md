@@ -12,6 +12,7 @@
 - Register `PreCompact` and `PostCompact` hooks independently from approval-hook gating; do not model compaction as a tool-use hook.
 - If generated hook listener/settings prep fails, keep launching Claude without `--settings` instead of failing provider spawn solely because hooks are unavailable.
 - `AskUserQuestion` deferred events should surface as `.prompt`, and `ExitPlanMode` deferred events as `.planModeExit`.
+- `content_block_start` for a `thinking` block decodes as a `"\n\n"` reasoning event so consecutive thinking blocks do not concatenate in hosts that append deltas. The decoder stays stateless, so the first thinking block of a turn also emits a leading break; hosts drop one that arrives with no reasoning text yet.
 - Correlate Claude compact stdout and hook events with the process token so consumers see stable `contextCompaction` IDs for start and terminal phases.
 - Keep live hook continuations, listener state, launch tokens, and decision races internal; persist only durable interaction/session/policy records through generic stores.
 - For Bash approvals, keep raw `tool_input` intact and carry canonical `approval_identity_tool_input` from `AgentCommandApprovalNormalizationPolicy` for summaries and durable exact/group matching.

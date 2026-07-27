@@ -51,8 +51,19 @@ struct CodexAppServerItemEventDecoder {
         reasoningDeltaEvent(notification, indexKey: "summaryIndex", kind: "summary")
     }
 
+    /// Emits a paragraph break so consecutive summary parts do not concatenate into one run-on line.
+    /// The first part has nothing to separate from, so only later parts produce an event.
     func decodeReasoningSummaryPartAdded(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
-        []
+        guard let params = notification.params?.codexObjectValue,
+              let index = params["summaryIndex"],
+              let indexValue = index.codexNumberValue,
+              indexValue > 0,
+              var metadata = itemDeltaMetadata(notification) else {
+            return []
+        }
+        metadata["codex_reasoning_kind"] = .string("summary")
+        metadata["codex_reasoning_index"] = index
+        return [runtimeEvent(.reasoning(AgentReasoningEvent(text: "\n\n", metadata: metadata)))]
     }
 
     func decodeItemStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
@@ -387,6 +398,13 @@ private extension JSONValue {
 
     var codexStringValue: String? {
         guard case let .string(value) = self else {
+            return nil
+        }
+        return value
+    }
+
+    var codexNumberValue: Double? {
+        guard case let .number(value) = self else {
             return nil
         }
         return value

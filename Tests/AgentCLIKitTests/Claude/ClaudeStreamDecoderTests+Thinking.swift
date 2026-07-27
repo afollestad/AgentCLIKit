@@ -29,6 +29,74 @@ extension ClaudeStreamDecoderTests {
         ])
     }
 
+    func testThinkingBlockStartEmitsParagraphBreak() throws {
+        let decoder = ClaudeStreamDecoder()
+        let line = #"""
+        {
+          "type": "stream_event",
+          "parent_tool_use_id": "task-1",
+          "event": {
+            "type": "content_block_start",
+            "index": 1,
+            "content_block": {
+              "type": "thinking",
+              "thinking": ""
+            }
+          }
+        }
+        """#
+
+        let events = try decoder.decodeLine(line)
+
+        XCTAssertEqual(events, [
+            .reasoning(AgentReasoningEvent(
+                text: "\n\n",
+                metadata: ["parent_tool_use_id": .string("task-1")]
+            ))
+        ])
+    }
+
+    func testIgnoresNonThinkingBlockStart() throws {
+        let decoder = ClaudeStreamDecoder()
+        let line = #"""
+        {
+          "type": "stream_event",
+          "event": {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {
+              "type": "text",
+              "text": ""
+            }
+          }
+        }
+        """#
+
+        let events = try decoder.decodeLine(line)
+
+        XCTAssertEqual(events, [])
+    }
+
+    func testDecodesUnrecognizedContentBlockShapeWithoutFailingTheLine() throws {
+        let decoder = ClaudeStreamDecoder()
+        let line = #"""
+        {
+          "type": "stream_event",
+          "event": {
+            "type": "content_block_start",
+            "index": 0,
+            "content_block": {
+              "content": { "unexpected": "shape" }
+            }
+          }
+        }
+        """#
+
+        let events = try decoder.decodeLine(line)
+
+        XCTAssertEqual(events, [])
+    }
+
     func testIgnoresSignatureDelta() throws {
         let decoder = ClaudeStreamDecoder()
         let line = #"""
