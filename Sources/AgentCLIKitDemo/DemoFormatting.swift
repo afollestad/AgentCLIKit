@@ -101,8 +101,11 @@ extension DemoModel {
         return "\(status.definition?.displayName ?? status.providerId.rawValue) ready"
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     static func eventSummary(_ event: AgentEvent) -> String {
+        contentEventSummary(event) ?? turnEventSummary(event) ?? sessionEventSummary(event)
+    }
+
+    private static func contentEventSummary(_ event: AgentEvent) -> String? {
         switch event {
         case .message(let message):
             let source = metadataString(message.metadata["claude_event_type"]).map { " source=\($0)" } ?? ""
@@ -115,6 +118,15 @@ extension DemoModel {
             return "tool_call name=\(toolCall.name)"
         case .toolResult(let toolResult):
             return "tool_result id=\(toolResult.id) error=\(toolResult.isError)"
+        case .rawOutput(let rawOutput):
+            return "raw_output complete=\(rawOutput.isComplete) length=\(rawOutput.text.count)"
+        default:
+            return nil
+        }
+    }
+
+    private static func turnEventSummary(_ event: AgentEvent) -> String? {
+        switch event {
         case .usage(let usage):
             let stopReason = usage.stopReason ?? "nil"
             return "usage stop_reason=\(stopReason)"
@@ -123,16 +135,25 @@ extension DemoModel {
         case .activity(let activity):
             let turnId = activity.turnId.map { " turn_id=\($0)" } ?? ""
             return "activity state=\(activity.state.rawValue)\(turnId)"
-        case .permissionMode(let permissionMode):
-            return "permission_mode mode=\(permissionMode.mode)"
-        case .collaborationMode(let collaborationMode):
-            return "collaboration_mode mode=\(collaborationMode.mode.rawValue)"
         case .task(let task):
             return "task phase=\(task.phase.rawValue) id=\(task.id)"
         case .subAgent(let subAgent):
             return "sub_agent phase=\(subAgent.phase.rawValue) id=\(subAgent.id)"
         case .contextCompaction(let compaction):
             return "context_compaction phase=\(compaction.phase.rawValue) id=\(compaction.id)"
+        case .interaction(let interaction):
+            return "interaction kind=\(interaction.kind.rawValue)"
+        default:
+            return nil
+        }
+    }
+
+    private static func sessionEventSummary(_ event: AgentEvent) -> String {
+        switch event {
+        case .permissionMode(let permissionMode):
+            return "permission_mode mode=\(permissionMode.mode)"
+        case .collaborationMode(let collaborationMode):
+            return "collaboration_mode mode=\(collaborationMode.mode.rawValue)"
         case .goal(let goal):
             if goal.isCleared {
                 return "goal cleared=true"
@@ -147,16 +168,16 @@ extension DemoModel {
             let name = metadata.name ?? "nil"
             let preview = metadata.preview ?? "nil"
             return "session_metadata provider_session_id=\(providerSessionId) name=\(name) preview=\(preview)"
-        case .interaction(let interaction):
-            return "interaction kind=\(interaction.kind.rawValue)"
         case .lifecycle(let lifecycle):
             return "lifecycle state=\(lifecycle.state.rawValue)"
         case .diagnostic(let diagnostic):
             let rawLine = metadataString(diagnostic.metadata["raw_stdout_line"])
             let suffix = rawLine.map { " raw_stdout_line=\(truncated($0))" } ?? ""
             return "diagnostic severity=\(diagnostic.severity.rawValue) message=\(diagnostic.message)\(suffix)"
-        case .rawOutput(let rawOutput):
-            return "raw_output complete=\(rawOutput.isComplete) length=\(rawOutput.text.count)"
+        default:
+            // The summary chain is no longer compiler-exhaustive, so an AgentEvent case added
+            // without a summary lands here rather than failing the demo build.
+            return "event"
         }
     }
 

@@ -89,7 +89,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     private let executablePath: String
     private let executableResolver: any AgentProviderExecutableResolving
     private let decoder: ClaudeStreamDecoder
-    private let inputEncoder: ClaudeInputEncoder
+    let inputEncoder: ClaudeInputEncoder
     private let homeDirectory: URL
     private let sessionFileExists: @Sendable (URL) -> Bool
     private let taskOutputReader = ClaudeTaskOutputReader()
@@ -363,57 +363,6 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     }
 
     /// Encodes host input as Claude stream JSON stdin.
-    public func encodeInput(_ input: AgentInput) async throws -> Data {
-        try inputEncoder.encode(input)
-    }
-
-    /// Encodes host input as Claude stream JSON stdin with launch context.
-    public func encodeInput(_ input: AgentInput, context: AgentProviderInputContext) async throws -> Data {
-        if case let .userMessage(message) = input,
-           message.metadata[AgentGoalMetadata.isInitialGoalTransport] == .bool(true),
-           let objective = message.metadata.nonEmptyStringValue(AgentGoalMetadata.objective) {
-            return try inputEncoder.encode(.userMessage(AgentMessageInput(text: Self.goalCommand(objective))))
-        }
-        return try inputEncoder.encode(input)
-    }
-
-    /// Encodes Claude's confirmed existing-session goal start surface.
-    public func encodeGoalStart(_ objective: String, context: AgentProviderGoalStartContext) async throws -> AgentProviderEncodedGoalStart? {
-        AgentProviderEncodedGoalStart(
-            data: try inputEncoder.encode(.userMessage(AgentMessageInput(text: Self.goalCommand(objective)))),
-            marksTurnActive: true
-        )
-    }
-
-    /// Hides Claude goal actions when stream-json stdin cannot process them immediately.
-    public func availableGoalActions(for goal: AgentGoalSnapshot, context: AgentProviderGoalActionContext) -> [AgentGoalAction] {
-        guard !context.isTurnActive,
-              case .available = context.inputAvailability else {
-            return goal.availableActions.filter { $0 != .delete }
-        }
-        return goal.availableActions
-    }
-
-    /// Encodes Claude's confirmed goal clear surface. Pause/resume are intentionally unsupported.
-    public func encodeGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws -> Data? {
-        guard action == .delete else {
-            throw AgentCLIError.unsupportedCapability(providerId: Self.providerId, capability: "goal \(action.rawValue)")
-        }
-        return try inputEncoder.encode(.userMessage(AgentMessageInput(text: "/goal clear")))
-    }
-
-    /// Emits a steering marker once Claude stdin accepts a marked mid-turn user input.
-    public func acceptedSteeringInputEvent(for message: AgentMessageInput, context: AgentProviderInputContext) -> AgentEvent? {
-        guard message.metadata[AgentSteeringMetadata.isSteering] == .bool(true),
-              message.metadata.nonEmptyStringValue(AgentSteeringMetadata.inputId) != nil else {
-            return nil
-        }
-        var metadata = message.metadata
-        metadata[AgentSteeringMetadata.signal] = .string(AgentSteeringMetadata.signalRuntimeInputAccepted)
-        return .message(AgentMessageEvent(role: .user, text: message.text, metadata: metadata))
-    }
-
-    /// Returns Claude hook runtime events for the active launch.
     public func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
         guard let hookCoordinator else {
             return AsyncStream { continuation in
@@ -481,85 +430,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
         return spawnConfig.permissionMode.map(ClaudePermissionModes.canonicalHostMode)
     }
 
-    private static func goalCommand(_ objective: String) -> String {
+    static func goalCommand(_ objective: String) -> String {
         "/goal \(objective.trimmingCharacters(in: .whitespacesAndNewlines))"
-    }
-}
-
-/// Helper for paths passed to Claude metadata.
-public enum ClaudePathEncoder {
-    /// Encodes a file URL as a standardized path string.
-    public static func encode(_ url: URL) -> String {
-        AgentPathHelpers.canonicalPath(url)
-    }
-
-    /// Encodes a path that may include `~` as a canonical path string.
-    public static func encode(_ path: String, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> String {
-        AgentPathHelpers.canonicalPath(path, homeDirectory: homeDirectory)
-    }
-
-    /// Encodes a canonical project path into Claude's project-directory name.
-    public static func projectDirectoryName(forCanonicalPath path: String) -> String {
-        path.unicodeScalars.map { scalar in
-            if CharacterSet.alphanumerics.contains(scalar) || scalar == "-" {
-                String(scalar)
-            } else {
-                "-"
-            }
-        }
-        .joined()
-    }
-
-    /// Returns Claude's JSONL session file URL for a session and working directory.
-    public static func sessionFileURL(sessionId: AgentSessionID, workingDirectory: URL, homeDirectory: URL) -> URL {
-        let encodedDirectory = projectDirectoryName(forCanonicalPath: encode(workingDirectory))
-        return homeDirectory
-            .appendingPathComponent(".claude", isDirectory: true)
-            .appendingPathComponent("projects", isDirectory: true)
-            .appendingPathComponent(encodedDirectory, isDirectory: true)
-            .appendingPathComponent("\(sessionId.rawValue).jsonl")
-    }
-
-    /// Returns Claude's JSONL session file URL for a session and working directory path.
-    public static func sessionFileURL(
-        sessionId: AgentSessionID,
-        workingDirectoryPath: String,
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-    ) -> URL {
-        let encodedDirectory = projectDirectoryName(forCanonicalPath: encode(workingDirectoryPath, homeDirectory: homeDirectory))
-        return homeDirectory
-            .appendingPathComponent(".claude", isDirectory: true)
-            .appendingPathComponent("projects", isDirectory: true)
-            .appendingPathComponent(encodedDirectory, isDirectory: true)
-            .appendingPathComponent("\(sessionId.rawValue).jsonl")
-    }
-
-    /// Returns whether Claude's JSONL session file exists for a session and working directory.
-    public static func sessionFileExists(
-        sessionId: AgentSessionID,
-        workingDirectory: URL,
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default
-    ) -> Bool {
-        fileManager.fileExists(atPath: sessionFileURL(
-            sessionId: sessionId,
-            workingDirectory: workingDirectory,
-            homeDirectory: homeDirectory
-        ).path)
-    }
-
-    /// Returns whether Claude's JSONL session file exists for a session and working directory path.
-    public static func sessionFileExists(
-        sessionId: AgentSessionID,
-        workingDirectoryPath: String,
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        fileManager: FileManager = .default
-    ) -> Bool {
-        fileManager.fileExists(atPath: sessionFileURL(
-            sessionId: sessionId,
-            workingDirectoryPath: workingDirectoryPath,
-            homeDirectory: homeDirectory
-        ).path)
     }
 }
 

@@ -125,17 +125,7 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
         })
         let interaction = try XCTUnwrap(Self.firstPlanModeExit(in: events))
         async let userMessageEvents = Self.collect(subscription.events, until: { envelopes in
-            envelopes.contains { envelope in
-                envelope.event == .message(AgentMessageEvent(
-                    role: .user,
-                    text: "Implement plan",
-                    metadata: [
-                        "agent_plan_exit_interaction_id": .string("provider-plan-exit"),
-                        AgentPlanProposalMetadata.proposalId: .string("provider-plan-exit"),
-                        AgentPlanProposalMetadata.planMarkdown: .string(PlanProposalProviderAdapter.planMarkdown)
-                    ]
-                ))
-            }
+            envelopes.contains { $0.event == Self.providerPlanExitUserMessage }
         })
 
         try await runtime.resolveInteraction(
@@ -157,17 +147,7 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
         }
         XCTAssertEqual(resolution.id, interaction.id)
         XCTAssertEqual(message.text, "Implement plan")
-        XCTAssertTrue(emittedEvents.contains {
-            $0.event == .message(AgentMessageEvent(
-                role: .user,
-                text: "Implement plan",
-                metadata: [
-                    "agent_plan_exit_interaction_id": .string("provider-plan-exit"),
-                    AgentPlanProposalMetadata.proposalId: .string("provider-plan-exit"),
-                    AgentPlanProposalMetadata.planMarkdown: .string(PlanProposalProviderAdapter.planMarkdown)
-                ]
-            ))
-        })
+        XCTAssertTrue(emittedEvents.contains { $0.event == Self.providerPlanExitUserMessage })
         XCTAssertEqual(status?.collaborationMode, .default)
         XCTAssertEqual(status?.waitingState, .idle)
     }
@@ -353,6 +333,17 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
         })
         return PlanProposalRuntimeSession(runtime: runtime, conversationId: conversationId, events: events)
     }
+
+    /// The user message a runtime sends after approving a provider-emitted plan-mode exit.
+    private static let providerPlanExitUserMessage = AgentEvent.message(AgentMessageEvent(
+        role: .user,
+        text: "Implement plan",
+        metadata: [
+            "agent_plan_exit_interaction_id": .string("provider-plan-exit"),
+            AgentPlanProposalMetadata.proposalId: .string("provider-plan-exit"),
+            AgentPlanProposalMetadata.planMarkdown: .string(PlanProposalProviderAdapter.planMarkdown)
+        ]
+    ))
 
     private static func firstPlanModeExit(in events: [AgentEventEnvelope]) -> AgentInteractionEvent? {
         events.compactMap { envelope -> AgentInteractionEvent? in

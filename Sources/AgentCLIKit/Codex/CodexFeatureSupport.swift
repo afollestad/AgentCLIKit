@@ -146,7 +146,9 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
         return result.exitCode == 0 ? output.trimmingCharacters(in: .whitespacesAndNewlines) : ""
     }
 
-    private func liveFeatureSupport(configuration: CodexProviderAdapter.Configuration) async throws -> (supportsFastMode: Bool, supportsGoalMode: Bool) {
+    private func liveFeatureSupport(
+        configuration: CodexProviderAdapter.Configuration
+    ) async throws -> (supportsFastMode: Bool, supportsGoalMode: Bool) {
         let result = try await runFeatureProbeCommand(arguments: ["features", "list"], configuration: configuration)
         guard result.exitCode == 0 else {
             return (false, false)

@@ -97,11 +97,29 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         requestParams[method] = params
         requestLog.append(Request(method: method, params: params))
         try failIfNeeded(method)
+        if method == "model/list" {
+            return try modelListResponse(method: method)
+        }
+        return threadResponse(method: method) ?? turnResponse(method: method) ?? goalResponse(method: method, params: params) ?? .null
+    }
+
+    private func threadResponse(method: String) -> JSONValue? {
         switch method {
         case "initialize":
             return .object(["server": .string("fake")])
         case "thread/start", "thread/resume", "thread/fork":
             return nextThreadResponse()
+        case "configRequirements/read":
+            return configRequirementsResponse
+        case "thread/archive", "thread/unarchive", "thread/delete":
+            return .object([:])
+        default:
+            return nil
+        }
+    }
+
+    private func turnResponse(method: String) -> JSONValue? {
+        switch method {
         case "turn/start":
             turnIndex += 1
             return .object([
@@ -115,10 +133,13 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
             return .object(["turnId": .string("turn-\(turnIndex)")])
         case "turn/interrupt":
             return .object([:])
-        case "configRequirements/read":
-            return configRequirementsResponse
-        case "thread/archive", "thread/unarchive", "thread/delete":
-            return .object([:])
+        default:
+            return nil
+        }
+    }
+
+    private func goalResponse(method: String, params: JSONValue?) -> JSONValue? {
+        switch method {
         case "thread/goal/set":
             return setGoal(params: params)
         case "thread/goal/get":
@@ -127,18 +148,20 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
             let cleared = goal != nil
             goal = nil
             return .object(["cleared": .bool(cleared)])
-        case "model/list":
-            if failModelListRequests || shouldFailModelListRequestAfterSuccesses() {
-                throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "Model list failed.")
-            }
-            successfulModelListRequestCount += 1
-            guard !modelListResponses.isEmpty else {
-                return .object(["data": .array([])])
-            }
-            return modelListResponses.removeFirst()
         default:
-            return .null
+            return nil
         }
+    }
+
+    private func modelListResponse(method: String) throws -> JSONValue {
+        if failModelListRequests || shouldFailModelListRequestAfterSuccesses() {
+            throw CodexAppServerError.jsonRPCError(method: method, code: -32000, message: "Model list failed.")
+        }
+        successfulModelListRequestCount += 1
+        guard !modelListResponses.isEmpty else {
+            return .object(["data": .array([])])
+        }
+        return modelListResponses.removeFirst()
     }
 
     private func setGoal(params: JSONValue?) -> JSONValue {

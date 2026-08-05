@@ -183,237 +183,6 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
         ]))
     }
 
-    func testToolRequestUserInputPromptReturnsAnswers() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
-
-        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
-        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
-        try await waitForRuntimeBinding(transport)
-        async let collectedEvents = Self.collect(stream, count: 1)
-
-        await transport.emitRequest(id: .string("input-1"), method: "item/tool/requestUserInput", params: toolRequestUserInputParams())
-
-        let interaction = try Self.interaction(from: await collectedEvents)
-        _ = try await adapter.encodeInput(
-            .interactionResolution(AgentInteractionResolution(id: interaction.id, outcome: .answered, responseText: "Option A")),
-            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig)
-        )
-
-        let response = await transport.responseLog.first
-
-        XCTAssertEqual(interaction.kind, .prompt)
-        XCTAssertEqual(interaction.prompt, "Which option?")
-        XCTAssertEqual(interaction.metadata["session_id"], .string("thread-123"))
-        XCTAssertEqual(interaction.metadata["tool_name"], .string("AskUserQuestion"))
-        XCTAssertEqual(interaction.metadata["tool_input"], .some(toolRequestUserInputParams()))
-        XCTAssertEqual(interaction.promptOptions, [
-            AgentPromptOption(
-                id: "0",
-                label: "Option A",
-                description: "Use A",
-                responseText: "Option A",
-                metadata: ["label": .string("Option A"), "description": .string("Use A")]
-            )
-        ])
-        XCTAssertEqual(response?.result, .object([
-            "answers": .object([
-                "choice": .object(["answers": .array([.string("Option A")])])
-            ])
-        ]))
-    }
-
-    func testToolRequestUserInputPromptReturnsAnswersFromUpdatedInput() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
-
-        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
-        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
-        try await waitForRuntimeBinding(transport)
-        async let collectedEvents = Self.collect(stream, count: 1)
-
-        await transport.emitRequest(id: .string("input-2"), method: "item/tool/requestUserInput", params: toolRequestUserInputParams())
-
-        let interaction = try Self.interaction(from: await collectedEvents)
-        _ = try await adapter.encodeInput(
-            .interactionResolution(AgentInteractionResolution(
-                id: interaction.id,
-                outcome: .answered,
-                metadata: [
-                    "updated_input": .object([
-                        "answers": .object(["Which option?": .string("Option A")])
-                    ])
-                ]
-            )),
-            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig)
-        )
-
-        let response = await transport.responseLog.first
-
-        XCTAssertEqual(response?.result, .object([
-            "answers": .object([
-                "choice": .object(["answers": .array([.string("Option A")])])
-            ])
-        ]))
-    }
-
-    func testToolRequestUserInputPromptPreservesExplicitCodexAnswers() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
-
-        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
-        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
-        try await waitForRuntimeBinding(transport)
-        async let collectedEvents = Self.collect(stream, count: 1)
-
-        await transport.emitRequest(id: .string("input-3"), method: "item/tool/requestUserInput", params: toolRequestUserInputParams())
-
-        let interaction = try Self.interaction(from: await collectedEvents)
-        _ = try await adapter.encodeInput(
-            .interactionResolution(AgentInteractionResolution(
-                id: interaction.id,
-                outcome: .answered,
-                metadata: [
-                    "codex_answers": .object([
-                        "choice": .object([
-                            "answers": .array([.string("Option A")]),
-                            "source": .string("explicit")
-                        ])
-                    ]),
-                    "updated_input": .object([
-                        "answers": .object(["Which option?": .string("Ignored")])
-                    ])
-                ]
-            )),
-            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig)
-        )
-
-        let response = await transport.responseLog.first
-
-        XCTAssertEqual(response?.result, .object([
-            "answers": .object([
-                "choice": .object([
-                    "answers": .array([.string("Option A")]),
-                    "source": .string("explicit")
-                ])
-            ])
-        ]))
-    }
-
-    func testToolRequestUserInputPromptNormalizesAnswerKeysAndShapes() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
-
-        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
-        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
-        try await waitForRuntimeBinding(transport)
-        async let collectedEvents = Self.collect(stream, count: 1)
-
-        await transport.emitRequest(
-            id: .string("input-4"),
-            method: "item/tool/requestUserInput",
-            params: multiQuestionToolRequestUserInputParams()
-        )
-
-        let interaction = try Self.interaction(from: await collectedEvents)
-        _ = try await adapter.encodeInput(
-            .interactionResolution(AgentInteractionResolution(
-                id: interaction.id,
-                outcome: .answered,
-                metadata: [
-                    "answers": .object([
-                        "choice": .array([.string("Option A"), .string("Option B")]),
-                        "Notes?": .object(["answers": .array([.string("Ship it")])]),
-                        "unknown-key": .string("Unknown")
-                    ])
-                ]
-            )),
-            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig)
-        )
-
-        let response = await transport.responseLog.first
-
-        XCTAssertEqual(response?.result, .object([
-            "answers": .object([
-                "choice": .object(["answers": .array([.string("Option A"), .string("Option B")])]),
-                "notes": .object(["answers": .array([.string("Ship it")])]),
-                "unknown-key": .object(["answers": .array([.string("Unknown")])])
-            ])
-        ]))
-    }
-
-    func testExitPlanModeToolCallRequestsPlanModeExitInteractionAndApproves() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
-
-        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
-        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
-        try await waitForRuntimeBinding(transport)
-        async let collectedEvents = Self.collect(stream, count: 1)
-
-        await transport.emitRequest(id: .number(62), method: "item/tool/call", params: exitPlanModeToolCallParams())
-
-        let interaction = try Self.interaction(from: await collectedEvents)
-        _ = try await adapter.encodeInput(
-            .interactionResolution(AgentInteractionResolution(id: interaction.id, outcome: .approved)),
-            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig)
-        )
-
-        let response = await transport.responseLog.first
-
-        XCTAssertEqual(interaction.id.rawValue, "call-exit-plan")
-        XCTAssertEqual(interaction.kind, .planModeExit)
-        XCTAssertEqual(interaction.prompt, "ExitPlanMode")
-        XCTAssertEqual(interaction.metadata["session_id"], .string("thread-123"))
-        XCTAssertEqual(interaction.metadata["tool_name"], .string("ExitPlanMode"))
-        XCTAssertEqual(interaction.metadata["tool_input"], .object(["plan": .string(Self.exitPlanMarkdown)]))
-        XCTAssertEqual(interaction.metadata["plan"], .string(Self.exitPlanMarkdown))
-        XCTAssertEqual(response?.id, .number(62))
-        XCTAssertEqual(response?.result?.objectValue?["success"], .bool(true))
-        XCTAssertEqual(
-            response?.result?.objectValue?["contentItems"]?.arrayValue?.first?.objectValue?["text"],
-            .string("Plan approved by the host.")
-        )
-    }
-
-    func testExitPlanModeToolCallDenialReturnsFailureResult() async throws {
-        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
-
-        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
-        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
-        try await waitForRuntimeBinding(transport)
-        async let collectedEvents = Self.collect(stream, count: 1)
-
-        await transport.emitRequest(id: .number(63), method: "item/tool/call", params: exitPlanModeToolCallParams())
-
-        let interaction = try Self.interaction(from: await collectedEvents)
-        _ = try await adapter.encodeInput(
-            .interactionResolution(AgentInteractionResolution(
-                id: interaction.id,
-                outcome: .denied,
-                responseText: "Please revise the plan."
-            )),
-            context: inputContext(threadId: "thread-123", spawnConfig: spawnConfig)
-        )
-
-        let response = await transport.responseLog.first
-
-        XCTAssertEqual(interaction.kind, .planModeExit)
-        XCTAssertEqual(response?.id, .number(63))
-        XCTAssertEqual(response?.result?.objectValue?["success"], .bool(false))
-        XCTAssertEqual(
-            response?.result?.objectValue?["contentItems"]?.arrayValue?.first?.objectValue?["text"],
-            .string("Please revise the plan.")
-        )
-    }
-
     func testUnsupportedDynamicToolCallRespondsAndEmitsDiagnostic() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
@@ -503,8 +272,8 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
     }
 }
 
-private extension CodexAppServerInteractionRequestTests {
-    private func configuration(transport: FakeCodexAppServerTransport) -> CodexProviderAdapter.Configuration {
+extension CodexAppServerInteractionRequestTests {
+    func configuration(transport: FakeCodexAppServerTransport) -> CodexProviderAdapter.Configuration {
         CodexProviderAdapter.Configuration(
             requestTimeout: 0.1,
             probeTimeout: 0.1,
@@ -513,7 +282,7 @@ private extension CodexAppServerInteractionRequestTests {
         )
     }
 
-    private func runtimeContext(
+    func runtimeContext(
         threadId: AgentSessionID,
         spawnConfig: AgentSpawnConfig,
         processToken: UUID? = nil
@@ -526,7 +295,7 @@ private extension CodexAppServerInteractionRequestTests {
         )
     }
 
-    private func inputContext(
+    func inputContext(
         threadId: AgentSessionID,
         spawnConfig: AgentSpawnConfig,
         processToken: UUID? = nil
@@ -540,7 +309,7 @@ private extension CodexAppServerInteractionRequestTests {
         )
     }
 
-    private func waitForRuntimeBinding(_ transport: FakeCodexAppServerTransport) async throws {
+    func waitForRuntimeBinding(_ transport: FakeCodexAppServerTransport) async throws {
         for _ in 0..<100 {
             if await transport.incomingStreamCount > 0 {
                 try await Task.sleep(nanoseconds: 20_000_000)
@@ -551,7 +320,7 @@ private extension CodexAppServerInteractionRequestTests {
         try await Task.sleep(nanoseconds: 20_000_000)
     }
 
-    private func waitForResponseCount(
+    func waitForResponseCount(
         _ transport: FakeCodexAppServerTransport,
         count: Int
     ) async -> [FakeCodexAppServerTransport.Response] {
@@ -565,7 +334,7 @@ private extension CodexAppServerInteractionRequestTests {
         return await transport.responseLog
     }
 
-    private func commandApprovalParams() -> JSONValue {
+    func commandApprovalParams() -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turnId": .string("turn-1"),
@@ -578,7 +347,7 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func turnCompletedParams() -> JSONValue {
+    func turnCompletedParams() -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turn": .object([
@@ -588,7 +357,7 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func fileChangeApprovalParams(_ itemId: String) -> JSONValue {
+    func fileChangeApprovalParams(_ itemId: String) -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turnId": .string("turn-1"),
@@ -599,7 +368,7 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func permissionApprovalParams(_ itemId: String) -> JSONValue {
+    func permissionApprovalParams(_ itemId: String) -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turnId": .string("turn-1"),
@@ -611,7 +380,7 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func mcpElicitationParams() -> JSONValue {
+    func mcpElicitationParams() -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turnId": .string("turn-1"),
@@ -625,7 +394,7 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func toolRequestUserInputParams() -> JSONValue {
+    func toolRequestUserInputParams() -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turnId": .string("turn-1"),
@@ -642,7 +411,7 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func multiQuestionToolRequestUserInputParams() -> JSONValue {
+    func multiQuestionToolRequestUserInputParams() -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turnId": .string("turn-1"),
@@ -666,7 +435,7 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func dynamicToolCallParams() -> JSONValue {
+    func dynamicToolCallParams() -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turnId": .string("turn-1"),
@@ -676,7 +445,7 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func exitPlanModeToolCallParams() -> JSONValue {
+    func exitPlanModeToolCallParams() -> JSONValue {
         .object([
             "threadId": .string("thread-123"),
             "turnId": .string("turn-1"),
@@ -686,17 +455,17 @@ private extension CodexAppServerInteractionRequestTests {
         ])
     }
 
-    private func permissionGrant() -> JSONValue {
+    func permissionGrant() -> JSONValue {
         .object(["network": .object(["enabled": .bool(true)])])
     }
 
-    private static var processToken: UUID {
+    static var processToken: UUID {
         UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID()
     }
 
-    private static let exitPlanMarkdown = "# Plan\n\n- Implement the requested change."
+    static let exitPlanMarkdown = "# Plan\n\n- Implement the requested change."
 
-    private static func collect(_ stream: AsyncStream<AgentProviderRuntimeEvent>, count: Int) async -> [AgentProviderRuntimeEvent] {
+    static func collect(_ stream: AsyncStream<AgentProviderRuntimeEvent>, count: Int) async -> [AgentProviderRuntimeEvent] {
         var events: [AgentProviderRuntimeEvent] = []
         for await event in stream {
             events.append(event)
@@ -707,11 +476,11 @@ private extension CodexAppServerInteractionRequestTests {
         return events
     }
 
-    private static func interaction(from events: [AgentProviderRuntimeEvent]) throws -> AgentInteractionEvent {
+    static func interaction(from events: [AgentProviderRuntimeEvent]) throws -> AgentInteractionEvent {
         try XCTUnwrap(interactions(from: events).first)
     }
 
-    private static func interactions(from events: [AgentProviderRuntimeEvent]) throws -> [AgentInteractionEvent] {
+    static func interactions(from events: [AgentProviderRuntimeEvent]) throws -> [AgentInteractionEvent] {
         let interactions = events.compactMap { event -> AgentInteractionEvent? in
             guard case let .interaction(interaction) = event.event else {
                 return nil

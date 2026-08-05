@@ -2,7 +2,7 @@ import XCTest
 
 @testable import AgentCLIKit
 
-final class CodexAppServerRawEventNotificationParserTests: XCTestCase {
+final class CodexRawEventNotificationParserTests: XCTestCase {
     private var parser = CodexAppServerRawEventNotificationParser()
     private var decoder = CodexAppServerNotificationDecoder()
 
