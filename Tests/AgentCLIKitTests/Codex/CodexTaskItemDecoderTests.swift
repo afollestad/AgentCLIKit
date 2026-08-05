@@ -3,7 +3,7 @@ import XCTest
 @testable import AgentCLIKit
 
 final class CodexTaskItemDecoderTests: XCTestCase {
-    private let decoder = CodexAppServerNotificationDecoder()
+    private var decoder = CodexAppServerNotificationDecoder()
 
     func testDecodesCollaborationItem() {
         let events = decoder.decode(itemCompleted(item: collaborationItem())).map(\.event)

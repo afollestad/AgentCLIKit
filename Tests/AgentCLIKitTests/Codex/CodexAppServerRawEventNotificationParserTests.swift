@@ -4,7 +4,7 @@ import XCTest
 
 final class CodexAppServerRawEventNotificationParserTests: XCTestCase {
     private var parser = CodexAppServerRawEventNotificationParser()
-    private let decoder = CodexAppServerNotificationDecoder()
+    private var decoder = CodexAppServerNotificationDecoder()
 
     func testParsesRawCompletedPlanEventAsAssistantMessage() throws {
         let notification = try XCTUnwrap(parser.notification(from: rawCompletedPlanEvent()))

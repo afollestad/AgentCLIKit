@@ -51,7 +51,7 @@ actor CodexAppServerClient {
     var bindingsByConversation: [AgentConversationID: ConversationBinding] = [:]
     var conversationByThreadId: [AgentSessionID: AgentConversationID] = [:]
     var pendingServerRequests: [AgentInteractionID: CodexPendingServerRequest] = [:]
-    private let notificationDecoder = CodexAppServerNotificationDecoder()
+    private var notificationDecoder = CodexAppServerNotificationDecoder()
     private let transcriptPlanReader: CodexSessionTranscriptPlanReader
     let serverRequestMapper: CodexAppServerServerRequestMapper
     let resolutionEncoder = CodexInteractionResolutionEncoder()

@@ -1,10 +1,10 @@
 import Foundation
 
 struct CodexAppServerNotificationDecoder {
-    private let itemDecoder = CodexAppServerItemEventDecoder()
+    private var itemDecoder = CodexAppServerItemEventDecoder()
 
     // swiftlint:disable:next cyclomatic_complexity
-    func decode(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decode(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
         if let itemEvents = itemDecoder.decode(notification) {
             return itemEvents
         }
@@ -103,7 +103,8 @@ struct CodexAppServerNotificationDecoder {
         }
     }
 
-    private func decodeTurnStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private mutating func decodeTurnStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+        itemDecoder.resetReasoningSection(threadId: notification.threadId)
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turn = params["turn"]?.codexObjectValue,
@@ -125,7 +126,8 @@ struct CodexAppServerNotificationDecoder {
         ]
     }
 
-    private func decodeTurnCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private mutating func decodeTurnCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+        itemDecoder.resetReasoningSection(threadId: notification.threadId)
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turn = params["turn"]?.codexObjectValue,

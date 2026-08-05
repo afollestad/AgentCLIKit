@@ -4,7 +4,7 @@ import XCTest
 
 // swiftlint:disable:next type_body_length
 final class CodexAppServerItemEventDecoderTests: XCTestCase {
-    private let decoder = CodexAppServerNotificationDecoder()
+    private var decoder = CodexAppServerNotificationDecoder()
 
     func testDecodesAgentMessageAndReasoningDeltas() {
         let messageEvents = decoder.decode(notification(

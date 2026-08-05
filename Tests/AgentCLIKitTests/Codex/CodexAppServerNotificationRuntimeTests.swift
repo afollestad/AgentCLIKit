@@ -3,7 +3,7 @@ import XCTest
 @testable import AgentCLIKit
 
 final class CodexAppServerNotificationRuntimeTests: XCTestCase {
-    private let decoder = CodexAppServerNotificationDecoder()
+    private var decoder = CodexAppServerNotificationDecoder()
 
     // swiftlint:disable:next function_body_length
     func testDecodesTokenUsageAsInterimUsageEvent() {

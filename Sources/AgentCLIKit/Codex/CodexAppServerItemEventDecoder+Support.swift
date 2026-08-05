@@ -3,6 +3,7 @@ import Foundation
 struct ItemPayload {
     let id: String
     let type: String
+    let threadId: String
     let item: [String: JSONValue]
     let metadata: [String: JSONValue]
 }

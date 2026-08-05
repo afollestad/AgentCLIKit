@@ -3,7 +3,7 @@ import XCTest
 @testable import AgentCLIKit
 
 final class CodexAppServerPlanItemEventDecoderTests: XCTestCase {
-    private let decoder = CodexAppServerNotificationDecoder()
+    private var decoder = CodexAppServerNotificationDecoder()
 
     func testDecodesCompletedPlanItemAsAssistantMessage() {
         let events = decoder.decode(itemCompleted(method: "item/completed", params: [

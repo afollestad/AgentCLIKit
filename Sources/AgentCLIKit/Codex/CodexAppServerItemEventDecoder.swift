@@ -1,8 +1,14 @@
 import Foundation
 
 struct CodexAppServerItemEventDecoder {
+    /// Identity of the reasoning section the last decoded delta belonged to, keyed by thread id.
+    /// Codex never announces a section boundary reliably, so a change in item, kind, or index is what
+    /// marks one. One decoder serves every thread in the process, so interleaved threads must not
+    /// perturb each other's tracking.
+    private var lastReasoningSectionByThread: [String: ReasoningSection] = [:]
+
     // swiftlint:disable:next cyclomatic_complexity
-    func decode(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent]? {
+    mutating func decode(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent]? {
         switch notification.method {
         case "item/agentMessage/delta":
             decodeAgentMessageDelta(notification)
@@ -10,8 +16,6 @@ struct CodexAppServerItemEventDecoder {
             decodeReasoningTextDelta(notification)
         case "item/reasoning/summaryTextDelta":
             decodeReasoningSummaryTextDelta(notification)
-        case "item/reasoning/summaryPartAdded":
-            decodeReasoningSummaryPartAdded(notification)
         case "item/started", "item_started":
             decodeItemStarted(notification)
         case "item/completed", "item_completed":
@@ -43,32 +47,28 @@ struct CodexAppServerItemEventDecoder {
         return [runtimeEvent(.messageDelta(AgentMessageDeltaEvent(role: .assistant, text: delta, metadata: metadata)))]
     }
 
-    func decodeReasoningTextDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decodeReasoningTextDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
         reasoningDeltaEvent(notification, indexKey: "contentIndex", kind: "content")
     }
 
-    func decodeReasoningSummaryTextDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decodeReasoningSummaryTextDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
         reasoningDeltaEvent(notification, indexKey: "summaryIndex", kind: "summary")
     }
 
-    /// Emits a paragraph break so consecutive summary parts do not concatenate into one run-on line.
-    /// The first part has nothing to separate from, so only later parts produce an event.
-    func decodeReasoningSummaryPartAdded(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
-        guard let params = notification.params?.codexObjectValue,
-              let index = params["summaryIndex"],
-              let indexValue = index.codexNumberValue,
-              indexValue > 0,
-              var metadata = itemDeltaMetadata(notification) else {
-            return []
+    /// Forgets the thread's current reasoning section so its next reasoning delta does not open with a break.
+    mutating func resetReasoningSection(threadId: String?) {
+        guard let threadId else {
+            return
         }
-        metadata["codex_reasoning_kind"] = .string("summary")
-        metadata["codex_reasoning_index"] = index
-        return [runtimeEvent(.reasoning(AgentReasoningEvent(text: "\n\n", metadata: metadata)))]
+        lastReasoningSectionByThread.removeValue(forKey: threadId)
     }
 
-    func decodeItemStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decodeItemStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
         guard let payload = itemPayload(notification, phase: "started") else {
             return []
+        }
+        if payload.type != "reasoning" {
+            resetReasoningSection(threadId: payload.threadId)
         }
         switch payload.type {
         case "commandExecution":
@@ -91,9 +91,12 @@ struct CodexAppServerItemEventDecoder {
     }
 
     // swiftlint:disable:next cyclomatic_complexity
-    func decodeItemCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decodeItemCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
         guard let payload = itemPayload(notification, phase: "completed") else {
             return []
+        }
+        if payload.type != "reasoning" {
+            resetReasoningSection(threadId: payload.threadId)
         }
         switch payload.type {
         case "userMessage":
@@ -234,12 +237,16 @@ struct CodexAppServerItemEventDecoder {
         )))]
     }
 
-    private func reasoningDeltaEvent(
+    /// Prepends a paragraph break when the delta opens a new reasoning section, so hosts that
+    /// concatenate deltas do not render consecutive sections as one run-on line.
+    private mutating func reasoningDeltaEvent(
         _ notification: CodexAppServerNotification,
         indexKey: String,
         kind: String
     ) -> [AgentProviderRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
+              let threadId = params["threadId"]?.codexStringValue,
+              let itemId = params["itemId"]?.codexStringValue,
               let delta = params["delta"]?.codexStringValue,
               !delta.isEmpty,
               var metadata = itemDeltaMetadata(notification) else {
@@ -249,7 +256,16 @@ struct CodexAppServerItemEventDecoder {
         if let index = params[indexKey] {
             metadata["codex_reasoning_index"] = index
         }
-        return [runtimeEvent(.reasoning(AgentReasoningEvent(text: delta, metadata: metadata)))]
+        let section = ReasoningSection(itemId: itemId, kind: kind, index: params[indexKey]?.codexNumberValue)
+        // The thread's first section of a turn has nothing to separate from, so it must not emit a leading break.
+        let opensNewSection = lastReasoningSectionByThread[threadId].map { $0 != section } ?? false
+        lastReasoningSectionByThread[threadId] = section
+        var events: [AgentProviderRuntimeEvent] = []
+        if opensNewSection {
+            events.append(runtimeEvent(.reasoning(AgentReasoningEvent(text: "\n\n", metadata: metadata))))
+        }
+        events.append(runtimeEvent(.reasoning(AgentReasoningEvent(text: delta, metadata: metadata))))
+        return events
     }
 
     private func outputDeltaEvent(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
@@ -290,7 +306,7 @@ struct CodexAppServerItemEventDecoder {
                 "completed_at_ms": params.codexValue("completedAtMs", "completed_at_ms")
             ]
         )
-        return ItemPayload(id: id, type: type, item: item, metadata: itemMetadata)
+        return ItemPayload(id: id, type: type, threadId: threadId, item: item, metadata: itemMetadata)
     }
 
     private func itemDeltaMetadata(_ notification: CodexAppServerNotification) -> [String: JSONValue]? {
@@ -321,12 +337,12 @@ struct CodexAppServerItemEventDecoder {
         if !content.isEmpty {
             var metadata = payload.metadata
             metadata["codex_reasoning_kind"] = .string("content")
-            events.append(runtimeEvent(.reasoning(AgentReasoningEvent(text: content.joined(separator: "\n"), metadata: metadata))))
+            events.append(runtimeEvent(.reasoning(AgentReasoningEvent(text: content.joined(separator: "\n\n"), metadata: metadata))))
         }
         if !summary.isEmpty {
             var metadata = payload.metadata
             metadata["codex_reasoning_kind"] = .string("summary")
-            events.append(runtimeEvent(.reasoning(AgentReasoningEvent(text: summary.joined(separator: "\n"), metadata: metadata))))
+            events.append(runtimeEvent(.reasoning(AgentReasoningEvent(text: summary.joined(separator: "\n\n"), metadata: metadata))))
         }
         return events
     }
@@ -369,6 +385,14 @@ struct CodexAppServerItemEventDecoder {
         }
         return metadata
     }
+}
+
+/// Identifies one reasoning section. Codex restarts `summaryIndex`/`contentIndex` at zero for each
+/// reasoning item, so the item id is part of the identity and an index alone cannot stand in for it.
+private struct ReasoningSection: Equatable {
+    let itemId: String
+    let kind: String
+    let index: Double?
 }
 
 private extension [String: JSONValue] {
