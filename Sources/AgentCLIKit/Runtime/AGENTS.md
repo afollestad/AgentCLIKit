@@ -8,6 +8,12 @@
 - **Do not reopen resolved interactions:** Late or replayed provider interaction frames whose IDs already resolved must not emit new pending interaction events or return the runtime to a waiting state.
 - **Tear down deferred stops gracefully:** On a deferred-tool stop, close stdin and let the provider exit on its own; force kill only after `deferredStopKillGraceNanoseconds`. An immediate kill races the provider's deferred-tool transcript writes, and a resume without that marker never re-runs the deferred tool.
 
+## Provider Session Lineage
+
+- **Treat a launch-returned session that differs from the resumed one as new:** seed `providerSessionCreatedAt` as `nil` so `providerSessionStateUpdate` persists it. Inheriting the resumed record's date makes the replacement look already-saved, so the conversation stays bound to the session it just replaced and keeps resuming — and re-replacing — that one.
+- **Record every replaced session in `AgentSessionRecord.supersededProviderSessionIds`:** launch-time replacements in `providerSessionSeed`, mid-stream ones where `isSessionChange` fires. Archive and delete fan out over that lineage, so a session missing from it can never be cleaned up.
+- **Retire superseded sessions once, best effort:** archive them only after the replacement record saves, track them in `ConversationState.retiredSupersededSessionIds` because metadata events repeat, and leave a failed one in the lineage for a later archive or delete to retry.
+
 ## Reconfigure And Collaboration Mode
 
 - **Keep `AgentSpawnConfig` authoritative:** Runtime reconfigure should pass the desired config to the provider hook first, then update `ConversationState.spawnConfig` only after in-place success or process replacement.

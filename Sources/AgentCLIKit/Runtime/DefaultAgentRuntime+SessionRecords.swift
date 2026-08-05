@@ -35,8 +35,50 @@ extension DefaultAgentRuntime {
         )
         if let failure = await persistProviderSessionRecord(record, processToken: processToken) {
             emitProviderSessionSaveFailureIfCurrent(failure, conversationId: conversationId)
+        } else {
+            await retireSupersededProviderSessions(record, conversationId: conversationId, processToken: processToken)
         }
         emitProviderSessionSnapshotIfNeeded(from: event, update: update, conversationId: conversationId, processToken: processToken)
+    }
+
+    /// Archives provider sessions this conversation has replaced, once the replacement record is durably saved.
+    ///
+    /// Without this a conversation that keeps forking — Codex does so on every resumed launch that needs a fresh
+    /// host-tool route — leaves a growing trail of live threads that only a later archive or delete would clean up.
+    /// Best effort by design: the lineage entry stays on the record, so a failure is retried by that later cleanup.
+    private func retireSupersededProviderSessions(
+        _ record: AgentSessionRecord,
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async {
+        guard let state = states[conversationId], state.processToken == processToken else {
+            return
+        }
+        guard state.adapter.definition.capabilities.supportsSessionArchiving else {
+            return
+        }
+        let pending = record.supersededProviderSessionIds.filter { !state.retiredSupersededSessionIds.contains($0) }
+        guard !pending.isEmpty else {
+            return
+        }
+        for supersededSessionId in pending {
+            do {
+                try await state.adapter.archiveSession(record.retargeted(to: supersededSessionId))
+                states[conversationId]?.retiredSupersededSessionIds.insert(supersededSessionId)
+            } catch {
+                emitDiagnostic(
+                    code: .sessionStoreSaveFailed,
+                    severity: .warning,
+                    message: "Could not archive superseded provider session: \(error.localizedDescription)",
+                    metadata: [
+                        "provider_session_id": .string(supersededSessionId.rawValue),
+                        "provider_error": .string(error.localizedDescription)
+                    ],
+                    source: .runtime,
+                    conversationId: conversationId
+                )
+            }
+        }
     }
 
     func applySessionMetadataStatusSideEffects(for metadata: AgentSessionMetadataEvent, state: inout ConversationState) {
@@ -81,6 +123,14 @@ extension DefaultAgentRuntime {
             return nil
         }
 
+        // A session discovered mid-stream replaces the one the state already held; keep the old one in the lineage
+        // so archive and delete can still retire it. Launch-time replacements are seeded in `providerSessionSeed`.
+        if isSessionChange, let supersededSessionId = state.providerSessionId {
+            state.providerSessionRecordMetadata = AgentSessionRecord.appendingSupersededProviderSessionId(
+                supersededSessionId,
+                to: state.providerSessionRecordMetadata
+            )
+        }
         updateProviderSessionState(
             &state,
             providerSessionId: providerSessionId,

@@ -103,6 +103,13 @@ actor FakeCodexAppServerTransport: CodexAppServerTransport {
         return threadResponse(method: method) ?? turnResponse(method: method) ?? goalResponse(method: method, params: params) ?? .null
     }
 
+    /// Values a repeated method carried under `key`, in call order, for methods sent more than once per action.
+    func requestParamValues(method: String, key: String) -> [JSONValue] {
+        requestLog
+            .filter { $0.method == method }
+            .compactMap { $0.params?.objectValue?[key] }
+    }
+
     private func threadResponse(method: String) -> JSONValue? {
         switch method {
         case "initialize":

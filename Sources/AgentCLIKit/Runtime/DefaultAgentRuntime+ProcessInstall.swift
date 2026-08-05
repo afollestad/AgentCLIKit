@@ -107,6 +107,7 @@ extension DefaultAgentRuntime {
         let persistedIndex = input.fresh ? -1 : previous?.persistedIndex ?? -1
         // Claude can replay transcript frames when a deferred tool approval resumes the provider session.
         let providerResumeReplayGate = providerResumeReplayGate(input: input, previous: previous)
+        let providerSession = providerSessionSeed(input: input)
         return ConversationState(
             providerId: input.providerId,
             generation: input.generation,
@@ -120,11 +121,12 @@ extension DefaultAgentRuntime {
             subscribers: previous?.subscribers ?? pendingSubscribers.removeValue(forKey: input.conversationId) ?? [:],
             stderrTail: [],
             lifecycleState: .starting,
-            providerSessionId: input.launchProviderSessionId ?? input.resumedSession?.providerSessionId,
-            providerSessionName: normalizedProviderSessionName(input.resumedSession?.providerSessionName),
-            providerSessionPreview: normalizedProviderSessionPreview(input.resumedSession?.providerSessionPreview),
-            providerSessionRecordMetadata: input.resumedSession?.metadata ?? ["source": .string("runtime")],
-            providerSessionCreatedAt: input.resumedSession?.createdAt,
+            providerSessionId: providerSession.providerSessionId,
+            providerSessionName: providerSession.name,
+            providerSessionPreview: providerSession.preview,
+            providerSessionRecordMetadata: providerSession.metadata,
+            providerSessionCreatedAt: providerSession.createdAt,
+            retiredSupersededSessionIds: previous?.retiredSupersededSessionIds ?? [],
             staleProviderSessionSaveProcessTokens: previous?.staleProviderSessionSaveProcessTokens ?? [],
             permissionMode: nil,
             collaborationMode: input.spawnConfig.collaborationMode,
@@ -150,6 +152,50 @@ extension DefaultAgentRuntime {
             subAgentPhaseKeys: Self.subAgentPhaseKeys(from: previous, generation: input.generation),
             outputPumps: [],
             providerEventTasks: []
+        )
+    }
+
+    /// Provider-session values seeded into a new `ConversationState` at launch.
+    struct ProviderSessionSeed {
+        let providerSessionId: AgentSessionID?
+        let name: String?
+        let preview: String?
+        let metadata: [String: JSONValue]
+        let createdAt: Date?
+    }
+
+    /// Seeds provider-session state for a launch, distinguishing a plain resume from a replacement session.
+    ///
+    /// A launch may hand back a provider session that is not the one it resumed — Codex forks a thread whenever a
+    /// resumed runtime needs a fresh host-tool route. Inheriting `createdAt` there would make the replacement look
+    /// like an already-persisted session to `providerSessionStateUpdate`, so its record would never be written and
+    /// the conversation would stay bound to the session it just replaced. Name and preview still carry over: a fork
+    /// holds the same content, so the resumed labels describe it correctly until the provider reports its own.
+    private func providerSessionSeed(input: StateInput) -> ProviderSessionSeed {
+        let resumedSession = input.resumedSession
+        let metadata = resumedSession?.metadata ?? ["source": .string("runtime")]
+        let name = normalizedProviderSessionName(resumedSession?.providerSessionName)
+        let preview = normalizedProviderSessionPreview(resumedSession?.providerSessionPreview)
+        guard let resumedSession,
+              let launchProviderSessionId = input.launchProviderSessionId,
+              launchProviderSessionId != resumedSession.providerSessionId else {
+            return ProviderSessionSeed(
+                providerSessionId: input.launchProviderSessionId ?? resumedSession?.providerSessionId,
+                name: name,
+                preview: preview,
+                metadata: metadata,
+                createdAt: resumedSession?.createdAt
+            )
+        }
+        return ProviderSessionSeed(
+            providerSessionId: launchProviderSessionId,
+            name: name,
+            preview: preview,
+            metadata: AgentSessionRecord.appendingSupersededProviderSessionId(
+                resumedSession.providerSessionId,
+                to: metadata
+            ),
+            createdAt: nil
         )
     }
 

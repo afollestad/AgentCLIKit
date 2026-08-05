@@ -32,6 +32,7 @@ public enum CodexProviderDefinition {
             supportsModelOptions: true,
             supportsSessionArchiving: true,
             supportsSessionUnarchiving: true,
+            supportsSessionDeletion: true,
             supportsLocalImageInput: true
         ),
         supportedPermissionModes: [

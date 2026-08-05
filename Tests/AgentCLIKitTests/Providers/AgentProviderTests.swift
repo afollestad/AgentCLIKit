@@ -161,6 +161,7 @@ final class AgentProviderTests: XCTestCase {
                 supportsModelOptions: true,
                 supportsSessionArchiving: true,
                 supportsSessionUnarchiving: true,
+                supportsSessionDeletion: true,
                 supportsLocalImageInput: true
             ),
             supportedPermissionModes: [
@@ -185,6 +186,7 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertTrue(decoded.capabilities.supportsSpeedMode)
         XCTAssertTrue(decoded.capabilities.supportsSessionArchiving)
         XCTAssertTrue(decoded.capabilities.supportsSessionUnarchiving)
+        XCTAssertTrue(decoded.capabilities.supportsSessionDeletion)
         XCTAssertTrue(decoded.capabilities.supportsLocalImageInput)
         assertLegacyProviderDefinitionDefaults(legacy)
     }
@@ -192,6 +194,11 @@ final class AgentProviderTests: XCTestCase {
     func testProviderDefinitionsReportLocalImageSupport() {
         XCTAssertTrue(CodexProviderDefinition.definition.capabilities.supportsLocalImageInput)
         XCTAssertFalse(ClaudeProviderDefinition.definition.capabilities.supportsLocalImageInput)
+    }
+
+    func testProviderDefinitionsReportSessionDeletionSupport() {
+        XCTAssertTrue(CodexProviderDefinition.definition.capabilities.supportsSessionDeletion)
+        XCTAssertFalse(ClaudeProviderDefinition.definition.capabilities.supportsSessionDeletion)
     }
 
     func testProviderCapabilitiesDecodeLegacyModelListingKey() throws {
@@ -422,6 +429,7 @@ final class AgentProviderTests: XCTestCase {
         XCTAssertFalse(legacy.capabilities.supportsModelOptions)
         XCTAssertFalse(legacy.capabilities.supportsSessionArchiving)
         XCTAssertFalse(legacy.capabilities.supportsSessionUnarchiving)
+        XCTAssertFalse(legacy.capabilities.supportsSessionDeletion)
         XCTAssertNil(legacy.supportedPermissionModes)
     }
 }

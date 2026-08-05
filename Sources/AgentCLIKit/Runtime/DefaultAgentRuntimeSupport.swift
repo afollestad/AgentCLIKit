@@ -41,6 +41,8 @@ struct ConversationState {
     var providerSessionPreview: String?
     var providerSessionRecordMetadata: [String: JSONValue]
     var providerSessionCreatedAt: Date?
+    /// Superseded provider sessions already retired with the provider, so repeat metadata events do not re-retire them.
+    var retiredSupersededSessionIds: Set<AgentSessionID>
     var staleProviderSessionSaveProcessTokens: Set<UUID>
     var permissionMode: String?
     var collaborationMode: AgentCollaborationMode?

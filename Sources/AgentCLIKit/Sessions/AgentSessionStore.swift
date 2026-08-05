@@ -64,6 +64,72 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
     }
 }
 
+public extension AgentSessionRecord {
+    /// Metadata key holding provider sessions this conversation used before `providerSessionId`.
+    static let supersededProviderSessionIdsMetadataKey = "superseded_provider_session_ids"
+
+    /// Maximum retained lineage entries, so a long-lived conversation cannot grow its record without bound.
+    static let supersededProviderSessionIdLimit = 128
+
+    /// Provider sessions this conversation replaced, oldest first.
+    ///
+    /// A provider that swaps a conversation onto a new native session — Codex forks a thread whenever a resumed
+    /// runtime needs a fresh host-tool route — leaves the previous session behind. Retiring only `providerSessionId`
+    /// would orphan every earlier one, so the lineage travels with the record.
+    var supersededProviderSessionIds: [AgentSessionID] {
+        Self.supersededProviderSessionRawValues(in: metadata).map(AgentSessionID.init(rawValue:))
+    }
+
+    /// Returns this record aimed at one superseded provider session, with no lineage of its own.
+    ///
+    /// Provider session actions fan out over `supersededProviderSessionIds`, so the per-session record they act on
+    /// must carry an empty lineage or the fan-out would recurse.
+    func retargeted(to providerSessionId: AgentSessionID) -> AgentSessionRecord {
+        var retargetedMetadata = metadata
+        retargetedMetadata[Self.supersededProviderSessionIdsMetadataKey] = nil
+        return AgentSessionRecord(
+            conversationId: conversationId,
+            providerId: providerId,
+            providerSessionId: providerSessionId,
+            providerSessionName: providerSessionName,
+            providerSessionPreview: providerSessionPreview,
+            workingDirectory: workingDirectory,
+            generation: generation,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+            metadata: retargetedMetadata
+        )
+    }
+
+    /// Appends `providerSessionId` to `metadata`'s lineage, ignoring duplicates and trimming to the retention limit.
+    static func appendingSupersededProviderSessionId(
+        _ providerSessionId: AgentSessionID,
+        to metadata: [String: JSONValue]
+    ) -> [String: JSONValue] {
+        var existing = supersededProviderSessionRawValues(in: metadata)
+        guard !existing.contains(providerSessionId.rawValue) else {
+            return metadata
+        }
+        existing.append(providerSessionId.rawValue)
+        let retained = existing.suffix(supersededProviderSessionIdLimit)
+        var updated = metadata
+        updated[supersededProviderSessionIdsMetadataKey] = .array(retained.map(JSONValue.string))
+        return updated
+    }
+
+    private static func supersededProviderSessionRawValues(in metadata: [String: JSONValue]) -> [String] {
+        guard case let .array(values)? = metadata[supersededProviderSessionIdsMetadataKey] else {
+            return []
+        }
+        return values.compactMap { value in
+            guard case let .string(rawValue) = value, !rawValue.isEmpty else {
+                return nil
+            }
+            return rawValue
+        }
+    }
+}
+
 /// Storage contract for provider session mappings.
 public protocol AgentSessionStore: Sendable {
     /// Loads the latest record for a host conversation and provider.

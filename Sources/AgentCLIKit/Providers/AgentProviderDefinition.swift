@@ -92,6 +92,8 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
     public let supportsSessionArchiving: Bool
     /// Whether the provider can unarchive a native provider session.
     public let supportsSessionUnarchiving: Bool
+    /// Whether the provider can delete a native provider session.
+    public let supportsSessionDeletion: Bool
     /// Whether the provider can receive local image files as structured message attachments.
     public let supportsLocalImageInput: Bool
 
@@ -120,6 +122,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         supportsModelOptions: Bool = false,
         supportsSessionArchiving: Bool = false,
         supportsSessionUnarchiving: Bool = false,
+        supportsSessionDeletion: Bool = false,
         supportsLocalImageInput: Bool = false
     ) {
         self.supportsSessionResume = supportsSessionResume
@@ -145,6 +148,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         self.supportsModelOptions = supportsModelOptions
         self.supportsSessionArchiving = supportsSessionArchiving
         self.supportsSessionUnarchiving = supportsSessionUnarchiving
+        self.supportsSessionDeletion = supportsSessionDeletion
         self.supportsLocalImageInput = supportsLocalImageInput
     }
 
@@ -178,6 +182,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
             ?? (try container.decodeIfPresent(Bool.self, forKey: .supportsModelListing) ?? false)
         self.supportsSessionArchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionArchiving) ?? false
         self.supportsSessionUnarchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionUnarchiving) ?? false
+        self.supportsSessionDeletion = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionDeletion) ?? false
         self.supportsLocalImageInput = try container.decodeIfPresent(Bool.self, forKey: .supportsLocalImageInput) ?? false
     }
 
@@ -207,6 +212,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         try container.encode(supportsModelOptions, forKey: .supportsModelOptions)
         try container.encode(supportsSessionArchiving, forKey: .supportsSessionArchiving)
         try container.encode(supportsSessionUnarchiving, forKey: .supportsSessionUnarchiving)
+        try container.encode(supportsSessionDeletion, forKey: .supportsSessionDeletion)
         try container.encode(supportsLocalImageInput, forKey: .supportsLocalImageInput)
     }
 
@@ -235,6 +241,7 @@ public struct AgentProviderCapabilities: Codable, Equatable, Sendable {
         case supportsModelListing
         case supportsSessionArchiving
         case supportsSessionUnarchiving
+        case supportsSessionDeletion
         case supportsLocalImageInput
     }
 }
@@ -265,6 +272,7 @@ extension AgentProviderCapabilities {
             supportsModelOptions: self.supportsModelOptions,
             supportsSessionArchiving: self.supportsSessionArchiving,
             supportsSessionUnarchiving: self.supportsSessionUnarchiving,
+            supportsSessionDeletion: self.supportsSessionDeletion,
             supportsLocalImageInput: self.supportsLocalImageInput
         )
     }
@@ -299,6 +307,7 @@ extension AgentProviderCapabilities {
             supportsModelOptions: self.supportsModelOptions,
             supportsSessionArchiving: self.supportsSessionArchiving,
             supportsSessionUnarchiving: self.supportsSessionUnarchiving,
+            supportsSessionDeletion: self.supportsSessionDeletion,
             supportsLocalImageInput: self.supportsLocalImageInput
         )
     }

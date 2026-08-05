@@ -49,6 +49,47 @@ extension CodexProviderAdapterTests {
         XCTAssertFalse(requestMethods.contains("thread/resume"))
     }
 
+    func testArchivesSupersededThreadsAlongsideTheBoundThread() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        try await adapter.archiveSession(supersedingSessionRecord(supersededSessionIds: ["thread-001", "thread-002"]))
+
+        let requestMethods = await transport.requestMethods
+        let archivedThreadIds = await transport.requestParamValues(method: "thread/archive", key: "threadId")
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/archive", "thread/archive", "thread/archive"])
+        XCTAssertEqual(archivedThreadIds, [.string("thread-001"), .string("thread-002"), .string("thread-123")])
+    }
+
+    func testDeleteArchivesSupersededThreadsAndDeletesOnlyTheBoundThread() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        try await adapter.deleteSession(supersedingSessionRecord(supersededSessionIds: ["thread-001", "thread-002"]))
+
+        let requestMethods = await transport.requestMethods
+        let archivedThreadIds = await transport.requestParamValues(method: "thread/archive", key: "threadId")
+        let deletedThreadIds = await transport.requestParamValues(method: "thread/delete", key: "threadId")
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/archive", "thread/archive", "thread/delete"])
+        XCTAssertEqual(archivedThreadIds, [.string("thread-001"), .string("thread-002")])
+        XCTAssertEqual(deletedThreadIds, [.string("thread-123")])
+    }
+
+    func testUnarchiveRestoresOnlyTheBoundThread() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: [])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+
+        try await adapter.unarchiveSession(supersedingSessionRecord(supersededSessionIds: ["thread-001", "thread-002"]))
+
+        let requestMethods = await transport.requestMethods
+        let unarchivedThreadIds = await transport.requestParamValues(method: "thread/unarchive", key: "threadId")
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/unarchive"])
+        XCTAssertEqual(unarchivedThreadIds, [.string("thread-123")])
+    }
+
     func testArchiveThrowsForMismatchedProviderRecord() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: [])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
@@ -170,6 +211,18 @@ extension CodexProviderAdapterTests {
         XCTAssertEqual(
             CodexAppServerError.shutdownTimeout(seconds: 1).diagnosticCode,
             .codexAppServerShutdownTimeout
+        )
+    }
+
+    func supersedingSessionRecord(supersededSessionIds: [String]) -> AgentSessionRecord {
+        AgentSessionRecord(
+            conversationId: "conversation",
+            providerId: .codex,
+            providerSessionId: "thread-123",
+            generation: 0,
+            metadata: [
+                AgentSessionRecord.supersededProviderSessionIdsMetadataKey: .array(supersededSessionIds.map(JSONValue.string))
+            ]
         )
     }
 

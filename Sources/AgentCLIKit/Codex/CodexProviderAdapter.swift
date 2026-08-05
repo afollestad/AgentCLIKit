@@ -244,21 +244,33 @@ public struct CodexProviderAdapter: AgentProviderAdapter {
         try await client.startGoal(objective, context: context)
     }
 
-    /// Archives a Codex App Server thread without starting or resuming a runtime session.
+    /// Archives a Codex App Server thread, and every thread the conversation superseded, without starting a session.
     public func archiveSession(_ record: AgentSessionRecord) async throws {
         try validateSessionActionRecord(record)
+        for supersededSessionId in record.supersededProviderSessionIds {
+            try await client.archiveThread(supersededSessionId)
+        }
         try await client.archiveThread(record.providerSessionId)
     }
 
     /// Unarchives a Codex App Server thread without starting or resuming a runtime session.
+    ///
+    /// Only the bound thread is restored. Superseded threads stay archived because restoring a conversation must not
+    /// put every thread it ever forked back into Codex's recents.
     public func unarchiveSession(_ record: AgentSessionRecord) async throws {
         try validateSessionActionRecord(record)
         try await client.unarchiveThread(record.providerSessionId)
     }
 
     /// Deletes a Codex App Server thread without starting or resuming a runtime session.
+    ///
+    /// Superseded threads are archived rather than deleted: the user deleted one conversation, not each intermediate
+    /// thread it happened to fork through, and archiving still clears them from Codex's recents.
     public func deleteSession(_ record: AgentSessionRecord) async throws {
         try validateSessionActionRecord(record)
+        for supersededSessionId in record.supersededProviderSessionIds {
+            try await client.archiveThread(supersededSessionId)
+        }
         try await client.deleteThread(record.providerSessionId)
     }
 
