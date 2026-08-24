@@ -73,6 +73,43 @@ final class AgentSessionPreviewGeneratorTests: XCTestCase {
         )
     }
 
+    func testCompactsLongFilePathLinkLabelToFileName() {
+        let path = "local/views/src/main/kotlin/app/cash/local/views/brand/profile/v2/content/tabs/" +
+            "LocalBrandProfileV2ContentAboutTab.kt"
+
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(
+                fromInitialPrompt: "In [\(path)](\(path)) the `CenteredDividedChip` doesn't center its inner Row"
+            ),
+            "In LocalBrandProfileV2ContentAboutTab.kt the..."
+        )
+    }
+
+    func testKeepsShortPathLinkLabelWhole() {
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(
+                fromInitialPrompt: "Check [Views/Chat](Views/Chat) for the divider"
+            ),
+            "Check Views/Chat for the divider"
+        )
+    }
+
+    func testKeepsURLLinkLabelWhole() {
+        let url = "https://github.com/afollestad/AgentCLIKit/issues/42"
+
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: "Triage [\(url)](\(url)) today"),
+            "Triage https://github.com/afollestad/AgentCLIKit/i..."
+        )
+    }
+
+    func testHardTruncatesWhenWordBoundaryWouldLeaveTooLittle() {
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: "In " + String(repeating: "a", count: 60) + " today"),
+            "In " + String(repeating: "a", count: 47) + "..."
+        )
+    }
+
     func testPreservesMarkdownLinkSyntaxInsideCode() {
         XCTAssertEqual(
             AgentSessionPreviewGenerator.preview(fromInitialPrompt: "Fix `[label](url)` parsing in markdown links"),

@@ -5,9 +5,9 @@ public enum AgentSessionPreviewGenerator {
     /// Generates a user-facing preview from an initial prompt.
     ///
     /// The preview is intentionally conservative: very short prompts, confirmations, and slash commands return `nil`.
-    /// HTML and Markdown image tags are compacted to `(Image)`, Markdown links are flattened to their label text,
-    /// other HTML tags are stripped outside Markdown code spans and fences,
-    /// and long prompts are truncated to a readable 50-character prefix.
+    /// HTML and Markdown image tags are compacted to `(Image)`, Markdown links are flattened to their label text —
+    /// a label that is a long file path collapsing to its file name — other HTML tags are stripped outside Markdown
+    /// code spans and fences, and long prompts are truncated to a readable 50-character prefix.
     public static func preview(fromInitialPrompt prompt: String) -> String? {
         let initialPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard initialPrompt.count >= 10 else {
@@ -28,17 +28,27 @@ public enum AgentSessionPreviewGenerator {
     }
 
     private static let maximumLength = 50
+    /// The shortest prefix a word-boundary truncation may keep. Without a floor, a token longer than the whole budget —
+    /// a file path, a pasted URL — pushes the only whitespace in range back to whatever single word preceded it, and
+    /// "In <long path> the ..." previews as "In...".
+    private static let minimumWordBoundaryLength = maximumLength / 2
+    /// The longest link label that may appear in full. Past half the budget a label crowds out the sentence around it,
+    /// which is what `compactedLinkLabel(_:)` exists to prevent.
+    private static let maximumInlineLabelLength = maximumLength / 2
     private static let imagePlaceholder = "(Image)"
     private static let confirmationPrompts: Set<String> = [
         "y", "yes", "ok", "sure", "yep", "yeah", "yea", "go", "do it", "go ahead"
     ]
+    private static let markdownLinkPattern = #"\[([^\[\]]*)\]\([^()]*\)"#
+    private static let markdownLinkRegex = try? NSRegularExpression(pattern: markdownLinkPattern)
 
     private static func truncate(_ preview: String) -> String {
         guard preview.count > maximumLength else {
             return preview
         }
         let prefix = String(preview.prefix(maximumLength))
-        if let lastSpace = prefix.lastIndex(where: { $0.isWhitespace }), lastSpace > prefix.startIndex {
+        if let lastSpace = prefix.lastIndex(where: { $0.isWhitespace }),
+           prefix.distance(from: prefix.startIndex, to: lastSpace) >= minimumWordBoundaryLength {
             return String(prefix[..<lastSpace]) + "..."
         }
         return prefix + "..."
@@ -64,12 +74,39 @@ public enum AgentSessionPreviewGenerator {
 
     private static func flattenMarkdownLinksOutsideCode(in text: String) -> String {
         replaceOutsideCode(in: text) { segment in
-            segment.replacingOccurrences(
-                of: #"\[([^\[\]]*)\]\([^()]*\)"#,
-                with: "$1",
-                options: .regularExpression
-            )
+            flattenMarkdownLinks(in: segment)
         }
+    }
+
+    /// Replaces each link with its label, compacted. A template replacement cannot transform the capture, so this
+    /// walks the matches; a pattern that failed to compile falls back to the plain label.
+    private static func flattenMarkdownLinks(in segment: String) -> String {
+        guard let markdownLinkRegex else {
+            return segment.replacingOccurrences(of: markdownLinkPattern, with: "$1", options: .regularExpression)
+        }
+        let source = segment as NSString
+        var flattened = ""
+        var copiedUpTo = 0
+        for match in markdownLinkRegex.matches(in: segment, range: NSRange(location: 0, length: source.length)) {
+            flattened += source.substring(with: NSRange(location: copiedUpTo, length: match.range.location - copiedUpTo))
+            flattened += compactedLinkLabel(source.substring(with: match.range(at: 1)))
+            copiedUpTo = match.range.upperBound
+        }
+        return flattened + source.substring(from: copiedUpTo)
+    }
+
+    /// Shortens a file-path link label to its file name, because a host composer inserts an `@` mention as a link
+    /// labelled with the whole repo-relative path — which spends the entire preview budget before reaching what the
+    /// user actually asked for. Only a label long enough to crowd out the request is compacted, and a URL is left
+    /// whole so its trailing path segment cannot stand in for it.
+    private static func compactedLinkLabel(_ label: String) -> String {
+        guard label.count > maximumInlineLabelLength,
+              label.contains("/"),
+              !label.contains("://"),
+              let fileName = label.split(separator: "/").last else {
+            return label
+        }
+        return String(fileName)
     }
 
     private static func compactHTMLImagesOutsideCode(in text: String) -> String {
