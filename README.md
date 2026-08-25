@@ -187,11 +187,16 @@ See [docs/examples.md](docs/examples.md) for practical recipes covering:
 
 AgentCLIKit includes provider-specific setup services that keep provider details out of generic host code.
 
+Setup readiness reflects each provider's sign-in state. `CodexProviderSetup` reads Codex's auth file; `ClaudeProviderSetup`
+needs a `ClaudeAuthProbe`, because Claude keeps its credential in the keychain and only the CLI can report it. Omit the probe
+and Claude setup readiness stays `.ready` regardless of sign-in state. An inconclusive probe also reports `.ready`, so a
+failed spawn never locks a host out of a working CLI.
+
 Use `DefaultAgentProviderDiscoveryService` to build provider pickers and settings:
 
 ```swift
 let setups: [any AgentProviderSetup] = [
-    ClaudeProviderSetup(configStore: ClaudeConfigStore()),
+    ClaudeProviderSetup(configStore: ClaudeConfigStore(), authProbe: ClaudeAuthProbe()),
     CodexProviderSetup()
 ]
 

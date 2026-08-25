@@ -39,15 +39,6 @@ public struct ClaudeStreamDecoder: Sendable {
         }
     }
 
-    private func queueOperationEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
-        guard envelope.operation == "enqueue",
-              let content = envelope.content,
-              content.contains("<task-notification>") else {
-            return []
-        }
-        return taskNotificationEvents(from: content)
-    }
-
     private func systemEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {
         var events: [AgentEvent] = []
         let metadata = systemMetadata(from: envelope)
@@ -95,49 +86,6 @@ public struct ClaudeStreamDecoder: Sendable {
             ))
         }
         return events
-    }
-
-    func taskNotificationEvents(from rawContent: String) -> [AgentEvent] {
-        guard let notification = ClaudeTaskNotificationParser.parse(rawContent) else {
-            return []
-        }
-        var metadata: [String: JSONValue] = ["tool_use_id": .string(notification.toolUseId)]
-        if let taskId = notification.taskId {
-            metadata["task_id"] = .string(taskId)
-        }
-        if let summary = notification.summary {
-            metadata["summary"] = .string(summary)
-        }
-        if let result = notification.result {
-            metadata["result"] = .string(result)
-        }
-        if let outputFile = notification.outputFile {
-            metadata["output_file"] = .string(outputFile)
-        }
-        if let status = notification.status {
-            metadata["status"] = .string(status)
-        }
-        if let totalTokens = notification.totalTokens {
-            metadata["total_tokens"] = .number(Double(totalTokens))
-        }
-        if let toolUses = notification.toolUses {
-            metadata["tool_uses"] = .number(Double(toolUses))
-        }
-        if let durationMs = notification.durationMs {
-            metadata["duration_ms"] = .number(Double(durationMs))
-        }
-
-        return [.subAgent(AgentSubAgentEvent(
-            id: notification.toolUseId,
-            phase: .terminal,
-            description: notification.summary,
-            status: notification.status,
-            result: notification.result,
-            toolUses: notification.toolUses,
-            totalTokens: notification.totalTokens,
-            durationMs: notification.durationMs,
-            metadata: metadata
-        ))]
     }
 
     private func contentEvents(
@@ -240,7 +188,7 @@ public struct ClaudeStreamDecoder: Sendable {
             events.append(deferredInteraction)
         }
         if envelope.subtype == "error" || envelope.isError == true {
-            events.append(.diagnostic(AgentDiagnosticEvent(severity: .error, message: envelope.result ?? "Claude result error")))
+            events.append(.diagnostic(Self.resultErrorDiagnostic(message: envelope.result ?? "Claude result error")))
         }
         if let usage = envelope.usage {
             var metadata = envelope.resultMetadata
@@ -281,6 +229,17 @@ public struct ClaudeStreamDecoder: Sendable {
             events.append(.lifecycle(AgentLifecycleEvent(state: .cancelled, message: "Claude reported interruption.")))
         }
         return events
+    }
+
+    /// Codes a result error that means the credential must be renewed, so a host can offer sign-in
+    /// instead of rendering it as an ordinary turn failure. `ClaudeAuthFailureText` owns the matching
+    /// and why text is the only signal available here.
+    private static func resultErrorDiagnostic(message: String) -> AgentDiagnosticEvent {
+        AgentDiagnosticEvent(
+            code: ClaudeAuthFailureText.isAuthenticationFailure(message) ? .providerAuthenticationRequired : nil,
+            severity: .error,
+            message: message
+        )
     }
 
     private func hookEvents(from envelope: ClaudeStreamEnvelope) -> [AgentEvent] {

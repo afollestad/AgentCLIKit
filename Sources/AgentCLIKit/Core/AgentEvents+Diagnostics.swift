@@ -58,6 +58,10 @@ public enum AgentDiagnosticCode: String, Codable, Hashable, Sendable {
     case planImplementationStartFailed
     /// The process-scoped host MCP listener stopped after provider launch.
     case hostToolServerUnavailable
+    /// The provider rejected the turn because its stored credential must be renewed.
+    ///
+    /// Hosts should offer a sign-in path rather than presenting this as an ordinary turn failure.
+    case providerAuthenticationRequired
 }
 
 /// Severity for diagnostic events.
