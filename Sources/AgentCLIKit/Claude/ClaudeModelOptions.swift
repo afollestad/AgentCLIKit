@@ -83,22 +83,9 @@ enum ClaudeModelCatalog {
         }
     }
 
-    /// Families stay in the order hosts already listed them, newest version first within each, so the default leads.
+    /// Families run strongest first, newest version first within each. Grouping wins over capability across families,
+    /// so an older version of a stronger family still sits above a newer one from a weaker family.
     static let entries: [Entry] = [
-        Entry(
-            id: "claude-sonnet-5",
-            label: "Sonnet 5",
-            shortName: "sonnet",
-            supportedEfforts: fullEfforts,
-            defaultEffort: "high",
-            isDefault: true
-        ),
-        Entry(
-            id: "claude-sonnet-4-6",
-            label: "Sonnet 4.6",
-            supportedEfforts: effortsBeforeExtraHigh,
-            defaultEffort: "high"
-        ),
         Entry(
             id: "claude-fable-5",
             label: "Fable 5",
@@ -128,6 +115,20 @@ enum ClaudeModelCatalog {
         Entry(
             id: "claude-opus-4-6",
             label: "Opus 4.6",
+            supportedEfforts: effortsBeforeExtraHigh,
+            defaultEffort: "high"
+        ),
+        Entry(
+            id: "claude-sonnet-5",
+            label: "Sonnet 5",
+            shortName: "sonnet",
+            supportedEfforts: fullEfforts,
+            defaultEffort: "high",
+            isDefault: true
+        ),
+        Entry(
+            id: "claude-sonnet-4-6",
+            label: "Sonnet 4.6",
             supportedEfforts: effortsBeforeExtraHigh,
             defaultEffort: "high"
         ),
