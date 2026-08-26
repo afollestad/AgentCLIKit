@@ -75,15 +75,6 @@ extension ClaudeProviderAdapterTests {
     func testLaunchConfigurationCoercesUnsupportedModelEffortToModelDefault() async throws {
         let adapter = ClaudeProviderAdapter(executablePath: "/opt/homebrew/bin/claude")
 
-        let sonnetLaunch = try await adapter.makeLaunchConfiguration(
-            spawnConfig: AgentSpawnConfig(
-                providerId: .claude,
-                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
-                model: "sonnet",
-                effort: "xhigh"
-            ),
-            resumedSession: nil
-        )
         let haikuLaunch = try await adapter.makeLaunchConfiguration(
             spawnConfig: AgentSpawnConfig(
                 providerId: .claude,
@@ -111,12 +102,70 @@ extension ClaudeProviderAdapterTests {
             ),
             resumedSession: nil
         )
+        let sonnetLaunch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                model: "sonnet",
+                effort: "xhigh"
+            ),
+            resumedSession: nil
+        )
 
-        XCTAssertEqual(sonnetLaunch.arguments.effortArgumentValue, "high")
         XCTAssertEqual(haikuLaunch.arguments.effortArgumentValue, "medium")
         XCTAssertEqual(opusLaunch.arguments.effortArgumentValue, "xhigh")
         XCTAssertEqual(fableLaunch.arguments.modelArgumentValue, "fable")
         XCTAssertEqual(fableLaunch.arguments.effortArgumentValue, "xhigh")
+        // The alias resolves to Sonnet 5, which supports `xhigh`; only the pre-`xhigh` versions coerce.
+        XCTAssertEqual(sonnetLaunch.arguments.effortArgumentValue, "xhigh")
+    }
+
+    /// A pinned version reaches `--model` verbatim and still gets the effort metadata a bare alias would have.
+    func testLaunchConfigurationAppliesEffortMetadataToPinnedModelVersions() async throws {
+        let adapter = ClaudeProviderAdapter(executablePath: "/opt/homebrew/bin/claude")
+
+        let opus46Launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                model: "claude-opus-4-6"
+            ),
+            resumedSession: nil
+        )
+        let opus46ExtraHighLaunch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                model: "claude-opus-4-6",
+                effort: "xhigh"
+            ),
+            resumedSession: nil
+        )
+        let opus48ExtraHighLaunch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                model: "claude-opus-4-8",
+                effort: "xhigh"
+            ),
+            resumedSession: nil
+        )
+        let haikuLaunch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                providerId: .claude,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                model: "claude-haiku-4-5"
+            ),
+            resumedSession: nil
+        )
+
+        XCTAssertEqual(opus46Launch.arguments.modelArgumentValue, "claude-opus-4-6")
+        XCTAssertEqual(opus46Launch.arguments.effortArgumentValue, "high")
+        XCTAssertEqual(opus46ExtraHighLaunch.arguments.effortArgumentValue, "high")
+        XCTAssertEqual(opus48ExtraHighLaunch.arguments.modelArgumentValue, "claude-opus-4-8")
+        XCTAssertEqual(opus48ExtraHighLaunch.arguments.effortArgumentValue, "xhigh")
+        XCTAssertEqual(haikuLaunch.arguments.modelArgumentValue, "claude-haiku-4-5")
+        XCTAssertEqual(haikuLaunch.arguments.effortArgumentValue, "medium")
     }
 }
 

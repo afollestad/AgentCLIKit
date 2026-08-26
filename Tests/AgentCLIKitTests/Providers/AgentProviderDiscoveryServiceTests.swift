@@ -103,47 +103,60 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
         let claudeOptions = await source.modelOptions(for: .claude)
         let codexOptions = await source.modelOptions(for: .codex)
 
-        XCTAssertEqual(claudeOptions.map(\.id), ["sonnet", "fable", "opus", "haiku"])
-        XCTAssertEqual(claudeOptions.map(\.label), ["Sonnet", "Fable", "Opus", "Haiku"])
-        XCTAssertEqual(claudeOptions.first?.isDefault, true)
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "sonnet" })?.supportedEffortOptions.map(\.value), [
-            "low",
-            "medium",
-            "high",
-            "max"
+        XCTAssertEqual(claudeOptions.map(\.id), [
+            "claude-sonnet-5",
+            "claude-sonnet-4-6",
+            "claude-fable-5",
+            "claude-opus-5",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-opus-4-6",
+            "claude-haiku-4-5"
         ])
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "fable" })?.supportedEffortOptions.map(\.value), [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
+        XCTAssertEqual(claudeOptions.map(\.label), [
+            "Sonnet 5",
+            "Sonnet 4.6",
+            "Fable 5",
+            "Opus 5",
+            "Opus 4.8",
+            "Opus 4.7",
+            "Opus 4.6",
+            "Haiku 4.5"
         ])
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.supportedEffortOptions.map(\.value), [
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max"
-        ])
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "haiku" })?.supportedEffortOptions.map(\.value), [
-            "low",
-            "medium",
-            "high"
-        ])
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "sonnet" })?.defaultEffortOption?.value, "high")
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "fable" })?.defaultEffortOption?.value, "high")
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "opus" })?.defaultEffortOption?.value, "high")
-        XCTAssertEqual(claudeOptions.first(where: { $0.id == "haiku" })?.defaultEffortOption?.value, "medium")
+        XCTAssertEqual(claudeOptions.filter(\.isDefault).map(\.id), ["claude-sonnet-5"])
+        XCTAssertEqual(codexOptions, AgentDefaultModelOptions.providerDefault(for: .codex, description: "Use the Codex default model."))
+    }
+
+    func testDefaultModelOptionSourceScopesClaudeEffortLaddersToEachModelVersion() async {
+        let source = DefaultAgentModelOptionSource()
+
+        let claudeOptions = await source.modelOptions(for: .claude)
+
+        func efforts(_ id: String) -> [String]? {
+            claudeOptions.first(where: { $0.id == id })?.supportedEffortOptions.map(\.value)
+        }
+        func defaultEffort(_ id: String) -> String? {
+            claudeOptions.first(where: { $0.id == id })?.defaultEffortOption?.value
+        }
+
+        XCTAssertEqual(efforts("claude-sonnet-5"), ["low", "medium", "high", "xhigh", "max"])
+        XCTAssertEqual(efforts("claude-opus-4-8"), ["low", "medium", "high", "xhigh", "max"])
+        // `xhigh` postdates these two, so their ladders stop at `high`.
+        XCTAssertEqual(efforts("claude-sonnet-4-6"), ["low", "medium", "high", "max"])
+        XCTAssertEqual(efforts("claude-opus-4-6"), ["low", "medium", "high", "max"])
+        XCTAssertEqual(efforts("claude-haiku-4-5"), ["low", "medium", "high"])
+        XCTAssertEqual(defaultEffort("claude-sonnet-5"), "high")
+        XCTAssertEqual(defaultEffort("claude-fable-5"), "high")
+        XCTAssertEqual(defaultEffort("claude-opus-5"), "high")
+        XCTAssertEqual(defaultEffort("claude-haiku-4-5"), "medium")
         XCTAssertEqual(
             claudeOptions
-                .first(where: { $0.id == "fable" })?
+                .first(where: { $0.id == "claude-fable-5" })?
                 .supportedEffortOptions
                 .first(where: { $0.value == "xhigh" })?
                 .label,
             "Extra High"
         )
-        XCTAssertEqual(codexOptions, AgentDefaultModelOptions.providerDefault(for: .codex, description: "Use the Codex default model."))
     }
 
     private var definitions: [AgentProviderDefinition] {

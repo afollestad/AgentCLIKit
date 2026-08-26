@@ -1,6 +1,6 @@
 import Foundation
 
-/// Claude model option source backed by built-in Claude CLI model aliases.
+/// Claude model option source backed by the authored `ClaudeModelCatalog`.
 public struct ClaudeModelOptionSource: AgentModelOptionSource {
     /// Creates a Claude model option source.
     public init() {}
@@ -10,57 +10,19 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
         guard providerId == ClaudeProviderDefinition.providerId else {
             return AgentDefaultModelOptions.providerDefault(for: providerId)
         }
-        let sonnetEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: ClaudeModelAliases.defaultModel))
-        let fableEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: "fable"))
-        let opusEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: "opus"))
-        let haikuEfforts = Self.effortOptions(ClaudeModelAliases.supportedEfforts(for: "haiku"))
-        return [
+        return ClaudeModelCatalog.entries.map { entry in
             AgentModelOption(
                 providerId: providerId,
-                id: ClaudeModelAliases.defaultModel,
-                model: ClaudeModelAliases.defaultModel,
-                label: "Sonnet",
-                shortName: "sonnet",
-                description: "Use Claude's Sonnet model alias.",
-                isDefault: true,
-                supportedEffortOptions: sonnetEfforts,
-                defaultEffortOption: Self.effortOption("high")
-            ),
-            AgentModelOption(
-                providerId: providerId,
-                id: "fable",
-                model: "fable",
-                label: "Fable",
-                shortName: "fable",
-                description: "Use Claude's Fable model alias.",
-                supportedEffortOptions: fableEfforts,
-                defaultEffortOption: Self.effortOption("high")
-            ),
-            AgentModelOption(
-                providerId: providerId,
-                id: "opus",
-                model: "opus",
-                label: "Opus",
-                shortName: "opus",
-                description: "Use Claude's Opus model alias.",
-                supportedEffortOptions: opusEfforts,
-                defaultEffortOption: Self.effortOption("high")
-            ),
-            AgentModelOption(
-                providerId: providerId,
-                id: "haiku",
-                model: "haiku",
-                label: "Haiku",
-                shortName: "haiku",
-                description: "Use Claude's Haiku model alias.",
-                supportedEffortOptions: haikuEfforts,
-                defaultEffortOption: Self.effortOption("medium")
+                id: entry.id,
+                model: entry.id,
+                label: entry.label,
+                shortName: entry.shortName,
+                description: "Use Claude's \(entry.label) model.",
+                isDefault: entry.isDefault,
+                supportedEffortOptions: entry.supportedEfforts.map(Self.effortOption),
+                defaultEffortOption: Self.effortOption(entry.defaultEffort)
             )
-        ]
-    }
-
-    private static func effortOptions(_ values: [String]) -> [AgentProviderOption] {
-        values.map(effortOption)
+        }
     }
 
     private static func effortOption(_ value: String) -> AgentProviderOption {
@@ -81,6 +43,122 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
     }
 }
 
+/// Selectable Claude models and their effort metadata.
+///
+/// The Claude CLI has no model-listing command, so this table is the only source hosts have for the models they can
+/// offer. Every entry is a pinned version: the bare family aliases (`sonnet`, `opus`, `fable`, `haiku`) are not options
+/// of their own, they survive only as `shortName` on the newest entry of each family. That keeps typed input such as
+/// `/model opus` working, keeps a host's already-persisted alias selection resolvable, and keeps effort lookup working
+/// for a launch that still passes a bare alias as `--model`.
+enum ClaudeModelCatalog {
+    /// One selectable Claude model.
+    struct Entry {
+        /// Value passed to `--model`, and the option id hosts persist.
+        let id: String
+        /// User-facing label.
+        let label: String
+        /// Family alias hosts accept as typed input, or `nil` when only `id` names this model.
+        let shortName: String?
+        /// Effort values offered for this model, in display order.
+        let supportedEfforts: [String]
+        /// Effort applied when a launch names this model without one.
+        let defaultEffort: String
+        /// Whether hosts should preselect this model.
+        let isDefault: Bool
+
+        init(
+            id: String,
+            label: String,
+            shortName: String? = nil,
+            supportedEfforts: [String],
+            defaultEffort: String,
+            isDefault: Bool = false
+        ) {
+            self.id = id
+            self.label = label
+            self.shortName = shortName
+            self.supportedEfforts = supportedEfforts
+            self.defaultEffort = defaultEffort
+            self.isDefault = isDefault
+        }
+    }
+
+    /// Families stay in the order hosts already listed them, newest version first within each, so the default leads.
+    static let entries: [Entry] = [
+        Entry(
+            id: "claude-sonnet-5",
+            label: "Sonnet 5",
+            shortName: "sonnet",
+            supportedEfforts: fullEfforts,
+            defaultEffort: "high",
+            isDefault: true
+        ),
+        Entry(
+            id: "claude-sonnet-4-6",
+            label: "Sonnet 4.6",
+            supportedEfforts: effortsBeforeExtraHigh,
+            defaultEffort: "high"
+        ),
+        Entry(
+            id: "claude-fable-5",
+            label: "Fable 5",
+            shortName: "fable",
+            supportedEfforts: fullEfforts,
+            defaultEffort: "high"
+        ),
+        Entry(
+            id: "claude-opus-5",
+            label: "Opus 5",
+            shortName: "opus",
+            supportedEfforts: fullEfforts,
+            defaultEffort: "high"
+        ),
+        Entry(
+            id: "claude-opus-4-8",
+            label: "Opus 4.8",
+            supportedEfforts: fullEfforts,
+            defaultEffort: "high"
+        ),
+        Entry(
+            id: "claude-opus-4-7",
+            label: "Opus 4.7",
+            supportedEfforts: fullEfforts,
+            defaultEffort: "high"
+        ),
+        Entry(
+            id: "claude-opus-4-6",
+            label: "Opus 4.6",
+            supportedEfforts: effortsBeforeExtraHigh,
+            defaultEffort: "high"
+        ),
+        Entry(
+            id: "claude-haiku-4-5",
+            label: "Haiku 4.5",
+            shortName: "haiku",
+            supportedEfforts: haikuEfforts,
+            defaultEffort: "medium"
+        )
+    ]
+
+    /// Resolves a launch `--model` value, which is either a catalog id or a bare family alias.
+    static func entry(forModel model: String) -> Entry? {
+        let normalized = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else {
+            return nil
+        }
+        return entries.first { $0.id == normalized || $0.shortName == normalized }
+    }
+
+    private static let fullEfforts = ["low", "medium", "high", "xhigh", "max"]
+    /// `xhigh` postdates Opus 4.6 and Sonnet 4.6, so their ladders skip it.
+    private static let effortsBeforeExtraHigh = ["low", "medium", "high", "max"]
+    private static let haikuEfforts = ["low", "medium", "high"]
+}
+
+/// Normalizes the model and effort a host supplies into the values Claude's CLI is launched with.
+///
+/// `ClaudeModelCatalog` owns which models exist; this owns what a launch does with one, including values a host
+/// persisted before pinned versions were selectable.
 enum ClaudeModelAliases {
     static let defaultModel = "sonnet"
 
@@ -109,28 +187,13 @@ enum ClaudeModelAliases {
         return defaultEffort(for: normalizedModel)
     }
 
-    static func supportedEfforts(for model: String) -> [String] {
-        switch model.lowercased() {
-        case "haiku":
-            return ["low", "medium", "high"]
-        case "fable", "opus":
-            return ["low", "medium", "high", "xhigh", "max"]
-        case "sonnet":
-            return ["low", "medium", "high", "max"]
-        default:
-            return []
-        }
+    /// Empty for a model outside the catalog, which leaves an explicitly requested effort untouched.
+    private static func supportedEfforts(for model: String) -> [String] {
+        ClaudeModelCatalog.entry(forModel: model)?.supportedEfforts ?? []
     }
 
     private static func defaultEffort(for model: String) -> String? {
-        switch model.lowercased() {
-        case "haiku":
-            return "medium"
-        case "fable", "opus", "sonnet":
-            return "high"
-        default:
-            return nil
-        }
+        ClaudeModelCatalog.entry(forModel: model)?.defaultEffort
     }
 
     private static func isLegacyDefaultModel(_ model: String?) -> Bool {

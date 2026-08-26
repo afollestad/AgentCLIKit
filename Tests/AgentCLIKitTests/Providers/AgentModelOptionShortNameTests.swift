@@ -3,11 +3,41 @@ import XCTest
 @testable import AgentCLIKit
 
 final class AgentModelOptionShortNameTests: XCTestCase {
-    func testClaudeOptionsExposeCLIAliasesAsShortNames() async {
+    /// The Claude picker lists pinned versions only, so the family aliases survive solely as short names. Losing one
+    /// would silently break `/model opus` and strand every selection a host persisted before versions were selectable.
+    func testClaudeFamilyAliasesSurviveAsShortNamesOnTheNewestVersion() async {
         let options = await ClaudeModelOptionSource().modelOptions(for: .claude)
 
-        XCTAssertEqual(options.map(\.id), ["sonnet", "fable", "opus", "haiku"])
-        XCTAssertEqual(options.map(\.shortName), ["sonnet", "fable", "opus", "haiku"])
+        XCTAssertEqual(options.map(\.id), [
+            "claude-sonnet-5",
+            "claude-sonnet-4-6",
+            "claude-fable-5",
+            "claude-opus-5",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-opus-4-6",
+            "claude-haiku-4-5"
+        ])
+        XCTAssertEqual(options.map(\.shortName), [
+            "sonnet",
+            "claude-sonnet-4-6",
+            "fable",
+            "opus",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-opus-4-6",
+            "haiku"
+        ])
+    }
+
+    func testClaudeShortNamesDoNotShadowAnotherModelsID() async {
+        let options = await ClaudeModelOptionSource().modelOptions(for: .claude)
+
+        let ids = Set(options.map(\.id))
+        let aliases = options.map(\.shortName).filter { !ids.contains($0) }
+
+        XCTAssertEqual(Set(aliases), ["sonnet", "fable", "opus", "haiku"])
+        XCTAssertEqual(Set(options.map(\.shortName)).count, options.count)
     }
 
     func testProviderDefaultOptionUsesItsIDAsShortName() {
