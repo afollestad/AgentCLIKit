@@ -9,6 +9,7 @@ final class AgentModelOptionShortNameTests: XCTestCase {
         let options = await ClaudeModelOptionSource().modelOptions(for: .claude)
 
         XCTAssertEqual(options.map(\.id), [
+            "claude-fable-5-1",
             "claude-fable-5",
             "claude-opus-5",
             "claude-opus-4-8",
@@ -20,6 +21,7 @@ final class AgentModelOptionShortNameTests: XCTestCase {
         ])
         XCTAssertEqual(options.map(\.shortName), [
             "fable",
+            "claude-fable-5",
             "opus",
             "claude-opus-4-8",
             "claude-opus-4-7",

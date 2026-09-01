@@ -87,9 +87,15 @@ enum ClaudeModelCatalog {
     /// so an older version of a stronger family still sits above a newer one from a weaker family.
     static let entries: [Entry] = [
         Entry(
+            id: "claude-fable-5-1",
+            label: "Fable 5.1",
+            shortName: "fable",
+            supportedEfforts: fullEfforts,
+            defaultEffort: "high"
+        ),
+        Entry(
             id: "claude-fable-5",
             label: "Fable 5",
-            shortName: "fable",
             supportedEfforts: fullEfforts,
             defaultEffort: "high"
         ),
