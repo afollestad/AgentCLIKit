@@ -18,7 +18,7 @@ extension DemoModel {
 
     func modelOptions(for providerId: AgentProviderID) -> [AgentModelOption] {
         let options = providerStatuses[providerId]?.modelOptions ?? []
-        return options.isEmpty ? AgentDefaultModelOptions.providerDefault(for: providerId) : options
+        return options.isEmpty ? AgentDefaultModelOptions.staticOptions(for: providerId) : options
     }
 
     func selectedModelOption(for sessionID: AgentConversationID, providerId: AgentProviderID) -> AgentModelOption? {

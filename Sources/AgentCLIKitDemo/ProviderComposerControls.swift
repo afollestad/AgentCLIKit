@@ -122,7 +122,7 @@ struct ProviderComposerControls: View {
 
     private var modelOptions: [AgentModelOption] {
         let options = providerStatuses[providerId]?.modelOptions ?? []
-        return options.isEmpty ? AgentDefaultModelOptions.providerDefault(for: providerId) : options
+        return options.isEmpty ? AgentDefaultModelOptions.staticOptions(for: providerId) : options
     }
 
     private var providerDisplayName: String {

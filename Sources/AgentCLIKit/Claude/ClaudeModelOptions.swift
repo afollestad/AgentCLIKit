@@ -10,17 +10,25 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
         guard providerId == ClaudeProviderDefinition.providerId else {
             return AgentDefaultModelOptions.providerDefault(for: providerId)
         }
-        return ClaudeModelCatalog.entries.map { entry in
+        return Self.staticModelOptions
+    }
+
+    /// Claude's authored model catalog mapped to selectable options.
+    ///
+    /// Available synchronously because `ClaudeModelCatalog` is static: discovery reports exactly this list for Claude,
+    /// so hosts can render it before discovery completes instead of flashing a raw model id.
+    public static var staticModelOptions: [AgentModelOption] {
+        ClaudeModelCatalog.entries.map { entry in
             AgentModelOption(
-                providerId: providerId,
+                providerId: ClaudeProviderDefinition.providerId,
                 id: entry.id,
                 model: entry.id,
                 label: entry.label,
                 shortName: entry.shortName,
                 description: "Use Claude's \(entry.label) model.",
                 isDefault: entry.isDefault,
-                supportedEffortOptions: entry.supportedEfforts.map(Self.effortOption),
-                defaultEffortOption: Self.effortOption(entry.defaultEffort)
+                supportedEffortOptions: entry.supportedEfforts.map(effortOption),
+                defaultEffortOption: effortOption(entry.defaultEffort)
             )
         }
     }

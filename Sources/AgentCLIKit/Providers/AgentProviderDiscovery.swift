@@ -276,10 +276,7 @@ public struct DefaultAgentModelOptionSource: AgentModelOptionSource {
             return await claudeSource.modelOptions(for: providerId)
         case .codex:
             guard let codexSource else {
-                return AgentDefaultModelOptions.providerDefault(
-                    for: providerId,
-                    description: "Use the Codex default model."
-                )
+                return AgentDefaultModelOptions.staticOptions(for: providerId)
             }
             return await codexSource.modelOptions(for: providerId)
         }
@@ -288,6 +285,20 @@ public struct DefaultAgentModelOptionSource: AgentModelOptionSource {
 
 /// Built-in static model options used as safe discovery fallbacks.
 public enum AgentDefaultModelOptions {
+    /// Returns the static model options a host can show before provider discovery completes.
+    ///
+    /// For providers whose catalog is authored in the package (Claude), this is exactly the list discovery later
+    /// reports, so a cold-start UI and a discovered one render the same labels and effort ladders. Providers whose
+    /// model list requires a live source (Codex) fall back to the single provider-default option.
+    public static func staticOptions(for providerId: AgentProviderID) -> [AgentModelOption] {
+        switch providerId {
+        case .claude:
+            return ClaudeModelOptionSource.staticModelOptions
+        case .codex:
+            return providerDefault(for: providerId, description: "Use the Codex default model.")
+        }
+    }
+
     /// Returns a provider-default model option.
     public static func providerDefault(
         for providerId: AgentProviderID,

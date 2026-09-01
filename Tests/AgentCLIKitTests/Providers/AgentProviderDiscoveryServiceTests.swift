@@ -129,6 +129,23 @@ final class AgentProviderDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(codexOptions, AgentDefaultModelOptions.providerDefault(for: .codex, description: "Use the Codex default model."))
     }
 
+    func testStaticOptionsMatchDiscoveredClaudeOptions() async {
+        let staticOptions = AgentDefaultModelOptions.staticOptions(for: .claude)
+        let discovered = await ClaudeModelOptionSource().modelOptions(for: .claude)
+
+        XCTAssertEqual(staticOptions, discovered)
+        XCTAssertEqual(staticOptions.filter(\.isDefault).map(\.id), ["claude-sonnet-5"])
+        XCTAssertEqual(staticOptions.first { $0.id == "claude-opus-5" }?.label, "Opus 5")
+    }
+
+    func testStaticOptionsKeepCodexOnProviderDefault() async {
+        let staticOptions = AgentDefaultModelOptions.staticOptions(for: .codex)
+        let discovered = await DefaultAgentModelOptionSource().modelOptions(for: .codex)
+
+        XCTAssertEqual(staticOptions, discovered)
+        XCTAssertEqual(staticOptions.map(\.id), ["default"])
+    }
+
     func testDefaultModelOptionSourceScopesClaudeEffortLaddersToEachModelVersion() async {
         let source = DefaultAgentModelOptionSource()
 

@@ -213,7 +213,9 @@ let statuses = await discovery.providerStatuses(projectURL: projectURL)
 `AgentProviderStatus` reports installation, enablement, setup readiness, project trust, provider capabilities, selectable
 models, model-scoped effort options, and diagnostics. Use `AgentProviderDefinition.capabilities.supportsSpeedMode` before
 showing speed controls, and use `AgentModelOption.supportedEffortOptions` and
-`AgentModelOption.defaultEffortOption` before showing effort controls.
+`AgentModelOption.defaultEffortOption` before showing effort controls. Before discovery completes, render
+`AgentDefaultModelOptions.staticOptions(for:)` — for Claude it is exactly the list discovery reports, so a cold start
+never shows a raw model id.
 
 Use `DefaultAgentProjectTrustService` when the user chooses to trust a project:
 
