@@ -124,6 +124,7 @@ final class ClaudeStreamDecoderAttachmentTests: XCTestCase {
                 metadata: [
                     "tool_use_id": .string("toolu_agent"),
                     "task_id": .string("async-agent-1"),
+                    "delivery": .string("dequeued"),
                     "summary": .string("Agent completed"),
                     "result": .string("Found <script> tags & images."),
                     "output_file": .string("/tmp/async-agent-1.output"),

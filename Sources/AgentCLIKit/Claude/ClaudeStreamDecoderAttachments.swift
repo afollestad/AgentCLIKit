@@ -13,7 +13,7 @@ extension ClaudeStreamDecoder {
         case "goal_status":
             return goalStatusAttachmentEvents(from: envelope, attachment: attachment)
         case "queued_command" where attachment.isTaskNotification:
-            return taskNotificationEvents(from: attachment.queuedCommandPrompt ?? "")
+            return taskNotificationEvents(from: attachment.queuedCommandPrompt ?? "", delivery: AgentBackgroundTaskMetadata.dequeuedDelivery)
         default:
             return [.rawOutput(AgentRawOutputEvent(text: "attachment:\(attachment.type)", isComplete: true))]
         }

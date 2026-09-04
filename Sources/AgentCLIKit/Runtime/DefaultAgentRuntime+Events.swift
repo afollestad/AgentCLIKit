@@ -101,8 +101,14 @@ extension DefaultAgentRuntime {
                 guard shouldAppendProviderEvent(event, conversationId: conversationId) else {
                     continue
                 }
+                if let turnStart = providerInitiatedTurnStart(for: event, conversationId: conversationId) {
+                    append(turnStart, source: .runtime, conversationId: conversationId)
+                }
                 hasDeferredToolStop = hasDeferredToolStop || isDeferredToolStop(event)
                 append(event, source: .stdout, conversationId: conversationId)
+                if let turnEnd = providerInitiatedTurnEnd(for: event, conversationId: conversationId) {
+                    append(turnEnd, source: .runtime, conversationId: conversationId)
+                }
             }
             guard states[conversationId]?.processToken == processToken else {
                 return
@@ -374,6 +380,7 @@ extension DefaultAgentRuntime {
     }
 
     private func applyStatusSideEffects(for event: AgentEvent, state: inout ConversationState) {
+        state.backgroundTasks.apply(event)
         switch event {
         case let .activity(activity):
             applyActivityStatusSideEffects(for: activity, state: &state)
@@ -390,6 +397,7 @@ extension DefaultAgentRuntime {
         case let .usage(usage):
             if usage.endsActiveTurn {
                 state.isTurnActive = false
+                state.providerInitiatedTurnId = nil
             }
         case let .lifecycle(lifecycle):
             applyLifecycleStatusSideEffects(for: lifecycle, state: &state)
@@ -429,8 +437,13 @@ extension DefaultAgentRuntime {
 
     private func applyLifecycleStatusSideEffects(for lifecycle: AgentLifecycleEvent, state: inout ConversationState) {
         if lifecycle.state == .running { state.inputAvailability = .available }
-        if lifecycle.state.isTerminal { state.isTurnActive = false }
+        if lifecycle.state.isTerminal {
+            state.isTurnActive = false
+            state.providerInitiatedTurnId = nil
+            state.backgroundTasks.processDidEnd()
+        }
     }
+
     func publishStatus(conversationId: AgentConversationID) {
         guard let status = states[conversationId]?.status(conversationId: conversationId) else {
             return

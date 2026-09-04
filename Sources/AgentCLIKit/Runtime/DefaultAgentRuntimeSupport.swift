@@ -48,6 +48,10 @@ struct ConversationState {
     var collaborationMode: AgentCollaborationMode?
     var goal: AgentGoalSnapshot?
     var isTurnActive: Bool
+    var backgroundTasks: BackgroundTaskTracking
+    /// Turn id of the activity the runtime synthesized when a dequeued notification arrived while idle, until the
+    /// provider's follow-up result or a no-op result ends it.
+    var providerInitiatedTurnId: String?
     var waitingState: AgentRuntimeWaitingState
     var inputAvailability: AgentInputAvailability
     var resolvedInteractions: Set<AgentInteractionID>
@@ -90,6 +94,7 @@ struct ConversationState {
             collaborationMode: collaborationMode,
             goal: goal,
             isTurnActive: isTurnActive,
+            liveBackgroundTaskCount: backgroundTasks.liveCount,
             inputAvailability: inputAvailability,
             waitingState: waitingState,
             processIdentifier: process?.isRunning == true ? process?.processIdentifier : nil,
@@ -222,7 +227,7 @@ extension AgentEvent {
         case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode,
              .collaborationMode, .task, .subAgent, .contextCompaction, .goal, .interaction, .rawOutput:
             true
-        case .activity, .sessionMetadata, .sessionContinuity, .lifecycle, .diagnostic:
+        case .activity, .backgroundTasks, .sessionMetadata, .sessionContinuity, .lifecycle, .diagnostic:
             false
         }
     }

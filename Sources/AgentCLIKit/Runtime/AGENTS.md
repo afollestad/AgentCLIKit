@@ -8,6 +8,12 @@
 - **Do not reopen resolved interactions:** Late or replayed provider interaction frames whose IDs already resolved must not emit new pending interaction events or return the runtime to a waiting state.
 - **Tear down deferred stops gracefully:** On a deferred-tool stop, close stdin and let the provider exit on its own; force kill only after `deferredStopKillGraceNanoseconds`. An immediate kill races the provider's deferred-tool transcript writes, and a resume without that marker never re-runs the deferred tool.
 
+## Background Tasks
+
+- **Count background tasks separately from `isTurnActive`:** `BackgroundTaskTracking` owns the live set behind `AgentRuntimeStatus.liveBackgroundTaskCount`. Hosts use it to keep a process alive after a turn ends, so never fold it into turn state or clear it on turn end.
+- **Keep a dropped task counted until its notification arrives:** Claude announces the shrunken live set before the notification and the follow-up turn; clearing on the announcement alone reopens the teardown gap the count exists to close.
+- **Start provider-initiated turns only for announced tasks:** a `dequeued` notification whose `task_id` this process never announced (a resume drain of an earlier process's orphans) must stay inert.
+
 ## Provider Session Lineage
 
 - **Treat a launch-returned session that differs from the resumed one as new:** seed `providerSessionCreatedAt` as `nil` so `providerSessionStateUpdate` persists it. Inheriting the resumed record's date makes the replacement look already-saved, so the conversation stays bound to the session it just replaced and keeps resuming — and re-replacing — that one.

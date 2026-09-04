@@ -132,6 +132,9 @@ extension DefaultAgentRuntime {
             collaborationMode: input.spawnConfig.collaborationMode,
             goal: seededInitialGoal(from: input) ?? (input.fresh ? nil : previous?.goal),
             isTurnActive: input.spawnConfig.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
+            // Background tasks die with their process and Claude announces nothing at startup, so every spawn starts empty.
+            backgroundTasks: BackgroundTaskTracking(),
+            providerInitiatedTurnId: nil,
             waitingState: .idle,
             inputAvailability: .available,
             resolvedInteractions: input.fresh ? [] : previous?.resolvedInteractions ?? [],

@@ -445,6 +445,11 @@ func cancelConversation(
 `status.isTurnActive` is useful for hosts that support mid-turn steering. A provider can accept input while a tool-backed
 turn is still active, so `inputAvailability` alone is not the full turn-state model.
 
+`status.liveBackgroundTaskCount` reports provider work that outlives the turn, such as Claude background agents. Those
+tasks run inside the provider process, so a host that tears processes down between turns should wait for the count to
+return to zero. When one finishes, the runtime emits `.activity(.active)` with a `background-task:` turn id before the
+provider's follow-up response, then `.activity(.idle)` or a terminal usage event when that response ends.
+
 ## Where To Look Next
 
 - `Sources/AgentCLIKitDemo/DemoModel.swift` shows runtime ownership, provider discovery, session persistence, and status subscriptions.

@@ -20,6 +20,8 @@ struct ClaudeStreamEnvelope: Decodable {
     let totalCostUSD: Double?
     let modelUsage: [String: ClaudeModelUsage]?
     let toolUseId: String?
+    let taskId: String?
+    let tasks: [ClaudeBackgroundTask]?
     let description: String?
     let summary: String?
     let taskType: String?
@@ -100,6 +102,8 @@ struct ClaudeStreamEnvelope: Decodable {
         case totalCostUSD = "total_cost_usd"
         case modelUsage
         case toolUseId = "tool_use_id"
+        case taskId = "task_id"
+        case tasks
         case description
         case summary
         case taskType = "task_type"
@@ -143,6 +147,8 @@ struct ClaudeStreamEnvelope: Decodable {
         self.totalCostUSD = container.decodeLenientDoubleIfPresent(forKey: .totalCostUSD)
         self.modelUsage = container.decodeLenientIfPresent([String: ClaudeModelUsage].self, forKey: .modelUsage)
         self.toolUseId = container.decodeLenientIfPresent(String.self, forKey: .toolUseId)
+        self.taskId = container.decodeLenientIfPresent(String.self, forKey: .taskId)
+        self.tasks = container.decodeLenientIfPresent([ClaudeBackgroundTask].self, forKey: .tasks)
         self.description = container.decodeLenientIfPresent(String.self, forKey: .description)
         self.summary = container.decodeLenientIfPresent(String.self, forKey: .summary)
         self.taskType = container.decodeLenientIfPresent(String.self, forKey: .taskType)
@@ -161,6 +167,30 @@ struct ClaudeStreamEnvelope: Decodable {
         self.rateLimitInfo = container.decodeLenientIfPresent(ClaudeRateLimitInfo.self, forKey: .rateLimitInfo)
         self.operation = container.decodeLenientIfPresent(String.self, forKey: .operation)
         self.content = container.decodeLenientIfPresent(String.self, forKey: .content)
+    }
+}
+
+/// One entry of a `background_tasks_changed` system frame, which lists every task still running inside the
+/// Claude process after the turn that started it ended.
+struct ClaudeBackgroundTask: Decodable {
+    let taskId: String
+    let taskType: String?
+    let description: String?
+    let ambient: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case taskId = "task_id"
+        case taskType = "task_type"
+        case description
+        case ambient
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.taskId = try container.decode(String.self, forKey: .taskId)
+        self.taskType = container.decodeLenientIfPresent(String.self, forKey: .taskType)
+        self.description = container.decodeLenientIfPresent(String.self, forKey: .description)
+        self.ambient = container.decodeLenientIfPresent(Bool.self, forKey: .ambient)
     }
 }
 

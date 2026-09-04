@@ -30,16 +30,16 @@ extension ClaudeStreamDecoderStatusTests {
     func testTaskNotificationUserMessageEmitsSubAgentCompletionMetadata() throws {
         let events = try ClaudeStreamDecoder().decodeLine(Self.taskNotificationLine())
 
-        XCTAssertEqual(events, [Self.completedSubAgentEvent()])
+        XCTAssertEqual(events, [Self.completedSubAgentEvent(delivery: "dequeued")])
     }
 
     func testTaskNotificationQueueOperationEmitsSubAgentCompletionMetadata() throws {
         let events = try ClaudeStreamDecoder().decodeLine(Self.taskNotificationQueueOperationLine())
 
-        XCTAssertEqual(events, [Self.completedSubAgentEvent()])
+        XCTAssertEqual(events, [Self.completedSubAgentEvent(delivery: "enqueued")])
     }
 
-    private static func completedSubAgentEvent() -> AgentEvent {
+    private static func completedSubAgentEvent(delivery: String) -> AgentEvent {
         .subAgent(AgentSubAgentEvent(
             id: "toolu_agent",
             phase: .terminal,
@@ -52,6 +52,7 @@ extension ClaudeStreamDecoderStatusTests {
             metadata: [
                 "tool_use_id": .string("toolu_agent"),
                 "task_id": .string("async-agent-1"),
+                "delivery": .string(delivery),
                 "summary": .string("Agent & docs completed"),
                 "result": .string(completedResult),
                 "output_file": .string("/tmp/async-agent-1.output"),

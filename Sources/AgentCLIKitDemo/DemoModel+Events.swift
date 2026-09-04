@@ -80,7 +80,7 @@ extension DemoModel {
                 envelope: envelope,
                 sessionID: sessionID
             )
-        case .sessionMetadata:
+        case .sessionMetadata, .backgroundTasks:
             return
         case .lifecycle(let lifecycle):
             handleLifecycle(lifecycle, envelope: envelope, sessionID: sessionID)

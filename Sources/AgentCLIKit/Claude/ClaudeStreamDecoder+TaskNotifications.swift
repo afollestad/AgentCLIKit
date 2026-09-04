@@ -10,14 +10,17 @@ extension ClaudeStreamDecoder {
               content.contains("<task-notification>") else {
             return []
         }
-        return taskNotificationEvents(from: content)
+        return taskNotificationEvents(from: content, delivery: AgentBackgroundTaskMetadata.enqueuedDelivery)
     }
 
-    func taskNotificationEvents(from rawContent: String) -> [AgentEvent] {
+    func taskNotificationEvents(from rawContent: String, delivery: String) -> [AgentEvent] {
         guard let notification = ClaudeTaskNotificationParser.parse(rawContent) else {
             return []
         }
-        var metadata: [String: JSONValue] = ["tool_use_id": .string(notification.toolUseId)]
+        var metadata: [String: JSONValue] = [
+            "tool_use_id": .string(notification.toolUseId),
+            AgentBackgroundTaskMetadata.delivery: .string(delivery)
+        ]
         if let taskId = notification.taskId {
             metadata["task_id"] = .string(taskId)
         }

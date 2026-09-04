@@ -230,6 +230,9 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
     public let goal: AgentGoalSnapshot?
     /// Whether a host-started provider turn is still active, even if mid-turn input is available.
     public let isTurnActive: Bool
+    /// Number of non-ambient provider background tasks still running inside the process. Hosts must keep the process
+    /// alive while this is non-zero even when no turn is active, because tearing it down kills those tasks silently.
+    public let liveBackgroundTaskCount: Int
     /// Whether host input can currently be sent to the provider.
     public let inputAvailability: AgentInputAvailability
     /// Runtime wait state derived from lifecycle and pending interactions.
@@ -255,6 +258,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         collaborationMode: AgentCollaborationMode? = nil,
         goal: AgentGoalSnapshot? = nil,
         isTurnActive: Bool = false,
+        liveBackgroundTaskCount: Int = 0,
         inputAvailability: AgentInputAvailability = .available,
         waitingState: AgentRuntimeWaitingState = .idle,
         processIdentifier: Int32? = nil,
@@ -273,6 +277,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.collaborationMode = collaborationMode
         self.goal = goal
         self.isTurnActive = isTurnActive
+        self.liveBackgroundTaskCount = liveBackgroundTaskCount
         self.inputAvailability = inputAvailability
         self.waitingState = waitingState
         self.processIdentifier = processIdentifier
@@ -295,6 +300,7 @@ public struct AgentRuntimeStatus: Codable, Equatable, Sendable {
         self.collaborationMode = try container.decodeIfPresent(AgentCollaborationMode.self, forKey: .collaborationMode)
         self.goal = try container.decodeIfPresent(AgentGoalSnapshot.self, forKey: .goal)
         self.isTurnActive = try container.decodeIfPresent(Bool.self, forKey: .isTurnActive) ?? false
+        self.liveBackgroundTaskCount = try container.decodeIfPresent(Int.self, forKey: .liveBackgroundTaskCount) ?? 0
         self.inputAvailability = try container.decodeIfPresent(AgentInputAvailability.self, forKey: .inputAvailability) ?? .available
         self.waitingState = try container.decodeIfPresent(AgentRuntimeWaitingState.self, forKey: .waitingState) ?? .idle
         self.processIdentifier = try container.decodeIfPresent(Int32.self, forKey: .processIdentifier)

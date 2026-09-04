@@ -83,6 +83,8 @@ public enum AgentEvent: Codable, Equatable, Sendable {
     case task(AgentTaskEvent)
     /// Provider-neutral sub-agent lifecycle activity.
     case subAgent(AgentSubAgentEvent)
+    /// The provider's full set of live background tasks changed.
+    case backgroundTasks(AgentBackgroundTasksEvent)
     /// Provider context compaction lifecycle event.
     case contextCompaction(AgentContextCompactionEvent)
     /// Provider-reported goal state changed.

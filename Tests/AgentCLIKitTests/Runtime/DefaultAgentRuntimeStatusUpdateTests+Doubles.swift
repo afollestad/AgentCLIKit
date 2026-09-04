@@ -71,6 +71,9 @@ struct StatusReportingProviderAdapter: AgentProviderAdapter {
         if line == "goal-cleared" {
             return [.goal(.cleared(objective: "Ship goal mode"))]
         }
+        if let events = Self.backgroundTaskSentinelEvents(for: line) {
+            return events
+        }
         if line == "usage-terminal:nil" {
             return [.usage(AgentUsageEvent(
                 model: nil,
@@ -96,6 +99,41 @@ struct StatusReportingProviderAdapter: AgentProviderAdapter {
             return Data((message.text + "\n").utf8)
         }
         return Data()
+    }
+
+    /// Background-task sentinels: `tasks:a,b!` announces tasks (`!` marks ambient), `task-done:a` / `task-enqueued:a`
+    /// deliver a notification, and `usage:no-op` is the interim usage the Claude adapter produces for a no-op result.
+    private static func backgroundTaskSentinelEvents(for line: String) -> [AgentEvent]? {
+        if line.hasPrefix("tasks:") {
+            let tasks = line.dropFirst("tasks:".count).split(separator: ",").map { entry -> AgentBackgroundTask in
+                let isAmbient = entry.hasSuffix("!")
+                return AgentBackgroundTask(id: String(isAmbient ? entry.dropLast() : entry), isAmbient: isAmbient)
+            }
+            return [.backgroundTasks(AgentBackgroundTasksEvent(tasks: tasks))]
+        }
+        if line.hasPrefix("task-done:") || line.hasPrefix("task-enqueued:") {
+            let components = line.split(separator: ":", maxSplits: 1).map(String.init)
+            let taskId = components[1]
+            return [.subAgent(AgentSubAgentEvent(
+                id: "toolu_\(taskId)",
+                phase: .terminal,
+                status: "completed",
+                metadata: [
+                    "task_id": .string(taskId),
+                    "delivery": .string(components[0] == "task-done" ? "dequeued" : "enqueued")
+                ]
+            ))]
+        }
+        if line == "usage:no-op" {
+            return [.usage(AgentUsageEvent(
+                model: nil,
+                inputTokens: 0,
+                outputTokens: 0,
+                stopReason: AgentUsageEvent.interimUsageStopReason,
+                metadata: [AgentBackgroundTaskMetadata.noOpResult: .bool(true)]
+            ))]
+        }
+        return nil
     }
 }
 

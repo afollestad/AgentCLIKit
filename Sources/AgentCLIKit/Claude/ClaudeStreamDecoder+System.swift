@@ -6,6 +6,7 @@ extension ClaudeStreamDecoder {
             ("session_id", envelope.sessionId),
             ("model", envelope.model),
             ("tool_use_id", envelope.toolUseId),
+            ("task_id", envelope.taskId),
             ("description", envelope.description),
             ("summary", envelope.summary),
             ("task_type", envelope.taskType),

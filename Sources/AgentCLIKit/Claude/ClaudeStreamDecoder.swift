@@ -52,6 +52,8 @@ public struct ClaudeStreamDecoder: Sendable {
         }
         if let compactionEvent = contextCompactionEvent(from: envelope, metadata: metadata) {
             events.append(compactionEvent)
+        } else if envelope.subtype == "background_tasks_changed" {
+            events.append(backgroundTasksEvent(from: envelope, metadata: metadata))
         } else if let taskEvent = taskEvent(from: envelope, metadata: metadata) {
             events.append(taskEvent)
         } else {
@@ -66,7 +68,7 @@ public struct ClaudeStreamDecoder: Sendable {
         }
         if let rawContent = message.rawContent,
            envelope.origin?.kind == "task-notification" || rawContent.contains("<task-notification>") {
-            return taskNotificationEvents(from: rawContent)
+            return taskNotificationEvents(from: rawContent, delivery: AgentBackgroundTaskMetadata.dequeuedDelivery)
         }
         var events: [AgentEvent] = []
         for content in message.content {
@@ -311,12 +313,32 @@ public struct ClaudeStreamDecoder: Sendable {
         ))
     }
 
+    /// `background_tasks_changed` lists every live task; an empty list is the real "nothing left" signal, so it is
+    /// emitted as an event rather than dropped.
+    private func backgroundTasksEvent(from envelope: ClaudeStreamEnvelope, metadata: [String: JSONValue]) -> AgentEvent {
+        let tasks = (envelope.tasks ?? []).map { task in
+            AgentBackgroundTask(
+                id: task.taskId,
+                kind: task.taskType,
+                description: task.description,
+                isAmbient: task.ambient ?? false
+            )
+        }
+        return .backgroundTasks(AgentBackgroundTasksEvent(tasks: tasks, metadata: metadata))
+    }
+
     private func taskEvent(from envelope: ClaudeStreamEnvelope, metadata: [String: JSONValue]) -> AgentEvent? {
         guard let subtype = envelope.subtype,
               let phase = AgentSubAgentPhase(claudeSubtype: subtype),
               let id = envelope.toolUseId,
               !id.isEmpty else {
             return nil
+        }
+        var metadata = metadata
+        if phase == .terminal {
+            // A system task_notification is Claude consuming the notification now, like a dequeued
+            // `<task-notification>` message; the runtime uses this to start a provider-initiated turn.
+            metadata[AgentBackgroundTaskMetadata.delivery] = .string(AgentBackgroundTaskMetadata.dequeuedDelivery)
         }
         return .subAgent(AgentSubAgentEvent(
             id: id,

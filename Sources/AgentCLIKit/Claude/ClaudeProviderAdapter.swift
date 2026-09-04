@@ -94,6 +94,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     private let sessionFileExists: @Sendable (URL) -> Bool
     private let taskOutputReader = ClaudeTaskOutputReader()
     private let compactionTracker: ClaudeContextCompactionTracker
+    private let noOpTurnTracker = ClaudeNoOpTurnTracker()
     private let hookCoordinator: ClaudeHookCoordinator?
 
     /// Creates a Claude provider adapter.
@@ -306,7 +307,8 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     /// Decodes one Claude stream JSON stdout line with process context.
     public func decodeStdoutLine(_ line: String, context: AgentProviderOutputContext) async throws -> [AgentEvent] {
         let events = try decoder.decodeLine(line).map(enrichCompletedTaskOutput)
-        return await compactionTracker.normalize(events, context: context)
+        let normalized = await compactionTracker.normalize(events, context: context)
+        return await noOpTurnTracker.normalize(normalized, context: context)
     }
 
     /// Extracts Claude's resumable session identifier from provider events.
@@ -411,6 +413,7 @@ public struct ClaudeProviderAdapter: AgentProviderAdapter {
     public func processDidTerminate(processToken: UUID) async {
         await hookCoordinator?.invalidate(processToken: processToken)
         await compactionTracker.reset(processToken: processToken)
+        await noOpTurnTracker.reset(processToken: processToken)
     }
 
     /// Updates provider-owned hook state from streamed permission-mode status.

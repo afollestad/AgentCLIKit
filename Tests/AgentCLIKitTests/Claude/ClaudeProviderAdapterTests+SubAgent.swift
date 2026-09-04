@@ -26,6 +26,7 @@ extension ClaudeProviderAdapterTests {
                 durationMs: 300,
                 metadata: [
                     "tool_use_id": .string("toolu_agent"),
+                    "delivery": .string("dequeued"),
                     "summary": .string("Agent completed"),
                     "output_file": .string(fileURL.path),
                     "status": .string("completed"),
