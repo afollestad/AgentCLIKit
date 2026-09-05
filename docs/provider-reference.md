@@ -262,6 +262,10 @@ do not report a native preview, AgentCLIKit generates one from a usable initial 
 Server `thread/archive` and `thread/unarchive`. Claude validates matching session records and no-ops because the Claude
 CLI does not expose native archive actions.
 
+Hosts with a running provider runtime should construct the router with `init(borrowing:)` and pass the same adapter set
+used by the runtime. Session actions then reach the server holding the thread's writer lock without shutting down shared
+adapters. The default and factory initializers own fresh adapters and shut them down after each action.
+
 ## MCP And Skills
 
 AgentCLIKit includes provider-neutral MCP config stores, provider-specific MCP bridges for Claude and Codex, and skill

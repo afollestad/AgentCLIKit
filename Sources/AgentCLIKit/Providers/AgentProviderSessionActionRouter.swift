@@ -1,9 +1,7 @@
 import Foundation
 
-/// Routes provider session actions to fresh provider adapters.
+/// Routes provider session actions through owned or runtime-shared provider adapters.
 public struct AgentProviderSessionActionRouter: Sendable {
-    private let makeAdapterSet: @Sendable () -> AgentProviderAdapterSet
-
     /// Creates a router that builds a fresh default provider adapter set for each action.
     public init() {
         self.init {
@@ -18,6 +16,14 @@ public struct AgentProviderSessionActionRouter: Sendable {
     /// - Parameter makeAdapterSet: Factory that must return owned adapters that are not shared with an active runtime.
     public init(makeAdapterSet: @escaping @Sendable () -> AgentProviderAdapterSet) {
         self.makeAdapterSet = makeAdapterSet
+        self.ownsAdapters = true
+    }
+
+    /// Reuses the runtime's adapters so session actions reach the server holding the session's writer lock.
+    /// The runtime retains shutdown ownership; neither successful nor failed actions shut down these adapters.
+    public init(borrowing adapterSet: AgentProviderAdapterSet) {
+        self.makeAdapterSet = { adapterSet }
+        self.ownsAdapters = false
     }
 
     /// Archives the provider session associated with `record`, if the provider has a native archive action.
@@ -41,6 +47,9 @@ public struct AgentProviderSessionActionRouter: Sendable {
         }
     }
 
+    private let makeAdapterSet: @Sendable () -> AgentProviderAdapterSet
+    private let ownsAdapters: Bool
+
     private func route(
         _ record: AgentSessionRecord,
         action: (any AgentProviderAdapter) async throws -> Void
@@ -59,6 +68,9 @@ public struct AgentProviderSessionActionRouter: Sendable {
     }
 
     private func shutdown(_ adapterSet: AgentProviderAdapterSet) async {
+        guard ownsAdapters else {
+            return
+        }
         for adapter in adapterSet.adapters {
             await adapter.shutdownProviderResources()
         }

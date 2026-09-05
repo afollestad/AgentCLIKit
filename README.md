@@ -249,6 +249,10 @@ context compaction lifecycle events. Inspect `AgentProviderDefinition.capabiliti
 
 For detailed provider behavior, see [docs/provider-reference.md](docs/provider-reference.md).
 
+Use `AgentProviderSessionActionRouter(borrowing: adapterSet)` with the runtime's adapter set for session cleanup.
+This reaches the Codex server holding a loaded thread's writer lock and leaves shared adapters running. The default
+router and factory initializer own fresh adapters and shut them down after each action.
+
 ## Demo App
 
 Run the macOS demo with:

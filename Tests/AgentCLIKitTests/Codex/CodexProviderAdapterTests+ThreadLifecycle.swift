@@ -2,8 +2,26 @@ import XCTest
 
 @testable import AgentCLIKit
 
-/// Archive, unarchive, delete, and error-mapping behavior that needs no runtime bootstrap.
+/// Session lifecycle and transport reuse without starting provider turns.
 extension CodexProviderAdapterTests {
+    func testBorrowedRouterCleansUpThroughTheRuntimeTransportAndKeepsItUsable() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123", "thread-456"])
+        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let router = AgentProviderSessionActionRouter(borrowing: AgentProviderAdapterSet(adapters: [adapter]))
+        let config = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
+        try await router.deleteSession(sessionRecord(providerId: .codex))
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
+
+        let requestMethods = await transport.requestMethods
+        let shutdownCount = await transport.shutdownCount
+        XCTAssertEqual(requestMethods, ["initialize", "thread/start", "thread/delete", "thread/start"])
+        XCTAssertEqual(shutdownCount, 0)
+
+        await adapter.shutdownProviderResources()
+    }
+
     func testArchivesThreadWithoutRuntimeBootstrap() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: [])
         let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))

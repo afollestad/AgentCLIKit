@@ -4,6 +4,70 @@ import XCTest
 @testable import AgentCLIKit
 
 final class AgentProviderSessionActionRouterTests: XCTestCase {
+    func testBorrowedAdaptersRouteEveryActionWithoutShuttingDown() async throws {
+        let state = ActionRecordingProviderState()
+        let router = AgentProviderSessionActionRouter(borrowing: AgentProviderAdapterSet(adapters: [
+            ActionRecordingProviderAdapter(providerId: .codex, state: state)
+        ]))
+        let record = sessionRecord(providerId: .codex)
+
+        try await router.archiveSession(record)
+        try await router.unarchiveSession(record)
+        try await router.deleteSession(record)
+
+        let archived = await state.archivedSessionIds
+        let unarchived = await state.unarchivedSessionIds
+        let deleted = await state.deletedSessionIds
+        let shutdownCount = await state.shutdownCount
+        XCTAssertEqual(archived, ["session"])
+        XCTAssertEqual(unarchived, ["session"])
+        XCTAssertEqual(deleted, ["session"])
+        XCTAssertEqual(shutdownCount, 0)
+    }
+
+    func testBorrowedAdaptersSurviveActionFailureAndCancellation() async throws {
+        let errors: [any Error & Sendable] = [AgentCLIError.invalidInput("archive failed"), CancellationError()]
+        for error in errors {
+            let state = ActionRecordingProviderState()
+            let router = AgentProviderSessionActionRouter(borrowing: AgentProviderAdapterSet(adapters: [
+                ActionRecordingProviderAdapter(providerId: .codex, archiveError: error, state: state)
+            ]))
+            let record = sessionRecord(providerId: .codex)
+
+            do {
+                try await router.archiveSession(record)
+                XCTFail("Expected archive failure.")
+            } catch let caught as AgentCLIError {
+                XCTAssertEqual(caught, error as? AgentCLIError)
+            } catch is CancellationError {
+                XCTAssertTrue(error is CancellationError)
+            }
+            try await router.deleteSession(record)
+
+            let deleted = await state.deletedSessionIds
+            let shutdownCount = await state.shutdownCount
+            XCTAssertEqual(deleted, ["session"])
+            XCTAssertEqual(shutdownCount, 0)
+        }
+    }
+
+    func testMissingProviderDoesNotShutDownBorrowedAdapters() async throws {
+        let state = ActionRecordingProviderState()
+        let router = AgentProviderSessionActionRouter(borrowing: AgentProviderAdapterSet(adapters: [
+            ActionRecordingProviderAdapter(providerId: .claude, state: state)
+        ]))
+
+        do {
+            try await router.deleteSession(sessionRecord(providerId: .codex))
+            XCTFail("Expected missing provider to throw.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error, .providerNotRegistered(.codex))
+        }
+
+        let shutdownCount = await state.shutdownCount
+        XCTAssertEqual(shutdownCount, 0)
+    }
+
     func testRoutesArchiveUnarchiveAndDeleteToMatchingProvider() async throws {
         let state = ActionRecordingProviderState()
         let router = AgentProviderSessionActionRouter {
