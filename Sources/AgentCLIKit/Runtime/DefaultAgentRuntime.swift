@@ -120,7 +120,17 @@ public actor DefaultAgentRuntime: AgentRuntime {
 
     /// Spawns or replaces the provider process for a conversation.
     public func spawn(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws {
-        try await start(conversationId: conversationId, config: config, fresh: false)
+        try await spawn(conversationId: conversationId, config: config, resumingTurn: false)
+    }
+
+    /// Marks a promptless continuation active when the provider resumes work after an approval.
+    /// The activity seed applies only to this launch and does not send provider input.
+    public func spawn(
+        conversationId: AgentConversationID,
+        config: AgentSpawnConfig,
+        resumingTurn: Bool
+    ) async throws {
+        try await start(conversationId: conversationId, config: config, fresh: false, resumingTurn: resumingTurn)
     }
 
     /// Subscribes to events after a previously persisted event index.

@@ -115,6 +115,9 @@ The hook flow covers:
 - Optional live decisions through `ClaudeHookDecisionProvider`.
 - Deferred responses when the host does not answer before `decisionTimeout`.
 
+Hosts restarting a deferred approval without a new prompt pass `resumingTurn: true` to
+`DefaultAgentRuntime.spawn(conversationId:config:resumingTurn:)` so runtime status stays active until the resumed turn ends.
+
 Compact hook responses always continue so AgentCLIKit does not block Claude compaction. The runtime correlates hook and
 stdout compaction signals so consumers receive stable `AgentEvent.contextCompaction` start and terminal phases.
 
@@ -293,6 +296,8 @@ For Codex, an empty `additionalWorkspaceRoots` list omits the experimental App S
 native workspace roots. A nonempty list is an exact replacement containing canonical `cwd + grants`; it intentionally
 supersedes roots from the user's Codex configuration and requires Codex 0.144.0 or newer with experimental APIs enabled.
 Pass only the working directory in the list to opt into a `cwd`-only replacement that clears user-configured extra roots.
+Resuming with an explicit root override forks the prior thread to preserve history while applying the roots, even without
+host tools. This also applies after suspension; an ordinary resume could leave the loaded thread's previous grants active.
 
 ## Diagnostics And Errors
 

@@ -1,7 +1,12 @@
 import Foundation
 
 extension DefaultAgentRuntime {
-    func start(conversationId: AgentConversationID, config: AgentSpawnConfig, fresh: Bool) async throws {
+    func start(
+        conversationId: AgentConversationID,
+        config: AgentSpawnConfig,
+        fresh: Bool,
+        resumingTurn: Bool = false
+    ) async throws {
         let startToken = try claimStart(conversationId: conversationId)
         let processToken = UUID()
         defer {
@@ -12,7 +17,7 @@ extension DefaultAgentRuntime {
         let prepared = try await prepareStart(
             conversationId: conversationId,
             config: config,
-            fresh: fresh,
+            options: StartOptions(fresh: fresh, resumingTurn: resumingTurn),
             startToken: startToken,
             processToken: processToken
         )
@@ -81,7 +86,7 @@ extension DefaultAgentRuntime {
     func prepareStart(
         conversationId: AgentConversationID,
         config: AgentSpawnConfig,
-        fresh: Bool,
+        options: StartOptions,
         startToken: UUID,
         processToken: UUID
     ) async throws -> PreparedStart {
@@ -90,8 +95,8 @@ extension DefaultAgentRuntime {
         }
 
         let previous = states[conversationId]
-        let generation = fresh ? (previous?.generation ?? 0) + 1 : max(previous?.generation ?? 0, 1)
-        let resumedSession = fresh ? nil : try await sessionStore.record(conversationId: conversationId, providerId: config.providerId)
+        let generation = options.fresh ? (previous?.generation ?? 0) + 1 : max(previous?.generation ?? 0, 1)
+        let resumedSession = options.fresh ? nil : try await sessionStore.record(conversationId: conversationId, providerId: config.providerId)
         trackInFlightStart(conversationId: conversationId, adapter: adapter, processToken: processToken)
         let launchInput = BaseLaunchInput(
             conversationId: conversationId,
@@ -121,7 +126,7 @@ extension DefaultAgentRuntime {
             launch: launch,
             previous: previous,
             generation: generation,
-            fresh: fresh,
+            options: options,
             input: launchInput
         )
     }
@@ -165,7 +170,7 @@ extension DefaultAgentRuntime {
         launch: AgentLaunchConfiguration,
         previous: ConversationState?,
         generation: Int,
-        fresh: Bool,
+        options: StartOptions,
         input: BaseLaunchInput
     ) -> PreparedStart {
         let preparedProcess = makeProcess(launch: launch, config: input.config)
@@ -179,7 +184,8 @@ extension DefaultAgentRuntime {
             spawnConfig: input.config,
             resumedSession: input.resumedSession,
             launchProviderSessionId: launch.providerSessionId,
-            fresh: fresh
+            fresh: options.fresh,
+            resumingTurn: options.resumingTurn
         )
         return PreparedStart(
             launch: launch,
@@ -292,6 +298,11 @@ struct PreparedStart {
     let stateInput: StateInput
     let adapter: any AgentProviderAdapter
     let resumedSession: AgentSessionRecord?
+}
+
+struct StartOptions {
+    let fresh: Bool
+    let resumingTurn: Bool
 }
 
 struct BaseLaunchInput {

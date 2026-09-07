@@ -70,9 +70,10 @@ extension CodexAppServerClient {
         if spawnConfig.forkSession {
             return resumedSession?.providerSessionId
         }
-        // Codex ignores thread/resume config overrides while its shared App Server still has the thread loaded. Host-tool
-        // endpoints are process-scoped, so preserve the conversation by forking when a resumed runtime needs a fresh route.
-        return hostToolEndpoint == nil ? nil : resumedSession?.providerSessionId
+        // A loaded thread ignores resume overrides. Fork to apply explicit roots even without host tools; otherwise
+        // resuming after suspension can retain revoked grants. An empty root list deliberately preserves native roots.
+        let requiresLaunchOverrides = hostToolEndpoint != nil || !spawnConfig.additionalWorkspaceRoots.isEmpty
+        return requiresLaunchOverrides ? resumedSession?.providerSessionId : nil
     }
 
     func archiveThread(_ threadId: AgentSessionID) async throws {

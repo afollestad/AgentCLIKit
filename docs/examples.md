@@ -358,6 +358,9 @@ readiness is separate from project trust.
 
 ## Approval And Prompt Resolution
 
+When an approval requires a promptless provider restart, use
+`DefaultAgentRuntime.spawn(conversationId:config:resumingTurn:)` with `resumingTurn: true` to keep active-turn status accurate.
+
 **Skeleton.** Runtime interactions are surfaced as `AgentEvent.interaction`. The host renders the request, then resolves it
 through the runtime.
 

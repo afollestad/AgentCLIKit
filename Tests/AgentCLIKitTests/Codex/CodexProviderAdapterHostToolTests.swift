@@ -118,11 +118,14 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
                 isTurnActive: false
             )))
         }
-        let activeResult = try await adapter.reconfigure(context: Self.reconfigureContext(
-            currentConfig: currentConfig,
-            newConfig: Self.launchOnlyConfigs[1],
-            isTurnActive: true
-        ))
+        var activeResults: [AgentProviderReconfigureResult] = []
+        for updatedConfig in Self.launchOnlyConfigs {
+            activeResults.append(try await adapter.reconfigure(context: Self.reconfigureContext(
+                currentConfig: currentConfig,
+                newConfig: updatedConfig,
+                isTurnActive: true
+            )))
+        }
 
         let requestMethods = await transport.requestMethods
         XCTAssertEqual(idleResults, [
@@ -130,7 +133,7 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
             .restartRequired,
             .restartRequired
         ])
-        XCTAssertEqual(activeResult, .nextTurnRequired)
+        XCTAssertEqual(activeResults, [.nextTurnRequired, .nextTurnRequired, .nextTurnRequired])
         XCTAssertEqual(requestMethods, ["initialize", "thread/start"])
         XCTAssertFalse(requestMethods.contains("thread/settings/update"))
     }
@@ -384,20 +387,6 @@ final class CodexProviderAdapterHostToolTests: XCTestCase {
             currentConfig: currentConfig,
             newConfig: newConfig,
             isTurnActive: isTurnActive
-        )
-    }
-
-    private static func configuration(
-        transport: FakeCodexAppServerTransport,
-        experimentalAPIEnabled: Bool = true
-    ) -> CodexProviderAdapter.Configuration {
-        CodexProviderAdapter.Configuration(
-            experimentalAPIEnabled: experimentalAPIEnabled,
-            requestTimeout: 0.1,
-            probeTimeout: 0.1,
-            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: false),
-            makeTransport: { _ in transport },
-            executableResolver: RecordingExecutableResolver(path: nil)
         )
     }
 
