@@ -455,6 +455,7 @@ struct StateInput {
     let resumedSession: AgentSessionRecord?
     let launchProviderSessionId: AgentSessionID?
     let fresh: Bool
+    let resumingTurn: Bool
 }
 
 actor StdinWriteQueue {

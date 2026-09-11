@@ -136,6 +136,9 @@ Most apps build around a few reusable flows:
 - Watch `runtime.statusUpdates` for waiting, active-turn, and cancellation state.
 - Use provider discovery and setup services for settings and project readiness UI.
 
+For a promptless approval continuation, call `DefaultAgentRuntime.spawn(conversationId:config:resumingTurn:)` with
+`resumingTurn: true`. It seeds active-turn status for that launch until terminal output; later launches use their own activity settings.
+
 For reusable approval scopes, use `AgentSessionApprovalRequest` and `AgentSessionApprovalPolicyStore`. Bash approvals carry
 raw provider input plus an optional canonical `approvalIdentityToolInput`, derived by
 `AgentCommandApprovalNormalizationPolicy`, so transparent wrappers and safe shell `-c` wrappers can share exact/group

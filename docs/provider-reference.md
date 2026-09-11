@@ -115,6 +115,9 @@ The hook flow covers:
 - Optional live decisions through `ClaudeHookDecisionProvider`.
 - Deferred responses when the host does not answer before `decisionTimeout`.
 
+Hosts restarting a deferred approval without a new prompt pass `resumingTurn: true` to
+`DefaultAgentRuntime.spawn(conversationId:config:resumingTurn:)` so runtime status stays active until the resumed turn ends.
+
 Compact hook responses always continue so AgentCLIKit does not block Claude compaction. The runtime correlates hook and
 stdout compaction signals so consumers receive stable `AgentEvent.contextCompaction` start and terminal phases.
 
