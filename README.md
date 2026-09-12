@@ -278,6 +278,8 @@ Useful entry points:
 
 ## Validation
 
+CI uses GitHub's `xcode-27` runner with its default Xcode selection and logs the macOS and compiler versions.
+
 Use the repo scripts from the repository root:
 
 ```sh

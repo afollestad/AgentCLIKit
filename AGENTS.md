@@ -36,6 +36,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 
 ## Build And Test
 
+- CI uses the `xcode-27` runner's default Xcode; keep build and test scripts using the selected toolchain.
 - First-time setup: `./scripts/setup.sh`.
 - Build: `./scripts/build.sh`.
 - Test: `./scripts/test.sh`, or pass focused test identifiers as arguments.
