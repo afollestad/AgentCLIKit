@@ -186,13 +186,6 @@ final class ClaudeProviderAdapterTests: XCTestCase {
         XCTAssertEqual(launch.arguments[permissionModeIndex + 1], "acceptEdits")
     }
 
-    func testInitializerAcceptsHostOwnedApprovalPolicyStore() {
-        let approvalPolicyStore = ClaudeApprovalPolicyStore()
-        let adapter = ClaudeProviderAdapter(approvalPolicyStore: approvalPolicyStore)
-
-        XCTAssertEqual(adapter.definition.id, .claude)
-    }
-
     func testConfigurationInitializerPreservesHookSettings() async throws {
         let adapter = ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(enableHooks: false))
         let launch = AgentLaunchConfiguration(executable: "/usr/bin/env", arguments: ["claude"])

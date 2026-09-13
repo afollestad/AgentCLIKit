@@ -41,6 +41,19 @@ final class AgentSessionPreviewGeneratorTests: XCTestCase {
             ),
             "Describe this(Image)now"
         )
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: #"<div class="note">Title <span>body</span></div>"#),
+            "Title body"
+        )
+    }
+
+    func testPreservesImageOnlyPreviewAfterCompaction() {
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(
+                fromInitialPrompt: #"<img src="file:///tmp/photo.jpg" alt="Photo" width="262" height="174" />"#
+            ),
+            "(Image)"
+        )
     }
 
     func testRejectsShortPromptAfterStrippingHTMLTags() {
@@ -82,6 +95,15 @@ final class AgentSessionPreviewGeneratorTests: XCTestCase {
                 fromInitialPrompt: "In [\(path)](\(path)) the `CenteredDividedChip` doesn't center its inner Row"
             ),
             "In LocalBrandProfileV2ContentAboutTab.kt the..."
+        )
+    }
+
+    func testCompactsLeadingAbsolutePathLinkBeforeSlashCommandValidation() {
+        let path = "/Users/me/Development/project/Sources/SomeVeryLongFileName.swift"
+
+        XCTAssertEqual(
+            AgentSessionPreviewGenerator.preview(fromInitialPrompt: "[\(path)](\(path)) needs the parser fix"),
+            "SomeVeryLongFileName.swift needs the parser fix"
         )
     }
 

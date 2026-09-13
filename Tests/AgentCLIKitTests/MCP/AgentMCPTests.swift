@@ -3,7 +3,7 @@ import XCTest
 @testable import AgentCLIKit
 
 final class AgentMCPTests: XCTestCase {
-    func testMCPIntegrationDefinitionStoresProviderConfigMetadata() {
+    func testMCPIntegrationDefinitionEncodesHTTPKeyForConfigMetadata() throws {
         let definition = AgentMCPIntegrationDefinition(
             configPath: "~/.claude.json",
             serversKeyPath: ["mcpServers"],
@@ -16,16 +16,6 @@ final class AgentMCPTests: XCTestCase {
         XCTAssertEqual(definition.serversKeyPath, ["mcpServers"])
         XCTAssertEqual(definition.format, .json)
         XCTAssertTrue(definition.supportsHTTP)
-    }
-
-    func testMCPIntegrationDefinitionEncodesHTTPKeyForConfigMetadata() throws {
-        let definition = AgentMCPIntegrationDefinition(
-            configPath: "~/.claude.json",
-            serversKeyPath: ["mcpServers"],
-            format: .json,
-            adapterId: "claude",
-            supportsHTTP: true
-        )
 
         let data = try JSONEncoder().encode(definition)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])

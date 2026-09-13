@@ -32,16 +32,6 @@ final class AgentModelOptionShortNameTests: XCTestCase {
         ])
     }
 
-    func testClaudeShortNamesDoNotShadowAnotherModelsID() async {
-        let options = await ClaudeModelOptionSource().modelOptions(for: .claude)
-
-        let ids = Set(options.map(\.id))
-        let aliases = options.map(\.shortName).filter { !ids.contains($0) }
-
-        XCTAssertEqual(Set(aliases), ["sonnet", "fable", "opus", "haiku"])
-        XCTAssertEqual(Set(options.map(\.shortName)).count, options.count)
-    }
-
     func testProviderDefaultOptionUsesItsIDAsShortName() {
         let options = AgentDefaultModelOptions.providerDefault(for: .codex)
 

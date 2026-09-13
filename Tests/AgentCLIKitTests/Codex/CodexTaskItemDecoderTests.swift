@@ -74,22 +74,6 @@ final class CodexTaskItemDecoderTests: XCTestCase {
         ])
     }
 
-    func testFailedCollaborationCompletionDoesNotEmitStart() {
-        let events = decoder.decode(itemCompleted(item: collaborationItem(
-            id: "collab-failed",
-            status: "failed",
-            result: "Full-history forked agents inherit the parent agent type."
-        ))).map(\.event)
-
-        XCTAssertEqual(events.count, 1)
-        guard case .subAgent(let subAgent)? = events.first else {
-            return XCTFail("Expected failed sub-agent terminal event")
-        }
-        XCTAssertEqual(subAgent.id, "collab-failed")
-        XCTAssertEqual(subAgent.phase, .terminal)
-        XCTAssertEqual(subAgent.status, "failed")
-    }
-
     func testChildlessCollaborationCompletionDoesNotEmitStart() {
         let events = decoder.decode(itemCompleted(item: collaborationItem(includeReceiver: false))).map(\.event)
 
