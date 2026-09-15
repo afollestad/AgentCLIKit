@@ -6,7 +6,7 @@ extension DefaultAgentRuntime {
         sensitiveValuesByProcessToken[processToken] = values.isEmpty ? nil : values
     }
 
-    func redactedProviderOutput(_ value: String, processToken: UUID) -> String {
+    func redactedHarnessOutput(_ value: String, processToken: UUID) -> String {
         AgentSensitiveValueRedactor.redact(
             value,
             sensitiveValues: sensitiveValuesByProcessToken[processToken] ?? []
@@ -15,7 +15,7 @@ extension DefaultAgentRuntime {
 
     func trackInFlightStart(
         conversationId: AgentConversationID,
-        adapter: any AgentProviderAdapter,
+        adapter: any AgentHarnessAdapter,
         processToken: UUID
     ) {
         inFlightStartResources[conversationId] = InFlightStartResources(adapter: adapter, processToken: processToken)
@@ -30,7 +30,7 @@ extension DefaultAgentRuntime {
 
     func invalidateTrackedStartResources(
         conversationId: AgentConversationID,
-        adapter: any AgentProviderAdapter,
+        adapter: any AgentHarnessAdapter,
         processToken: UUID
     ) async {
         guard inFlightStartResources[conversationId]?.processToken == processToken else {
@@ -55,7 +55,7 @@ extension DefaultAgentRuntime {
         do {
             return try await hostToolServer.register(
                 conversationId: conversationId,
-                providerId: config.providerId,
+                harnessId: config.harnessId,
                 processToken: processToken,
                 server: config.hostToolServer,
                 tools: config.hostTools

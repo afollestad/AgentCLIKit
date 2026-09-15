@@ -2,7 +2,7 @@ import XCTest
 
 @testable import AgentCLIKit
 
-/// A launch may return a provider session that is not the one it resumed, because the provider replaced it —
+/// A launch may return a harness session that is not the one it resumed, because the harness replaced it —
 /// Codex forks a thread whenever a resumed runtime needs a fresh host-tool route. These cover the replacement
 /// becoming the bound session and the sessions it displaced staying reachable for cleanup.
 final class RuntimeSupersededSessionTests: XCTestCase {
@@ -11,17 +11,17 @@ final class RuntimeSupersededSessionTests: XCTestCase {
         let sessionStore = InMemoryAgentSessionStore(records: [
             AgentSessionRecord(
                 conversationId: conversationId,
-                providerId: .claude,
-                providerSessionId: "resumed-session",
+                harnessId: .claude,
+                harnessSessionId: "resumed-session",
                 generation: 1
             )
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedProviderAdapter(launchSequence: LaunchSequence([
+            adapters: [SequencedHarnessAdapter(launchSequence: LaunchSequence([
                 AgentLaunchConfiguration(
                     executable: "/bin/sh",
                     arguments: ["-c", "printf 'message:ready\\n'"],
-                    providerSessionId: "replacement-session"
+                    harnessSessionId: "replacement-session"
                 )
             ]))],
             sessionStore: sessionStore
@@ -29,11 +29,11 @@ final class RuntimeSupersededSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "replacement-session")
-        XCTAssertEqual(persisted?.providerSessionId, "replacement-session")
-        XCTAssertEqual(persisted?.supersededProviderSessionIds, ["resumed-session"])
+        XCTAssertEqual(status?.harnessSessionId, "replacement-session")
+        XCTAssertEqual(persisted?.harnessSessionId, "replacement-session")
+        XCTAssertEqual(persisted?.supersededHarnessSessionIds, ["resumed-session"])
     }
 
     func testLaunchResumingSameSessionRecordsNoLineage() async throws {
@@ -41,17 +41,17 @@ final class RuntimeSupersededSessionTests: XCTestCase {
         let sessionStore = InMemoryAgentSessionStore(records: [
             AgentSessionRecord(
                 conversationId: conversationId,
-                providerId: .claude,
-                providerSessionId: "resumed-session",
+                harnessId: .claude,
+                harnessSessionId: "resumed-session",
                 generation: 1
             )
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedProviderAdapter(launchSequence: LaunchSequence([
+            adapters: [SequencedHarnessAdapter(launchSequence: LaunchSequence([
                 AgentLaunchConfiguration(
                     executable: "/bin/sh",
                     arguments: ["-c", "printf 'message:ready\\n'"],
-                    providerSessionId: "resumed-session"
+                    harnessSessionId: "resumed-session"
                 )
             ]))],
             sessionStore: sessionStore
@@ -59,10 +59,10 @@ final class RuntimeSupersededSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         _ = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(persisted?.providerSessionId, "resumed-session")
-        XCTAssertEqual(persisted?.supersededProviderSessionIds, [])
+        XCTAssertEqual(persisted?.harnessSessionId, "resumed-session")
+        XCTAssertEqual(persisted?.supersededHarnessSessionIds, [])
     }
 
     func testRepeatedReplacementsAccumulateLineageAcrossLaunches() async throws {
@@ -70,22 +70,22 @@ final class RuntimeSupersededSessionTests: XCTestCase {
         let sessionStore = InMemoryAgentSessionStore(records: [
             AgentSessionRecord(
                 conversationId: conversationId,
-                providerId: .claude,
-                providerSessionId: "session-one",
+                harnessId: .claude,
+                harnessSessionId: "session-one",
                 generation: 1
             )
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedProviderAdapter(launchSequence: LaunchSequence([
+            adapters: [SequencedHarnessAdapter(launchSequence: LaunchSequence([
                 AgentLaunchConfiguration(
                     executable: "/bin/sh",
                     arguments: ["-c", "printf 'message:ready\\n'"],
-                    providerSessionId: "session-two"
+                    harnessSessionId: "session-two"
                 ),
                 AgentLaunchConfiguration(
                     executable: "/bin/sh",
                     arguments: ["-c", "printf 'message:ready\\n'"],
-                    providerSessionId: "session-three"
+                    harnessSessionId: "session-three"
                 )
             ]))],
             sessionStore: sessionStore
@@ -95,26 +95,26 @@ final class RuntimeSupersededSessionTests: XCTestCase {
         _ = await waitForExit(runtime: runtime, conversationId: conversationId)
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         _ = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(persisted?.providerSessionId, "session-three")
-        XCTAssertEqual(persisted?.supersededProviderSessionIds, ["session-one", "session-two"])
+        XCTAssertEqual(persisted?.harnessSessionId, "session-three")
+        XCTAssertEqual(persisted?.supersededHarnessSessionIds, ["session-one", "session-two"])
     }
 
     func testSessionChangeDiscoveredFromEventsRecordsLineage() async throws {
         let conversationId: AgentConversationID = "conversation"
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("printf 'session:first-session\\nsession:second-session\\n'"))],
+            adapters: [SessionReportingHarnessAdapter(command: shell("printf 'session:first-session\\nsession:second-session\\n'"))],
             sessionStore: sessionStore
         )
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         _ = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(persisted?.providerSessionId, "second-session")
-        XCTAssertEqual(persisted?.supersededProviderSessionIds, ["first-session"])
+        XCTAssertEqual(persisted?.harnessSessionId, "second-session")
+        XCTAssertEqual(persisted?.supersededHarnessSessionIds, ["first-session"])
     }
 
     func testRuntimeArchivesSupersededSessionExactlyOnce() async throws {
@@ -122,18 +122,18 @@ final class RuntimeSupersededSessionTests: XCTestCase {
         let sessionStore = InMemoryAgentSessionStore(records: [
             AgentSessionRecord(
                 conversationId: conversationId,
-                providerId: .claude,
-                providerSessionId: "resumed-session",
+                harnessId: .claude,
+                harnessSessionId: "resumed-session",
                 generation: 1
             )
         ])
         let recorder = SessionActionRecorder()
-        let adapter = ArchivingSequencedProviderAdapter(
+        let adapter = ArchivingSequencedHarnessAdapter(
             launchSequence: LaunchSequence([
                 AgentLaunchConfiguration(
                     executable: "/bin/sh",
                     arguments: ["-c", "printf 'metadata:replacement-session:First Name\\nmetadata:replacement-session:Second Name\\n'"],
-                    providerSessionId: "replacement-session"
+                    harnessSessionId: "replacement-session"
                 )
             ]),
             recorder: recorder,
@@ -148,23 +148,23 @@ final class RuntimeSupersededSessionTests: XCTestCase {
         XCTAssertEqual(archived, ["resumed-session"])
     }
 
-    func testRuntimeSkipsArchivingForProvidersWithoutNativeArchiving() async throws {
+    func testRuntimeSkipsArchivingForHarnessesWithoutNativeArchiving() async throws {
         let conversationId: AgentConversationID = "conversation"
         let sessionStore = InMemoryAgentSessionStore(records: [
             AgentSessionRecord(
                 conversationId: conversationId,
-                providerId: .claude,
-                providerSessionId: "resumed-session",
+                harnessId: .claude,
+                harnessSessionId: "resumed-session",
                 generation: 1
             )
         ])
         let recorder = SessionActionRecorder()
-        let adapter = ArchivingSequencedProviderAdapter(
+        let adapter = ArchivingSequencedHarnessAdapter(
             launchSequence: LaunchSequence([
                 AgentLaunchConfiguration(
                     executable: "/bin/sh",
                     arguments: ["-c", "printf 'message:ready\\n'"],
-                    providerSessionId: "replacement-session"
+                    harnessSessionId: "replacement-session"
                 )
             ]),
             recorder: recorder,
@@ -175,10 +175,10 @@ final class RuntimeSupersededSessionTests: XCTestCase {
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         _ = await waitForExit(runtime: runtime, conversationId: conversationId)
         let archived = await recorder.archivedSessionIds
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
         XCTAssertEqual(archived, [])
-        XCTAssertEqual(persisted?.supersededProviderSessionIds, ["resumed-session"])
+        XCTAssertEqual(persisted?.supersededHarnessSessionIds, ["resumed-session"])
     }
 
     func testFailedArchiveKeepsLineageAndReportsDiagnostic() async throws {
@@ -186,18 +186,18 @@ final class RuntimeSupersededSessionTests: XCTestCase {
         let sessionStore = InMemoryAgentSessionStore(records: [
             AgentSessionRecord(
                 conversationId: conversationId,
-                providerId: .claude,
-                providerSessionId: "resumed-session",
+                harnessId: .claude,
+                harnessSessionId: "resumed-session",
                 generation: 1
             )
         ])
         let recorder = SessionActionRecorder()
-        let adapter = ArchivingSequencedProviderAdapter(
+        let adapter = ArchivingSequencedHarnessAdapter(
             launchSequence: LaunchSequence([
                 AgentLaunchConfiguration(
                     executable: "/bin/sh",
                     arguments: ["-c", "printf 'message:ready\\n'"],
-                    providerSessionId: "replacement-session"
+                    harnessSessionId: "replacement-session"
                 )
             ]),
             recorder: recorder,
@@ -208,7 +208,7 @@ final class RuntimeSupersededSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
         let events = await Self.collect(subscription.events, limit: (status?.lastEventIndex ?? -1) + 1)
         let diagnostics = events.compactMap { envelope -> AgentDiagnosticEvent? in
@@ -218,23 +218,23 @@ final class RuntimeSupersededSessionTests: XCTestCase {
             return diagnostic
         }
 
-        XCTAssertEqual(persisted?.providerSessionId, "replacement-session")
-        XCTAssertEqual(persisted?.supersededProviderSessionIds, ["resumed-session"])
-        XCTAssertTrue(diagnostics.contains { $0.message.contains("Could not archive superseded provider session") })
+        XCTAssertEqual(persisted?.harnessSessionId, "replacement-session")
+        XCTAssertEqual(persisted?.supersededHarnessSessionIds, ["resumed-session"])
+        XCTAssertTrue(diagnostics.contains { $0.message.contains("Could not archive superseded harness session") })
     }
 }
 
-/// Records the provider session identifiers a runtime asked the adapter to retire.
+/// Records the harness session identifiers a runtime asked the adapter to retire.
 actor SessionActionRecorder {
     private(set) var archivedSessionIds: [AgentSessionID] = []
 
-    func recordArchive(_ providerSessionId: AgentSessionID) {
-        archivedSessionIds.append(providerSessionId)
+    func recordArchive(_ harnessSessionId: AgentSessionID) {
+        archivedSessionIds.append(harnessSessionId)
     }
 }
 
-struct ArchivingSequencedProviderAdapter: AgentProviderAdapter {
-    let definition: AgentProviderDefinition
+struct ArchivingSequencedHarnessAdapter: AgentHarnessAdapter {
+    let definition: AgentHarnessDefinition
     let launchSequence: LaunchSequence
     let recorder: SessionActionRecorder
     let archiveFails: Bool
@@ -245,11 +245,11 @@ struct ArchivingSequencedProviderAdapter: AgentProviderAdapter {
         supportsSessionArchiving: Bool,
         archiveFails: Bool = false
     ) {
-        self.definition = AgentProviderDefinition(
+        self.definition = AgentHarnessDefinition(
             id: .claude,
             displayName: "Fake",
             executableNames: ["fake"],
-            capabilities: AgentProviderCapabilities(supportsSessionArchiving: supportsSessionArchiving)
+            capabilities: AgentHarnessCapabilities(supportsSessionArchiving: supportsSessionArchiving)
         )
         self.launchSequence = launchSequence
         self.recorder = recorder
@@ -270,7 +270,7 @@ struct ArchivingSequencedProviderAdapter: AgentProviderAdapter {
         if line.hasPrefix("metadata:") {
             let fields = String(line.dropFirst("metadata:".count)).components(separatedBy: ":")
             return [.sessionMetadata(AgentSessionMetadataEvent(
-                providerSessionId: fields.first.map(AgentSessionID.init(rawValue:)),
+                harnessSessionId: fields.first.map(AgentSessionID.init(rawValue:)),
                 name: fields.count > 1 ? fields[1] : nil
             ))]
         }
@@ -282,7 +282,7 @@ struct ArchivingSequencedProviderAdapter: AgentProviderAdapter {
     }
 
     func archiveSession(_ record: AgentSessionRecord) async throws {
-        await recorder.recordArchive(record.providerSessionId)
+        await recorder.recordArchive(record.harnessSessionId)
         if archiveFails {
             throw AgentCLIError.invalidInput("archive failed")
         }

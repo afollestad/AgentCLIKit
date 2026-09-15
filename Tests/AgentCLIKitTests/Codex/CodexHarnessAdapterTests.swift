@@ -1,0 +1,455 @@
+import Foundation
+import XCTest
+
+@testable import AgentCLIKit
+
+final class CodexHarnessAdapterTests: XCTestCase {
+    func testBootstrapsThreadLazilyAndPersistsThreadIdFromSentinel() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-123"],
+            threadNames: ["Build Parser"],
+            threadPreviews: ["Build parser preview"]
+        )
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+
+        let startCountBeforeLaunch = await transport.startCount
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                harnessId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                model: "model-a",
+                effort: "high",
+                permissionMode: "on-request"
+            ),
+            resumedSession: nil
+        )
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let sessionId = events.compactMap(adapter.sessionID(from:)).first
+        let metadata = try XCTUnwrap(events.compactMap(\.sessionMetadataEvent).first)
+        let startCount = await transport.startCount
+        let requestMethods = await transport.requestMethods
+        let notificationMethods = await transport.notificationMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(startCountBeforeLaunch, 0)
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(requestMethods, ["initialize", "thread/start"])
+        XCTAssertEqual(notificationMethods, ["initialized"])
+        XCTAssertEqual(launch.executable, "/usr/bin/env")
+        XCTAssertEqual(launch.arguments.prefix(3), ["sh", "-c", "printf '%s\\n' \"$1\"; sleep 2147483647"])
+        XCTAssertEqual(launch.sessionContinuity, .fresh)
+        XCTAssertEqual(launch.harnessSessionId, "thread-123")
+        XCTAssertTrue(launch.includesSpawnArguments)
+        XCTAssertEqual(sessionId, "thread-123")
+        XCTAssertEqual(metadata.harnessSessionId, "thread-123")
+        XCTAssertEqual(metadata.name, "Build Parser")
+        XCTAssertEqual(metadata.preview, "Build parser preview")
+
+        let threadStartParams = try XCTUnwrap(requestParams["thread/start"])
+        XCTAssertEqual(threadStartParams.objectValue?["cwd"], .string("/tmp/project"))
+        XCTAssertEqual(threadStartParams.objectValue?["model"], .string("model-a"))
+        XCTAssertEqual(threadStartParams.objectValue?["approvalPolicy"], .string("on-request"))
+        XCTAssertEqual(threadStartParams.objectValue?["ephemeral"], .bool(false))
+        XCTAssertEqual(threadStartParams.objectValue?["config"], .object(["model_reasoning_effort": .string("high")]))
+    }
+
+    func testFastModeBootstrapAddsFeatureConfigWhenSupported() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: true)
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                harnessId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                effort: "high",
+                speedMode: .fast
+            ),
+            resumedSession: nil
+        )
+
+        let requestParams = await transport.requestParams
+        let threadStartParams = try XCTUnwrap(requestParams["thread/start"])
+        XCTAssertEqual(threadStartParams.objectValue?["config"], .object([
+            "model_reasoning_effort": .string("high"),
+            "features": .object(["fast_mode": .bool(true)])
+        ]))
+    }
+
+    func testStandardSpeedBootstrapForcesFastOffOnlyWhenSupported() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: true)
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                harnessId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                speedMode: .standard
+            ),
+            resumedSession: nil
+        )
+
+        let requestParams = await transport.requestParams
+        let threadStartParams = try XCTUnwrap(requestParams["thread/start"])
+        XCTAssertEqual(threadStartParams.objectValue?["config"], .object([
+            "features": .object(["fast_mode": .bool(false)])
+        ]))
+    }
+
+    func testUnsupportedFastModeFailsBeforeStartingTransport() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false)
+        ))
+
+        do {
+            _ = try await adapter.makeLaunchConfiguration(
+                spawnConfig: AgentSpawnConfig(
+                    harnessId: .codex,
+                    workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                    speedMode: .fast
+                ),
+                resumedSession: nil
+            )
+            XCTFail("Expected unsupported fast mode to fail.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .unsupportedCapability)
+            XCTAssertEqual(error.metadata["provider_id"], .string("codex"))
+            XCTAssertEqual(error.metadata["capability"], .string("fast mode"))
+        }
+
+        let startCount = await transport.startCount
+        XCTAssertEqual(startCount, 0)
+    }
+
+    func testInitialGoalSetsNativeGoalAndIncludesGoalInBootstrapEvents() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: true)
+        ))
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                harnessId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                initialGoal: "Ship goal mode",
+                initialPrompt: "Ship goal mode"
+            ),
+            resumedSession: nil
+        )
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let goal = try XCTUnwrap(events.compactMap(\.goalEvent).first?.snapshot)
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/start", "thread/goal/set"])
+        XCTAssertFalse(requestMethods.contains("turn/start"))
+        XCTAssertEqual(goal.objective, "Ship goal mode")
+        XCTAssertEqual(goal.status, .active)
+        XCTAssertEqual(goal.availableActions, [.pause, .delete])
+        let goalSetParams = try XCTUnwrap(requestParams["thread/goal/set"]?.objectValue)
+        XCTAssertEqual(goalSetParams["threadId"], .string("thread-123"))
+        XCTAssertEqual(goalSetParams["objective"], .string("Ship goal mode"))
+    }
+
+    func testUnsupportedInitialGoalFailsBeforeStartingTransport() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: false)
+        ))
+
+        do {
+            _ = try await adapter.makeLaunchConfiguration(
+                spawnConfig: AgentSpawnConfig(
+                    harnessId: .codex,
+                    workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+                    initialGoal: "Ship goal mode",
+                    initialPrompt: "Ship goal mode"
+                ),
+                resumedSession: nil
+            )
+            XCTFail("Expected unsupported goal mode to fail.")
+        } catch let error as AgentCLIError {
+            XCTAssertEqual(error.code, .unsupportedCapability)
+            XCTAssertEqual(error.metadata["provider_id"], .string("codex"))
+            XCTAssertEqual(error.metadata["capability"], .string("goal mode"))
+        }
+
+        let startCount = await transport.startCount
+        XCTAssertEqual(startCount, 0)
+    }
+
+    func testResumesSavedThreadId() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-existing"],
+            threadNames: ["Existing Thread"],
+            threadPreviews: ["Existing preview"]
+        )
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let resumedSession = AgentSessionRecord(
+            conversationId: "conversation",
+            harnessId: .codex,
+            harnessSessionId: "thread-existing",
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            generation: 1
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: resumedSession
+        )
+
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let metadata = try XCTUnwrap(events.compactMap(\.sessionMetadataEvent).first)
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/resume"])
+        XCTAssertEqual(launch.sessionContinuity, AgentSessionContinuity.resumed)
+        XCTAssertEqual(launch.harnessSessionId, "thread-existing")
+        XCTAssertEqual(metadata.harnessSessionId, "thread-existing")
+        XCTAssertEqual(metadata.name, "Existing Thread")
+        XCTAssertEqual(metadata.preview, "Existing preview")
+        let threadResumeParams = try XCTUnwrap(requestParams["thread/resume"])
+        XCTAssertEqual(threadResumeParams.objectValue?["threadId"], .string("thread-existing"))
+    }
+
+    func testForksThreadFromSourceWithTargetSettings() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-forked"],
+            threadNames: ["Forked Thread"],
+            threadPreviews: ["Forked preview"],
+            threadForkedFromIds: ["thread-source"]
+        )
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(
+            harnessId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/worktree"),
+            model: "model-a",
+            effort: "high",
+            permissionMode: "on-request",
+            sessionFork: AgentSessionForkRequest(
+                sourceSessionId: "thread-source",
+                sourceWorkingDirectory: URL(fileURLWithPath: "/tmp/source"),
+                mode: .worktree
+            )
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let metadata = try XCTUnwrap(events.compactMap(\.sessionMetadataEvent).first)
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/fork"])
+        XCTAssertEqual(launch.sessionContinuity, .forked)
+        XCTAssertEqual(launch.harnessSessionId, "thread-forked")
+        XCTAssertEqual(metadata.harnessSessionId, "thread-forked")
+        XCTAssertEqual(metadata.name, "Forked Thread")
+        XCTAssertEqual(metadata.preview, "Forked preview")
+        XCTAssertEqual(metadata.metadata["codex_forked_from_id"], .string("thread-source"))
+
+        let threadForkParams = try XCTUnwrap(requestParams["thread/fork"])
+        XCTAssertEqual(threadForkParams.objectValue?["threadId"], .string("thread-source"))
+        XCTAssertEqual(threadForkParams.objectValue?["cwd"], .string("/tmp/worktree"))
+        XCTAssertEqual(threadForkParams.objectValue?["model"], .string("model-a"))
+        XCTAssertEqual(threadForkParams.objectValue?["approvalPolicy"], .string("on-request"))
+        XCTAssertEqual(threadForkParams.objectValue?["ephemeral"], .bool(false))
+        XCTAssertEqual(threadForkParams.objectValue?["config"], .object(["model_reasoning_effort": .string("high")]))
+    }
+
+    func testLegacyForkSessionForksResumedThread() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-forked"],
+            threadForkedFromIds: ["thread-source"]
+        )
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let resumedSession = AgentSessionRecord(
+            conversationId: "conversation",
+            harnessId: .codex,
+            harnessSessionId: "thread-source",
+            workingDirectory: URL(fileURLWithPath: "/tmp/source"),
+            generation: 1
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(
+                harnessId: .codex,
+                workingDirectory: URL(fileURLWithPath: "/tmp/target"),
+                forkSession: true
+            ),
+            resumedSession: resumedSession
+        )
+
+        let requestMethods = await transport.requestMethods
+        let requestParams = await transport.requestParams
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/fork"])
+        XCTAssertEqual(launch.sessionContinuity, .forked)
+        XCTAssertEqual(launch.harnessSessionId, "thread-forked")
+        XCTAssertEqual(requestParams["thread/fork"]?.objectValue?["threadId"], .string("thread-source"))
+        XCTAssertEqual(requestParams["thread/fork"]?.objectValue?["cwd"], .string("/tmp/target"))
+    }
+
+    func testResumeHydratesExistingGoal() async throws {
+        let transport = FakeCodexAppServerTransport(
+            threadIds: ["thread-existing"],
+            goal: [
+                "threadId": .string("thread-existing"),
+                "objective": .string("Finish migration"),
+                "status": .string("paused"),
+                "tokensUsed": .number(42),
+                "timeUsedSeconds": .number(8)
+            ]
+        )
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: true)
+        ))
+        let resumedSession = AgentSessionRecord(
+            conversationId: "conversation",
+            harnessId: .codex,
+            harnessSessionId: "thread-existing",
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            generation: 1
+        )
+
+        let launch = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: resumedSession
+        )
+        let line = try XCTUnwrap(launch.arguments.last)
+        let events = try await adapter.decodeStdoutLine(line)
+        let goal = try XCTUnwrap(events.compactMap(\.goalEvent).first?.snapshot)
+        let requestMethods = await transport.requestMethods
+
+        XCTAssertEqual(requestMethods, ["initialize", "thread/resume", "thread/goal/get"])
+        XCTAssertEqual(goal.objective, "Finish migration")
+        XCTAssertEqual(goal.status, .paused)
+        XCTAssertEqual(goal.availableActions, [.resume, .delete])
+        XCTAssertEqual(goal.tokenCount, 42)
+        XCTAssertEqual(goal.elapsedSeconds, 8)
+    }
+
+    func testReusesSharedTransportAcrossThreadBootstraps() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-1", "thread-2"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+
+        let startCount = await transport.startCount
+        let requestMethods = await transport.requestMethods
+        let notificationMethods = await transport.notificationMethods
+
+        XCTAssertEqual(startCount, 1)
+        XCTAssertEqual(requestMethods, ["initialize", "thread/start", "thread/start"])
+        XCTAssertEqual(notificationMethods, ["initialized"])
+    }
+
+    func testRuntimeTransportUsesResolvedCodexExecutable() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let resolver = RecordingExecutableResolver(path: "/Users/test/.local/bin/codex")
+        let recorder = CodexTransportConfigurationRecorder()
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: nil
+        )
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(requestedDefinitions.map(\.id), [.codex])
+        XCTAssertEqual(recorder.executablePaths, ["/Users/test/.local/bin/codex"])
+    }
+
+    func testRuntimeTransportKeepsEnvFallbackWhenResolverMisses() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let resolver = RecordingExecutableResolver(path: nil)
+        let recorder = CodexTransportConfigurationRecorder()
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: nil
+        )
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(requestedDefinitions.map(\.id), [.codex])
+        XCTAssertEqual(recorder.executablePaths, ["/usr/bin/env"])
+    }
+
+    func testExactCodexExecutableBypassesResolver() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let resolver = RecordingExecutableResolver(path: "/Users/test/.local/bin/codex")
+        let recorder = CodexTransportConfigurationRecorder()
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            executablePath: "/opt/homebrew/bin/codex",
+            executableResolver: resolver,
+            recorder: recorder
+        ))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: nil
+        )
+        let requestedDefinitions = await resolver.requestedDefinitions
+
+        XCTAssertEqual(requestedDefinitions.map(\.id), [])
+        XCTAssertEqual(recorder.executablePaths, ["/opt/homebrew/bin/codex"])
+    }
+
+    func testShutdownStopsSharedTransport() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+
+        _ = try await adapter.makeLaunchConfiguration(
+            spawnConfig: AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project")),
+            resumedSession: nil
+        )
+        await adapter.shutdownHarnessResources()
+        let shutdownCount = await transport.shutdownCount
+
+        XCTAssertEqual(shutdownCount, 1)
+    }
+
+}
+
+private extension AgentEvent {
+    var sessionMetadataEvent: AgentSessionMetadataEvent? {
+        guard case let .sessionMetadata(metadata) = self else {
+            return nil
+        }
+        return metadata
+    }
+
+    var goalEvent: AgentGoalEvent? {
+        guard case let .goal(goal) = self else {
+            return nil
+        }
+        return goal
+    }
+}

@@ -58,7 +58,7 @@ final class AgentMCPTests: XCTestCase {
     }
 
     func testJSONAdapterRoundTripsGenericConfig() throws {
-        let adapter = JSONAgentMCPConfigAdapter(providerId: .claude)
+        let adapter = JSONAgentMCPConfigAdapter(harnessId: .claude)
         let config = AgentMCPConfig(servers: [
             AgentMCPServer(id: "server", name: "Server", command: "server")
         ])

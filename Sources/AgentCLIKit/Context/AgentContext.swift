@@ -1,14 +1,14 @@
 import Foundation
 
-/// Snapshot of provider context-window usage.
+/// Snapshot of harness context-window usage.
 public struct AgentContextWindowSnapshot: Codable, Equatable, Sendable {
     /// Host conversation identifier.
     public let conversationId: AgentConversationID
-    /// Provider identifier.
-    public let providerId: AgentProviderID
+    /// Harness identifier.
+    public let harnessId: AgentHarnessID
     /// Input tokens currently in context.
     public let usedTokens: Int
-    /// Maximum provider context tokens when known.
+    /// Maximum harness context tokens when known.
     public let maximumTokens: Int?
     /// Snapshot date.
     public let measuredAt: Date
@@ -24,20 +24,29 @@ public struct AgentContextWindowSnapshot: Codable, Equatable, Sendable {
     /// Creates a context-window snapshot.
     public init(
         conversationId: AgentConversationID,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         usedTokens: Int,
         maximumTokens: Int?,
         measuredAt: Date = Date()
     ) {
         self.conversationId = conversationId
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.usedTokens = usedTokens
         self.maximumTokens = maximumTokens
         self.measuredAt = measuredAt
     }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case conversationId
+        case harnessId = "providerId"
+        case usedTokens
+        case maximumTokens
+        case measuredAt
+    }
 }
 
-/// Cache for the latest context-window snapshot per conversation and provider.
+/// Cache for the latest context-window snapshot per conversation and harness.
 public actor AgentContextWindowCache {
     private var snapshots: [ContextKey: AgentContextWindowSnapshot] = [:]
 
@@ -46,21 +55,21 @@ public actor AgentContextWindowCache {
 
     /// Stores the latest snapshot.
     public func save(_ snapshot: AgentContextWindowSnapshot) {
-        snapshots[ContextKey(snapshot.conversationId, snapshot.providerId)] = snapshot
+        snapshots[ContextKey(snapshot.conversationId, snapshot.harnessId)] = snapshot
     }
 
     /// Loads the latest snapshot.
-    public func snapshot(conversationId: AgentConversationID, providerId: AgentProviderID) -> AgentContextWindowSnapshot? {
-        snapshots[ContextKey(conversationId, providerId)]
+    public func snapshot(conversationId: AgentConversationID, harnessId: AgentHarnessID) -> AgentContextWindowSnapshot? {
+        snapshots[ContextKey(conversationId, harnessId)]
     }
 
     /// Removes the latest snapshot.
-    public func remove(conversationId: AgentConversationID, providerId: AgentProviderID) {
-        snapshots[ContextKey(conversationId, providerId)] = nil
+    public func remove(conversationId: AgentConversationID, harnessId: AgentHarnessID) {
+        snapshots[ContextKey(conversationId, harnessId)] = nil
     }
 }
 
-/// Cached provider model context-window size.
+/// Cached harness model context-window size.
 public struct AgentModelContextWindowEntry: Codable, Equatable, Sendable {
     /// Model context window size.
     public let contextWindowSize: Int
@@ -74,7 +83,7 @@ public struct AgentModelContextWindowEntry: Codable, Equatable, Sendable {
     }
 }
 
-/// JSON-backed cache for context-window sizes keyed by provider and model.
+/// JSON-backed cache for context-window sizes keyed by harness and model.
 public actor JSONAgentModelContextWindowCache {
     private let fileURL: URL
     private let fileManager: FileManager
@@ -86,17 +95,17 @@ public actor JSONAgentModelContextWindowCache {
         self.fileManager = fileManager
     }
 
-    /// Loads a cached context-window size for a provider model.
-    public func contextWindowSize(providerId: AgentProviderID, model: String) -> Int? {
-        guard let key = Self.cacheKey(providerId: providerId, model: model) else {
+    /// Loads a cached context-window size for a harness model.
+    public func contextWindowSize(harnessId: AgentHarnessID, model: String) -> Int? {
+        guard let key = Self.cacheKey(harnessId: harnessId, model: model) else {
             return nil
         }
         return loadEntries()[key]?.contextWindowSize
     }
 
-    /// Updates cache entries for selected and provider-reported model IDs.
+    /// Updates cache entries for selected and harness-reported model IDs.
     public func update(
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         selectedModel: String,
         reportedModelId: String? = nil,
         contextWindowSize: Int
@@ -105,11 +114,11 @@ public actor JSONAgentModelContextWindowCache {
             return
         }
         var keys = Set<String>()
-        if let selectedKey = Self.cacheKey(providerId: providerId, model: selectedModel) {
+        if let selectedKey = Self.cacheKey(harnessId: harnessId, model: selectedModel) {
             keys.insert(selectedKey)
         }
         if let reportedModelId,
-           let reportedKey = Self.cacheKey(providerId: providerId, model: reportedModelId) {
+           let reportedKey = Self.cacheKey(harnessId: harnessId, model: reportedModelId) {
             keys.insert(reportedKey)
         }
         guard !keys.isEmpty else {
@@ -135,13 +144,13 @@ public actor JSONAgentModelContextWindowCache {
         entries = currentEntries
     }
 
-    /// Builds a stable cache key for provider and model values.
-    public static func cacheKey(providerId: AgentProviderID, model: String) -> String? {
+    /// Builds a stable cache key for harness and model values.
+    public static func cacheKey(harnessId: AgentHarnessID, model: String) -> String? {
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !model.isEmpty else {
             return nil
         }
-        return "\(providerId.rawValue):\(model)"
+        return "\(harnessId.rawValue):\(model)"
     }
 
     private func loadEntries() -> [String: AgentModelContextWindowEntry] {
@@ -160,7 +169,7 @@ public actor JSONAgentModelContextWindowCache {
     }
 }
 
-/// Helpers for provider-neutral context handoff prompts.
+/// Helpers for harness-neutral context handoff prompts.
 public enum AgentContextHandoffPrompt {
     /// Builds a prompt asking an agent to summarize state for a fresh session.
     public static func makeSummaryPrompt(task: String, recentTranscript: String, constraints: [String] = []) -> String {
@@ -179,10 +188,10 @@ public enum AgentContextHandoffPrompt {
 
 private struct ContextKey: Hashable {
     let conversationId: AgentConversationID
-    let providerId: AgentProviderID
+    let harnessId: AgentHarnessID
 
-    init(_ conversationId: AgentConversationID, _ providerId: AgentProviderID) {
+    init(_ conversationId: AgentConversationID, _ harnessId: AgentHarnessID) {
         self.conversationId = conversationId
-        self.providerId = providerId
+        self.harnessId = harnessId
     }
 }

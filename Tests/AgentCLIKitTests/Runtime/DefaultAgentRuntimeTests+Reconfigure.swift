@@ -10,7 +10,7 @@ extension DefaultAgentRuntimeTests {
             shell("printf 'message:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            SequencedProviderAdapter(launchSequence: launchSequence)
+            SequencedHarnessAdapter(launchSequence: launchSequence)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -41,7 +41,7 @@ extension DefaultAgentRuntimeTests {
         // legitimately appending "old" and flaking the assertion.
         let decodeGate = DecodeGate()
         let runtime = DefaultAgentRuntime(adapters: [
-            GatedDecodingProviderAdapter(launchSequence: launchSequence, gate: decodeGate, gatedLine: "message:old")
+            GatedDecodingHarnessAdapter(launchSequence: launchSequence, gate: decodeGate, gatedLine: "message:old")
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -70,7 +70,7 @@ extension DefaultAgentRuntimeTests {
             .fail("rejected")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            FailableLaunchProviderAdapter(launchSequence: launchSequence)
+            FailableLaunchHarnessAdapter(launchSequence: launchSequence)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -93,7 +93,7 @@ extension DefaultAgentRuntimeTests {
             AgentLaunchConfiguration(executable: "/no/such/executable")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            SequencedProviderAdapter(launchSequence: launchSequence)
+            SequencedHarnessAdapter(launchSequence: launchSequence)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -132,7 +132,7 @@ extension DefaultAgentRuntimeTests {
             )
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            FailableLaunchProviderAdapter(launchSequence: launchSequence)
+            FailableLaunchHarnessAdapter(launchSequence: launchSequence)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -154,7 +154,7 @@ extension DefaultAgentRuntimeTests {
 
     func testFreshSessionIncrementsGeneration() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'message:fresh\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'message:fresh\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -172,7 +172,7 @@ extension DefaultAgentRuntimeTests {
             shell("printf 'message:fresh-one\\nmessage:fresh-two\\n'")
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedProviderAdapter(launchSequence: launchSequence)],
+            adapters: [SequencedHarnessAdapter(launchSequence: launchSequence)],
             replayLimit: 1
         )
         let conversationId: AgentConversationID = "conversation"
@@ -204,7 +204,7 @@ extension DefaultAgentRuntimeTests {
 
     func testReplayLimitIsClampedToAtLeastOne() async throws {
         let runtime = DefaultAgentRuntime(
-            adapters: [FakeProviderAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))],
+            adapters: [FakeHarnessAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))],
             replayLimit: 0
         )
         let conversationId: AgentConversationID = "conversation"
@@ -222,7 +222,7 @@ extension DefaultAgentRuntimeTests {
 
     func testReconfigureKeepsGenerationAndReplacesProcess() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'message:configured\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'message:configured\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 

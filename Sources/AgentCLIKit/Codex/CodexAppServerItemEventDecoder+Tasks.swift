@@ -1,7 +1,7 @@
 import Foundation
 
 extension CodexAppServerItemEventDecoder {
-    func collabAgentCompletedEvents(_ payload: ItemPayload) -> [AgentProviderRuntimeEvent] {
+    func collabAgentCompletedEvents(_ payload: ItemPayload) -> [AgentHarnessRuntimeEvent] {
         guard let terminal = collabAgentSubAgent(payload, phase: .terminal) else {
             return []
         }

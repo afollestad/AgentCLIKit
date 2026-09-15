@@ -114,7 +114,7 @@ extension CodexAppServerClient {
     func steeringEvent(
         for notification: CodexAppServerNotification,
         binding: inout ConversationBinding
-    ) -> (event: AgentProviderRuntimeEvent?, suppressesDecodedEvents: Bool) {
+    ) -> (event: AgentHarnessRuntimeEvent?, suppressesDecodedEvents: Bool) {
         guard let item = CodexSteeringUserMessageItem(notification: notification) else {
             return (nil, false)
         }
@@ -156,13 +156,13 @@ extension CodexAppServerClient {
         pending: PendingSteeringInput,
         item: CodexSteeringUserMessageItem,
         signal: String
-    ) -> AgentProviderRuntimeEvent {
+    ) -> AgentHarnessRuntimeEvent {
         var metadata = pending.metadata
         metadata.merge(item.metadata) { _, new in new }
         metadata[AgentSteeringMetadata.isSteering] = .bool(true)
         metadata[AgentSteeringMetadata.inputId] = .string(pending.inputId)
         metadata[AgentSteeringMetadata.signal] = .string(signal)
-        return AgentProviderRuntimeEvent(event: .message(AgentMessageEvent(role: .user, text: pending.text, metadata: metadata)))
+        return AgentHarnessRuntimeEvent(event: .message(AgentMessageEvent(role: .user, text: pending.text, metadata: metadata)))
     }
 
     func clearPendingSteeringInput(_ inputId: String, conversationId: AgentConversationID) {

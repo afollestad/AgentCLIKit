@@ -4,11 +4,11 @@ import Foundation
 /// Default process-backed implementation of `AgentRuntime`.
 public actor DefaultAgentRuntime: AgentRuntime {
     struct InFlightStartResources {
-        let adapter: any AgentProviderAdapter
+        let adapter: any AgentHarnessAdapter
         let processToken: UUID
     }
 
-    let adapters: [AgentProviderID: any AgentProviderAdapter]
+    let adapters: [AgentHarnessID: any AgentHarnessAdapter]
     let sessionStore: any AgentSessionStore
     let hostToolServer: (any AgentHostToolServing)?
     let replayLimit: Int
@@ -32,16 +32,16 @@ public actor DefaultAgentRuntime: AgentRuntime {
     var pendingSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]] = [:]
     var statusSubscribers: [AgentConversationID: [UUID: AsyncStream<AgentRuntimeStatus>.Continuation]] = [:]
 
-    /// Creates a default runtime with a provider adapter set.
+    /// Creates a default runtime with a harness adapter set.
     /// - Parameters:
-    ///   - adapterSet: Provider adapters and matching definitions available to this runtime.
-    ///   - sessionStore: Store used to resume provider sessions.
+    ///   - adapterSet: Harness adapters and matching definitions available to this runtime.
+    ///   - sessionStore: Store used to resume harness sessions.
     ///   - replayLimit: Number of acknowledged events retained as replay history. Values below one are clamped to one.
     ///   - subscriberBufferLimit: Maximum live events buffered per subscriber while the host is not consuming. Values below one
     ///     are clamped to one; replay remains available through `subscribe(conversationId:afterIndex:)`.
     ///   - hostToolHandling: Optional dispatcher for process-scoped host-owned MCP tools.
     public init(
-        adapterSet: AgentProviderAdapterSet = .default,
+        adapterSet: AgentHarnessAdapterSet = .default,
         sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
         replayLimit: Int = 500,
         subscriberBufferLimit: Int = 1_000,
@@ -63,14 +63,14 @@ public actor DefaultAgentRuntime: AgentRuntime {
 
     /// Creates a default runtime.
     /// - Parameters:
-    ///   - adapters: Provider adapters keyed by their definitions. Duplicate provider IDs prefer the later adapter.
-    ///   - sessionStore: Store used to resume provider sessions.
+    ///   - adapters: Harness adapters keyed by their definitions. Duplicate harness IDs prefer the later adapter.
+    ///   - sessionStore: Store used to resume harness sessions.
     ///   - replayLimit: Number of acknowledged events retained as replay history. Values below one are clamped to one.
     ///   - subscriberBufferLimit: Maximum live events buffered per subscriber while the host is not consuming. Values below one
     ///     are clamped to one; replay remains available through `subscribe(conversationId:afterIndex:)`.
     ///   - hostToolHandling: Optional dispatcher for process-scoped host-owned MCP tools.
     public init(
-        adapters: [any AgentProviderAdapter],
+        adapters: [any AgentHarnessAdapter],
         sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
         replayLimit: Int = 500,
         subscriberBufferLimit: Int = 1_000,
@@ -91,7 +91,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
     }
 
     init(
-        adapters: [any AgentProviderAdapter],
+        adapters: [any AgentHarnessAdapter],
         sessionStore: any AgentSessionStore = InMemoryAgentSessionStore(),
         hostToolServer: (any AgentHostToolServing)? = nil,
         replayLimit: Int = 500,
@@ -114,17 +114,17 @@ public actor DefaultAgentRuntime: AgentRuntime {
         self.deferredStopKillGraceNanoseconds = deferredStopKillGraceNanoseconds
     }
 
-    /// Grace period a deferred-tool-stopped provider gets to exit on its own before it is force killed.
-    /// Long enough to flush deferred-tool session records; short enough that a wedged provider cannot linger.
+    /// Grace period a deferred-tool-stopped harness gets to exit on its own before it is force killed.
+    /// Long enough to flush deferred-tool session records; short enough that a wedged harness cannot linger.
     static let defaultDeferredStopKillGraceNanoseconds: UInt64 = 5_000_000_000
 
-    /// Spawns or replaces the provider process for a conversation.
+    /// Spawns or replaces the harness process for a conversation.
     public func spawn(conversationId: AgentConversationID, config: AgentSpawnConfig) async throws {
         try await spawn(conversationId: conversationId, config: config, resumingTurn: false)
     }
 
-    /// Marks a promptless continuation active when the provider resumes work after an approval.
-    /// The activity seed applies only to this launch and does not send provider input.
+    /// Marks a promptless continuation active when the harness resumes work after an approval.
+    /// The activity seed applies only to this launch and does not send harness input.
     public func spawn(
         conversationId: AgentConversationID,
         config: AgentSpawnConfig,
@@ -181,7 +181,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         states[conversationId] = state
     }
 
-    /// Sends input to the provider process.
+    /// Sends input to the harness process.
     public func send(_ input: AgentInput, conversationId: AgentConversationID) async throws {
         try ensureInputIsAvailable(input, conversationId: conversationId)
         guard let state = states[conversationId], let stdinWriter = state.stdinWriter else {
@@ -223,14 +223,14 @@ public actor DefaultAgentRuntime: AgentRuntime {
     private func inputContext(
         conversationId: AgentConversationID,
         processToken: UUID
-    ) throws -> AgentProviderInputContext {
+    ) throws -> AgentHarnessInputContext {
         guard let state = states[conversationId], state.processToken == processToken else {
             throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
         }
-        return AgentProviderInputContext(
+        return AgentHarnessInputContext(
             conversationId: conversationId,
             processToken: processToken,
-            providerSessionId: state.providerSessionId,
+            harnessSessionId: state.harnessSessionId,
             spawnConfig: state.spawnConfig,
             isTurnActive: state.isTurnActive
         )
@@ -269,8 +269,8 @@ public actor DefaultAgentRuntime: AgentRuntime {
     private func writeInputDataAndAppendAcceptedSteeringEventIfNeeded(
         _ data: Data,
         input: AgentInput,
-        adapter: any AgentProviderAdapter,
-        context: AgentProviderInputContext,
+        adapter: any AgentHarnessAdapter,
+        context: AgentHarnessInputContext,
         target: InputWriteTarget
     ) throws {
         try writeInputData(
@@ -286,8 +286,8 @@ public actor DefaultAgentRuntime: AgentRuntime {
 
     private func acceptedSteeringInputEvent(
         for input: AgentInput,
-        adapter: any AgentProviderAdapter,
-        context: AgentProviderInputContext
+        adapter: any AgentHarnessAdapter,
+        context: AgentHarnessInputContext
     ) -> AgentEvent? {
         guard context.isTurnActive,
               case let .userMessage(message) = input,
@@ -297,7 +297,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         return adapter.acceptedSteeringInputEvent(for: message, context: context)
     }
 
-    /// Resolves a pending interaction and forwards the resolution to providers that accept one over input.
+    /// Resolves a pending interaction and forwards the resolution to harnesses that accept one over input.
     public func resolveInteraction(_ resolution: AgentInteractionResolution, conversationId: AgentConversationID) async throws {
         guard states[conversationId]?.stdinWriter != nil else {
             throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
@@ -308,11 +308,11 @@ public actor DefaultAgentRuntime: AgentRuntime {
         if try await resolveRuntimePlanExit(resolution, conversationId: conversationId) {
             return
         }
-        let providerPlanExit = providerPlanExitInteraction(id: resolution.id, conversationId: conversationId)
+        let harnessPlanExit = harnessPlanExitInteraction(id: resolution.id, conversationId: conversationId)
         let previousWaitingState = states[conversationId]?.waitingState ?? .idle
         let previousInputAvailability = states[conversationId]?.inputAvailability ?? .available
         let previousResolvedInteractions = states[conversationId]?.resolvedInteractions ?? []
-        // Mark before awaiting provider I/O so actor reentrancy cannot publish the same prompt as pending again.
+        // Mark before awaiting harness I/O so actor reentrancy cannot publish the same prompt as pending again.
         states[conversationId]?.resolvedInteractions.insert(resolution.id)
         states[conversationId]?.waitingState = .idle
         states[conversationId]?.inputAvailability = .available
@@ -326,13 +326,13 @@ public actor DefaultAgentRuntime: AgentRuntime {
             publishStatus(conversationId: conversationId)
             throw error
         }
-        guard let providerPlanExit,
+        guard let harnessPlanExit,
               resolution.outcome == .approved || resolution.outcome == .answered else {
             return
         }
         do {
             try stageApprovedPlanImplementation(
-                pending: providerPlanExit,
+                pending: harnessPlanExit,
                 resolution: resolution,
                 conversationId: conversationId
             )
@@ -372,10 +372,10 @@ public actor DefaultAgentRuntime: AgentRuntime {
                 states[conversationId]?.isTurnActive = false
                 publishStatus(conversationId: conversationId)
             }
-            throw AgentCLIError.invalidInput("Could not write provider input: \(error.localizedDescription)")
+            throw AgentCLIError.invalidInput("Could not write harness input: \(error.localizedDescription)")
         }
     }
-    /// Reconfigures a conversation by asking the provider to apply settings in place, then falling back to replacement.
+    /// Reconfigures a conversation by asking the harness to apply settings in place, then falling back to replacement.
     @discardableResult
     public func reconfigure(
         conversationId: AgentConversationID,
@@ -395,15 +395,15 @@ public actor DefaultAgentRuntime: AgentRuntime {
             return .restarted
         }
         let processToken = state.processToken
-        let providerResult = try await state.adapter.reconfigure(context: AgentProviderReconfigureContext(
+        let harnessResult = try await state.adapter.reconfigure(context: AgentHarnessReconfigureContext(
             conversationId: conversationId,
             processToken: processToken,
-            providerSessionId: state.providerSessionId,
+            harnessSessionId: state.harnessSessionId,
             currentConfig: state.spawnConfig,
             newConfig: config,
             isTurnActive: state.isTurnActive
         ))
-        switch providerResult {
+        switch harnessResult {
         case .appliedInPlace:
             guard states[conversationId]?.processToken == processToken else {
                 return .appliedInPlace

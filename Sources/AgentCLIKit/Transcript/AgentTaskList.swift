@@ -1,8 +1,8 @@
 import Foundation
 
-/// One task row in a provider-neutral task list.
+/// One task row in a harness-neutral task list.
 public struct AgentTaskListItem: Codable, Equatable, Identifiable, Sendable {
-    /// Task status used by provider task-list tools.
+    /// Task status used by harness task-list tools.
     public enum Status: String, Codable, Hashable, Sendable {
         /// The task has not started.
         case pending
@@ -13,7 +13,7 @@ public struct AgentTaskListItem: Codable, Equatable, Identifiable, Sendable {
         /// The task was interrupted before it completed.
         case interrupted
 
-        /// Decodes a status, defaulting unknown future provider values to pending.
+        /// Decodes a status, defaulting unknown future harness values to pending.
         public init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             let rawValue = try container.decode(String.self)
@@ -32,7 +32,7 @@ public struct AgentTaskListItem: Codable, Equatable, Identifiable, Sendable {
         }
     }
 
-    /// Provider-defined task identifier, or a provisional identifier before the provider returns one.
+    /// Harness-defined task identifier, or a provisional identifier before the harness returns one.
     public let id: String
     /// Short task title suitable for task-list rows.
     public let subject: String
@@ -69,11 +69,11 @@ public struct AgentTaskListItem: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-/// Current provider-neutral task-list state.
+/// Current harness-neutral task-list state.
 public struct AgentTaskListSnapshot: Codable, Equatable, Identifiable, Sendable {
     /// Stable identifier for this logical task list.
     public let id: String
-    /// Ordered task rows in provider order.
+    /// Ordered task rows in harness order.
     public let items: [AgentTaskListItem]
 
     /// Whether every task in this snapshot is complete.
@@ -95,17 +95,17 @@ public struct AgentTaskListSnapshot: Codable, Equatable, Identifiable, Sendable 
     }
 }
 
-/// A task-list state change parsed from provider events.
+/// A task-list state change parsed from harness events.
 public struct AgentTaskListMutation: Codable, Equatable, Sendable {
     /// The kind of task-list mutation.
     public enum Kind: String, Codable, Hashable, Sendable {
-        /// A task was created from a provider tool call.
+        /// A task was created from a harness tool call.
         case create
-        /// A created task's provider identifier was resolved from a tool result.
+        /// A created task's harness identifier was resolved from a tool result.
         case createResult
         /// A task status was updated.
         case update
-        /// The full task list was replaced from provider output.
+        /// The full task list was replaced from harness output.
         case replace
     }
 

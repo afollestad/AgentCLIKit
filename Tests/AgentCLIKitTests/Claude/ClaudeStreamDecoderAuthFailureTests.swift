@@ -14,7 +14,7 @@ final class ClaudeStreamDecoderAuthFailureTests: XCTestCase {
 
         XCTAssertEqual(Self.diagnostics(in: events), [
             AgentDiagnosticEvent(
-                code: .providerAuthenticationRequired,
+                code: .harnessAuthenticationRequired,
                 severity: .error,
                 message: "Failed to authenticate: OAuth session expired and could not be refreshed"
             )
@@ -27,7 +27,7 @@ final class ClaudeStreamDecoderAuthFailureTests: XCTestCase {
 
         let events = try decoder.decodeLine(line)
 
-        XCTAssertEqual(Self.diagnostics(in: events).map(\.code), [.providerAuthenticationRequired])
+        XCTAssertEqual(Self.diagnostics(in: events).map(\.code), [.harnessAuthenticationRequired])
     }
 
     func testLeavesOrdinaryResultErrorUncoded() throws {

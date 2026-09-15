@@ -10,7 +10,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
         XCTAssertEqual(
             request.sessionApprovalGrant(for: .exact),
             AgentSessionApprovalGrant(
-                providerId: .claude,
+                harnessId: .claude,
                 conversationId: "conversation",
                 sessionId: "session",
                 matchKind: .bashExact,
@@ -26,7 +26,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
         XCTAssertEqual(
             request.sessionApprovalGrant(for: .group),
             AgentSessionApprovalGrant(
-                providerId: .claude,
+                harnessId: .claude,
                 conversationId: "conversation",
                 sessionId: "session",
                 matchKind: .bashCommandGroup,
@@ -164,21 +164,21 @@ final class AgentApprovalPolicyTests: XCTestCase {
             request.sessionApprovalGrantCandidates,
             [
                 AgentSessionApprovalGrant(
-                    providerId: .claude,
+                    harnessId: .claude,
                     conversationId: "conversation",
                     sessionId: "session",
                     matchKind: .bashExact,
                     matchValue: "git add README.md"
                 ),
                 AgentSessionApprovalGrant(
-                    providerId: .claude,
+                    harnessId: .claude,
                     conversationId: "conversation",
                     sessionId: "session",
                     matchKind: .bashCommandGroup,
                     matchValue: "git add"
                 ),
                 AgentSessionApprovalGrant(
-                    providerId: .claude,
+                    harnessId: .claude,
                     conversationId: "conversation",
                     sessionId: "session",
                     matchKind: .bashExact,
@@ -191,7 +191,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
     func testInMemoryPolicyMatchesLegacyWrappedExactCandidate() async {
         let store = InMemoryAgentApprovalPolicyStore()
         let legacyGrant = AgentSessionApprovalGrant(
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
             sessionId: "session",
             matchKind: .bashExact,
@@ -247,7 +247,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
 
     func testSessionApprovalRequestBuildsExactFilePathGrant() {
         let request = AgentSessionApprovalRequest(
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
             sessionId: "session",
             toolName: "Edit",
@@ -258,7 +258,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
         XCTAssertEqual(
             request.sessionApprovalGrant(for: .exact),
             AgentSessionApprovalGrant(
-                providerId: .claude,
+                harnessId: .claude,
                 conversationId: "conversation",
                 sessionId: "session",
                 matchKind: .filePathExact,
@@ -317,7 +317,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
         let second = await store.recordSessionApproval(grant)
         let matchesGroup = await store.allowsSessionApproval(bashRequest(command: "git add bar.swift"))
 
-        await store.removeSessionApprovals(providerId: .claude, conversationId: "conversation", sessionId: "session")
+        await store.removeSessionApprovals(harnessId: .claude, conversationId: "conversation", sessionId: "session")
         let matchesAfterRemoval = await store.allowsSessionApproval(bashRequest(command: "git add baz.swift"))
 
         XCTAssertEqual(first, AgentSessionApprovalRecordResult(isEffective: true, wasInserted: true))
@@ -341,7 +341,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
     func testInMemoryPolicyKeepsOtherConversationApprovals() async {
         let store = InMemoryAgentApprovalPolicyStore()
         let otherGrant = AgentSessionApprovalGrant(
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "other",
             sessionId: "session",
             matchKind: .bashExact,
@@ -349,11 +349,11 @@ final class AgentApprovalPolicyTests: XCTestCase {
         )
 
         _ = await store.recordSessionApproval(otherGrant)
-        await store.removeSessionApprovals(providerId: .claude, conversationId: "conversation", sessionId: "session")
+        await store.removeSessionApprovals(harnessId: .claude, conversationId: "conversation", sessionId: "session")
 
         let matchesOther = await store.allowsSessionApproval(
             AgentSessionApprovalRequest(
-                providerId: .claude,
+                harnessId: .claude,
                 conversationId: "other",
                 sessionId: "session",
                 toolName: "Bash",
@@ -368,9 +368,9 @@ final class AgentApprovalPolicyTests: XCTestCase {
         let rawInput = JSONValue.object(["command": .string(#"/bin/zsh -lc 'git log --oneline'"#)])
         let request = AgentApprovalRequest(
             id: "approval",
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: "session",
+            harnessSessionId: "session",
             operation: "Bash",
             reason: "Approve Bash command",
             input: rawInput,
@@ -397,7 +397,7 @@ final class AgentApprovalPolicyTests: XCTestCase {
         approvalIdentityToolInput: JSONValue? = nil
     ) -> AgentSessionApprovalRequest {
         AgentSessionApprovalRequest(
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
             sessionId: "session",
             toolName: toolName,

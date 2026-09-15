@@ -4,7 +4,7 @@ import Foundation
 public enum AgentInput: Codable, Equatable, Sendable {
     /// User-authored message to continue a session.
     case userMessage(AgentMessageInput)
-    /// Request to interrupt the provider process.
+    /// Request to interrupt the harness process.
     case interrupt(AgentInterruptInput)
     /// Resolution for a pending interaction.
     case interactionResolution(AgentInteractionResolution)
@@ -14,9 +14,9 @@ public enum AgentInput: Codable, Equatable, Sendable {
 public struct AgentMessageInput: Codable, Equatable, Sendable {
     /// Message text.
     public let text: String
-    /// Optional attachments the provider adapter may encode or reference.
+    /// Optional attachments the harness adapter may encode or reference.
     public let attachments: [AgentInputAttachment]
-    /// Provider-neutral metadata for adapters that support richer input.
+    /// Harness-neutral metadata for adapters that support richer input.
     public let metadata: [String: JSONValue]
 
     /// Creates a message input.
@@ -29,14 +29,14 @@ public struct AgentMessageInput: Codable, Equatable, Sendable {
 
 /// File or data attachment associated with a user message.
 public struct AgentInputAttachment: Codable, Equatable, Sendable {
-    /// Provider-neutral attachment type for local image files.
+    /// Harness-neutral attachment type for local image files.
     public static let localImageType = "localImage"
 
     /// Stable attachment identifier.
     public let id: String
     /// Local file URL when the attachment lives on disk.
     public let fileURL: URL?
-    /// Media type or provider-neutral type hint.
+    /// Media type or harness-neutral type hint.
     public let type: String
 
     /// Creates an input attachment.
@@ -51,13 +51,13 @@ public struct AgentInputAttachment: Codable, Equatable, Sendable {
         AgentInputAttachment(id: id, fileURL: fileURL, type: localImageType)
     }
 
-    /// Whether this attachment should be encoded as provider-local image input.
+    /// Whether this attachment should be encoded as harness-local image input.
     public var isLocalImage: Bool {
         type == Self.localImageType
     }
 }
 
-/// Interrupt input sent to a running provider process.
+/// Interrupt input sent to a running harness process.
 public struct AgentInterruptInput: Codable, Equatable, Sendable {
     /// Human-readable reason for interruption.
     public let reason: String?
@@ -68,7 +68,7 @@ public struct AgentInterruptInput: Codable, Equatable, Sendable {
     }
 }
 
-/// Host resolution for a pending provider or runtime interaction.
+/// Host resolution for a pending harness or runtime interaction.
 public struct AgentInteractionResolution: Codable, Equatable, Sendable {
     /// Interaction being resolved.
     public let id: AgentInteractionID
@@ -76,7 +76,7 @@ public struct AgentInteractionResolution: Codable, Equatable, Sendable {
     public let outcome: AgentInteractionOutcome
     /// Optional text supplied by the host or user.
     public let responseText: String?
-    /// Provider-neutral metadata for adapter-specific resolution fields.
+    /// Harness-neutral metadata for adapter-specific resolution fields.
     public let metadata: [String: JSONValue]
 
     /// Creates an interaction resolution.
@@ -99,7 +99,7 @@ public enum AgentInteractionOutcome: String, Codable, Hashable, Sendable {
     case approved
     /// Deny the requested operation.
     case denied
-    /// Defer the decision to provider fallback behavior.
+    /// Defer the decision to harness fallback behavior.
     case deferred
     /// Submit free-form text.
     case answered

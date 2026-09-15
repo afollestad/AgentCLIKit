@@ -7,19 +7,19 @@ final class AgentContextTests: XCTestCase {
         let cache = AgentContextWindowCache()
         let snapshot = AgentContextWindowSnapshot(
             conversationId: "conversation",
-            providerId: .claude,
+            harnessId: .claude,
             usedTokens: 50,
             maximumTokens: 100,
             measuredAt: Date(timeIntervalSince1970: 10)
         )
 
         await cache.save(snapshot)
-        let saved = await cache.snapshot(conversationId: "conversation", providerId: .claude)
+        let saved = await cache.snapshot(conversationId: "conversation", harnessId: .claude)
         XCTAssertEqual(saved, snapshot)
         XCTAssertEqual(snapshot.usageFraction, 0.5)
 
-        await cache.remove(conversationId: "conversation", providerId: .claude)
-        let removed = await cache.snapshot(conversationId: "conversation", providerId: .claude)
+        await cache.remove(conversationId: "conversation", harnessId: .claude)
+        let removed = await cache.snapshot(conversationId: "conversation", harnessId: .claude)
         XCTAssertNil(removed)
     }
 
@@ -43,17 +43,17 @@ final class AgentContextTests: XCTestCase {
         let cache = JSONAgentModelContextWindowCache(fileURL: fileURL)
 
         try await cache.update(
-            providerId: .claude,
+            harnessId: .claude,
             selectedModel: "Sonnet",
             reportedModelId: "claude-sonnet-4",
             contextWindowSize: 200_000
         )
 
         let reloaded = JSONAgentModelContextWindowCache(fileURL: fileURL)
-        let selectedSize = await reloaded.contextWindowSize(providerId: .claude, model: "sonnet")
-        let reportedSize = await reloaded.contextWindowSize(providerId: .claude, model: "CLAUDE-SONNET-4")
+        let selectedSize = await reloaded.contextWindowSize(harnessId: .claude, model: "sonnet")
+        let reportedSize = await reloaded.contextWindowSize(harnessId: .claude, model: "CLAUDE-SONNET-4")
         XCTAssertEqual(selectedSize, 200_000)
         XCTAssertEqual(reportedSize, 200_000)
-        XCTAssertEqual(JSONAgentModelContextWindowCache.cacheKey(providerId: .claude, model: " "), nil)
+        XCTAssertEqual(JSONAgentModelContextWindowCache.cacheKey(harnessId: .claude, model: " "), nil)
     }
 }

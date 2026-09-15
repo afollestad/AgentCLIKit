@@ -8,7 +8,7 @@ final class AgentInteractionStoreTests: XCTestCase {
         let store = InMemoryAgentInteractionStore()
         let request = AgentApprovalRequest(
             id: "approval",
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
             operation: "Write",
             reason: "Needs file access",
@@ -63,9 +63,9 @@ final class AgentInteractionStoreTests: XCTestCase {
     func testApprovalRequestExposesPresentationAndSessionMetadata() throws {
         let request = AgentApprovalRequest(
             id: "approval",
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: "session",
+            harnessSessionId: "session",
             operation: "Bash",
             reason: "Needs approval",
             input: .object(["command": .string("git add README.md")])
@@ -80,12 +80,12 @@ final class AgentInteractionStoreTests: XCTestCase {
         )
     }
 
-    func testApprovalAndPromptRequestsDecodeLegacyPayloadsWithoutProviderSession() throws {
+    func testApprovalAndPromptRequestsDecodeLegacyPayloadsWithoutHarnessSession() throws {
         let approval = AgentApprovalRequest(
             id: "approval",
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: "session",
+            harnessSessionId: "session",
             operation: "ExitPlanMode",
             reason: "Plan",
             input: .object(["plan": .string("# Plan")])
@@ -93,16 +93,16 @@ final class AgentInteractionStoreTests: XCTestCase {
         let prompt = AgentPromptRequest(
             id: "prompt",
             conversationId: "conversation",
-            providerSessionId: "session",
+            harnessSessionId: "session",
             prompt: "Continue?"
         )
 
         let legacyApproval = try decodeLegacy(approval, removing: "providerSessionId", as: AgentApprovalRequest.self)
         let legacyPrompt = try decodeLegacy(prompt, removing: "providerSessionId", as: AgentPromptRequest.self)
 
-        XCTAssertNil(legacyApproval.providerSessionId)
+        XCTAssertNil(legacyApproval.harnessSessionId)
         XCTAssertEqual(legacyApproval.planMarkdown, "# Plan")
-        XCTAssertNil(legacyPrompt.providerSessionId)
+        XCTAssertNil(legacyPrompt.harnessSessionId)
     }
 
     private func decodeLegacy<T: Codable>(_ value: T, removing key: String, as type: T.Type) throws -> T {

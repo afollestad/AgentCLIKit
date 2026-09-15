@@ -140,11 +140,11 @@ final class ClaudeConfigTests: XCTestCase {
         await fulfillment(of: [didReceiveUpdate], timeout: 2)
     }
 
-    func testProviderSetupTrustsClaudeProject() async throws {
+    func testHarnessSetupTrustsClaudeProject() async throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
             .appendingPathComponent("claude.json")
-        let setup: any AgentProviderSetup = ClaudeProviderSetup(configFileURL: fileURL)
+        let setup: any AgentHarnessSetup = ClaudeHarnessSetup(configFileURL: fileURL)
         let projectURL = URL(fileURLWithPath: "/tmp/project")
 
         XCTAssertEqual(setup.cachedProjectTrustStatus(for: projectURL), .notTrusted)
@@ -155,7 +155,7 @@ final class ClaudeConfigTests: XCTestCase {
 
         let root = try readJSONObject(fileURL: fileURL)
         let project = (root["projects"] as? [String: Any])?["/tmp/project"] as? [String: Any]
-        XCTAssertEqual(setup.providerId, .claude)
+        XCTAssertEqual(setup.harnessId, .claude)
         XCTAssertEqual(project?["hasTrustDialogAccepted"] as? Bool, true)
         XCTAssertEqual(project?["hasCompletedProjectOnboarding"] as? Bool, true)
         XCTAssertEqual(setup.cachedProjectTrustStatus(for: projectURL), .trusted)

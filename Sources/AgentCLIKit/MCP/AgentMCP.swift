@@ -1,6 +1,6 @@
 import Foundation
 
-/// Provider-neutral description of where a provider stores MCP server configuration.
+/// Harness-neutral description of where a harness stores MCP server configuration.
 public struct AgentMCPIntegrationDefinition: Codable, Equatable, Sendable {
     /// Config file path, which may include `~`.
     public let configPath: String
@@ -10,7 +10,7 @@ public struct AgentMCPIntegrationDefinition: Codable, Equatable, Sendable {
     public let format: AgentMCPConfigFormat
     /// Adapter identifier used by host apps to select a config bridge.
     public let adapterId: String
-    /// Whether the provider supports HTTP MCP servers.
+    /// Whether the harness supports HTTP MCP servers.
     public let supportsHTTP: Bool
 
     /// Creates MCP integration metadata.
@@ -37,7 +37,7 @@ public struct AgentMCPIntegrationDefinition: Codable, Equatable, Sendable {
     }
 }
 
-/// Supported provider MCP config file formats.
+/// Supported harness MCP config file formats.
 public enum AgentMCPConfigFormat: String, Codable, Equatable, Sendable {
     /// JSON config.
     case json
@@ -45,7 +45,7 @@ public enum AgentMCPConfigFormat: String, Codable, Equatable, Sendable {
     case toml
 }
 
-/// Provider-neutral MCP server definition.
+/// Harness-neutral MCP server definition.
 public struct AgentMCPServer: Codable, Equatable, Identifiable, Sendable {
     /// Stable server identifier.
     public let id: String
@@ -78,7 +78,7 @@ public struct AgentMCPServer: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-/// Provider-neutral MCP configuration.
+/// Harness-neutral MCP configuration.
 public struct AgentMCPConfig: Codable, Equatable, Sendable {
     /// Configured MCP servers.
     public let servers: [AgentMCPServer]
@@ -129,24 +129,24 @@ public actor JSONFileAgentMCPConfigStore: AgentMCPConfigStore {
     }
 }
 
-/// Adapter that converts generic MCP configuration to a provider-specific representation.
+/// Adapter that converts generic MCP configuration to a harness-specific representation.
 public protocol AgentMCPConfigAdapter: Sendable {
-    /// Provider supported by this adapter.
-    var providerId: AgentProviderID { get }
-    /// Encodes generic MCP configuration for a provider.
+    /// Harness supported by this adapter.
+    var harnessId: AgentHarnessID { get }
+    /// Encodes generic MCP configuration for a harness.
     func encode(_ config: AgentMCPConfig) throws -> Data
-    /// Decodes provider MCP configuration into generic form.
+    /// Decodes harness MCP configuration into generic form.
     func decode(_ data: Data) throws -> AgentMCPConfig
 }
 
-/// Default JSON adapter for providers that use AgentCLIKit's generic MCP schema directly.
+/// Default JSON adapter for harnesses that use AgentCLIKit's generic MCP schema directly.
 public struct JSONAgentMCPConfigAdapter: AgentMCPConfigAdapter {
-    /// Provider supported by this adapter.
-    public let providerId: AgentProviderID
+    /// Harness supported by this adapter.
+    public let harnessId: AgentHarnessID
 
     /// Creates a JSON MCP adapter.
-    public init(providerId: AgentProviderID) {
-        self.providerId = providerId
+    public init(harnessId: AgentHarnessID) {
+        self.harnessId = harnessId
     }
 
     /// Encodes generic MCP configuration as JSON.

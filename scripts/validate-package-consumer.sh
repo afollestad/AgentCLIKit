@@ -35,14 +35,14 @@ cat >"$package_root/Sources/AgentCLIKitConsumer/main.swift" <<'EOF'
 import AgentCLIKit
 import Foundation
 
-let runtime = DefaultAgentRuntime(adapters: [ClaudeProviderAdapter()])
+let runtime = DefaultAgentRuntime(adapters: [ClaudeHarnessAdapter()])
 let config = AgentSpawnConfig(
-    providerId: .claude,
+    harnessId: .claude,
     workingDirectory: URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true),
     permissionMode: "plan"
 )
 
-print("\(type(of: runtime)) \(config.providerId.rawValue)")
+print("\(type(of: runtime)) \(config.harnessId.rawValue)")
 EOF
 
 swift build \

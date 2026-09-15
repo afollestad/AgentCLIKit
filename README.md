@@ -1,21 +1,33 @@
 # AgentCLIKit
 
-AgentCLIKit is a Swift package for macOS apps that run local agent CLIs through one provider-neutral runtime API.
+AgentCLIKit is a Swift package for macOS apps that run local agent CLIs through one harness-neutral runtime API.
+
+Claude Code and Codex are **harnesses**: they run models and manage agent sessions and tools. Anthropic and OpenAI are
+**model providers**. The SDK uses harness terminology for the CLI integration layer.
 
 It gives host apps a reusable layer for:
 
 - Launching Claude Code or Codex App Server.
-- Running sessionless one-shot prompts for project-level tasks that should not create provider sessions.
+- Running sessionless one-shot prompts for project-level tasks that should not create harness sessions.
 - Sending user messages and steering active turns.
-- Receiving provider-neutral events for messages, tools, usage, tasks, sub-agent lifecycle, session metadata,
+- Receiving harness-neutral events for messages, tools, usage, tasks, sub-agent lifecycle, session metadata,
   permission/collaboration state, context compaction, lifecycle, and interactions.
-- Persisting provider session IDs and provider-reported names so conversations can resume.
-- Checking provider readiness, project trust, speed support, model options, and model-scoped effort options.
-- Exposing host-owned MCP tools and additional workspace roots to either built-in provider without changing global provider config.
+- Persisting harness session IDs and harness-reported names so conversations can resume.
+- Checking harness readiness, project trust, speed support, model options, and model-scoped effort options.
+- Exposing host-owned MCP tools and additional workspace roots to either built-in harness without changing global harness config.
 
 Host apps still own UI, durable app data, queueing policy, notifications, and product-specific workflow decisions.
-AgentCLIKit owns process launch, provider sessions, stdin/stdout coordination, App Server transport, event replay, status,
-interaction resolution, and sessionless one-shot provider prompts.
+AgentCLIKit owns process launch, harness sessions, stdin/stdout coordination, App Server transport, event replay, status,
+interaction resolution, and sessionless one-shot harness prompts.
+
+## Harness Naming Migration
+
+The Swift API now uses `AgentHarness*`, `ClaudeHarness*`, and `CodexHarness*` names, with `harnessId` and `harnessSession*`
+properties and parameter labels. Update consumers to the new names; the former provider APIs have no compatibility aliases.
+
+Persisted JSON field names, metadata keys, diagnostic/error raw values, and the `claude`/`codex` identity values remain
+unchanged, so existing records require no data migration. Explicit `CodingKeys` map the new Swift properties to their
+original `provider*` keys. Upstream model-provider fields and hook-decision provider services retain their names.
 
 ## Installation
 
@@ -39,12 +51,12 @@ For local app development, prefer a path dependency pointed at this checkout:
 .package(path: "../AgentCLIKit")
 ```
 
-Host machines also need the provider CLI installed. Built-in adapters support Claude Code and Codex App Server, and resolve
-provider executables through the shared provider detector and executable resolver.
+Host machines also need the harness CLI installed. Built-in adapters support Claude Code and Codex App Server, and resolve
+harness executables through the shared harness detector and executable resolver.
 
 ## Quick Start
 
-This complete snippet subscribes before spawning, starts a provider, sends one message, handles common events, acknowledges
+This complete snippet subscribes before spawning, starts a harness, sends one message, handles common events, acknowledges
 persisted event indexes, and shuts runtime resources down.
 
 ```swift
@@ -53,7 +65,7 @@ import Foundation
 
 func runAgentConversation(
     projectURL: URL,
-    providerId: AgentProviderID = .claude
+    harnessId: AgentHarnessID = .claude
 ) async throws {
     let sessionsURL = projectURL.appendingPathComponent(".agentclikit-sessions.json")
     let runtime = DefaultAgentRuntime(
@@ -104,7 +116,7 @@ func runAgentConversation(
     try await runtime.spawn(
         conversationId: conversationId,
         config: AgentSpawnConfig(
-            providerId: providerId,
+            harnessId: harnessId,
             workingDirectory: projectURL
         )
     )
@@ -132,48 +144,48 @@ Most apps build around a few reusable flows:
 - Subscribe to `AgentEventEnvelope` values with a persisted cursor.
 - Start a conversation with `AgentSpawnConfig`.
 - Send input through `runtime.send`.
-- Resolve provider questions and approvals through `runtime.resolveInteraction`.
+- Resolve harness questions and approvals through `runtime.resolveInteraction`.
 - Watch `runtime.statusUpdates` for waiting, active-turn, and cancellation state.
-- Use provider discovery and setup services for settings and project readiness UI.
+- Use harness discovery and setup services for settings and project readiness UI.
 
 For a promptless approval continuation, call `DefaultAgentRuntime.spawn(conversationId:config:resumingTurn:)` with
 `resumingTurn: true`. It seeds active-turn status for that launch until terminal output; later launches use their own activity settings.
 
 For reusable approval scopes, use `AgentSessionApprovalRequest` and `AgentSessionApprovalPolicyStore`. Bash approvals carry
-raw provider input plus an optional canonical `approvalIdentityToolInput`, derived by
+raw harness input plus an optional canonical `approvalIdentityToolInput`, derived by
 `AgentCommandApprovalNormalizationPolicy`, so transparent wrappers and safe shell `-c` wrappers can share exact/group
-approval identities without changing the command the provider executes.
+approval identities without changing the command the harness executes.
 
 Treat `AgentSpawnConfig` as the host-facing settings source of truth. `permissionMode` is approval policy. Plan/default
 collaboration uses `collaborationMode`: pass `.plan` to enter plan mode, `.default` to leave it, and `nil` when the host is
-not overriding provider collaboration state. Speed uses `speedMode`: pass `.fast` only when
-`AgentProviderCapabilities.supportsSpeedMode` is true, `.standard` to force supported providers back to normal behavior,
-and `nil` to preserve provider defaults. Local image input uses `AgentMessageInput.attachments`; setup sends can carry
+not overriding harness collaboration state. Speed uses `speedMode`: pass `.fast` only when
+`AgentHarnessCapabilities.supportsSpeedMode` is true, `.standard` to force supported harnesses back to normal behavior,
+and `nil` to preserve harness defaults. Local image input uses `AgentMessageInput.attachments`; setup sends can carry
 the same data through `AgentSpawnConfig.initialPromptAttachments` and `initialPromptMetadata`. Show image-attachment UI
-only when `AgentProviderCapabilities.supportsLocalImageInput` is true. Providers that cannot encode an attachment throw
+only when `AgentHarnessCapabilities.supportsLocalImageInput` is true. Harnesses that cannot encode an attachment throw
 `AgentCLIError.unsupportedInputAttachment`, so hosts should fall back to visible prompt text such as Markdown image links
 before sending. Claude exposes `bypassPermissions` as an explicit dangerous approval policy; AgentCLIKit unlocks that mode
 for the launch without using `--dangerously-skip-permissions`. Codex plan mode requires a concrete selected `model`. To
-fork provider context into a new host conversation, pass `sessionFork` with the source provider session ID and the target
-`workingDirectory`; copied host transcript records are not provider context.
+fork harness context into a new host conversation, pass `sessionFork` with the source harness session ID and the target
+`workingDirectory`; copied host transcript records are not harness context.
 
-For one final answer without a runtime conversation, use `DefaultAgentOneShotPromptRunner`. It invokes provider CLIs in
+For one final answer without a runtime conversation, use `DefaultAgentOneShotPromptRunner`. It invokes harness CLIs in
 read-only mode and does not create AgentCLIKit runtime state. Codex uses `codex exec --ephemeral --json` rather than Codex
-App Server; the CLI may still emit a transient `thread.started` id, but the run is not expected to persist a provider
+App Server; the CLI may still emit a transient `thread.started` id, but the run is not expected to persist a harness
 thread. Claude uses `claude -p --safe-mode --no-session-persistence --output-format stream-json` with native read-only
-tools restricted to file inspection. One-shot runs cannot service approvals or provider prompts.
+tools restricted to file inspection. One-shot runs cannot service approvals or harness prompts.
 
 Use `runtime.reconfigure(conversationId:config:)` to apply changed settings to a started conversation. The result tells
 the host what happened:
 
-- `.appliedInPlace`: the provider accepted settings without replacing the process.
-- `.restarted`: the runtime restarted or resumed the provider process with the new config.
-- `.nextTurnRequired`: the provider has an active turn, so persist or stage the config and pass it before the next turn.
+- `.appliedInPlace`: the harness accepted settings without replacing the process.
+- `.restarted`: the runtime restarted or resumed the harness process with the new config.
+- `.nextTurnRequired`: the harness has an active turn, so persist or stage the config and pass it before the next turn.
 
 Host-owned tools use `AgentSpawnConfig.hostTools` for Codable definitions and an `AgentHostToolHandling` closure injected
 into `DefaultAgentRuntime` for execution. Each launch receives an authenticated, process-scoped loopback endpoint;
 AgentCLIKit never writes these tools into global Claude or Codex MCP files. Put extra file access in
-`additionalWorkspaceRoots`. Tool/root changes restart an idle provider and return `.nextTurnRequired` during an active
+`additionalWorkspaceRoots`. Tool/root changes restart an idle harness and return `.nextTurnRequired` during an active
 turn. A nonempty tool list without injected handling fails with `AgentCLIError.hostToolsUnavailable`.
 Codex resumes with explicit roots through a history-preserving fork, including when host tools are disabled. Pass `[cwd]`
 to explicitly remove all extra roots; an empty list preserves Codex's native roots.
@@ -182,41 +194,41 @@ See [docs/examples.md](docs/examples.md) for practical recipes covering:
 
 - One-off conversations.
 - Session persistence and resume.
-- Provider readiness, model, and effort selection.
+- Harness readiness, model, and effort selection.
 - Project trust setup.
 - Settings updates and plan/default collaboration mode.
 - Approval and prompt resolution.
 - Status updates and cancellation.
 
-## Provider Setup
+## Harness Setup
 
-AgentCLIKit includes provider-specific setup services that keep provider details out of generic host code.
+AgentCLIKit includes harness-specific setup services that keep harness details out of generic host code.
 
-Setup readiness reflects each provider's sign-in state. `CodexProviderSetup` reads Codex's auth file; `ClaudeProviderSetup`
+Setup readiness reflects each harness's sign-in state. `CodexHarnessSetup` reads Codex's auth file; `ClaudeHarnessSetup`
 needs a `ClaudeAuthProbe`, because Claude keeps its credential in the keychain and only the CLI can report it. Omit the probe
 and Claude setup readiness stays `.ready` regardless of sign-in state. An inconclusive probe also reports `.ready`, so a
 failed spawn never locks a host out of a working CLI.
 
-Use `DefaultAgentProviderDiscoveryService` to build provider pickers and settings:
+Use `DefaultAgentHarnessDiscoveryService` to build harness pickers and settings:
 
 ```swift
-let setups: [any AgentProviderSetup] = [
-    ClaudeProviderSetup(configStore: ClaudeConfigStore(), authProbe: ClaudeAuthProbe()),
-    CodexProviderSetup()
+let setups: [any AgentHarnessSetup] = [
+    ClaudeHarnessSetup(configStore: ClaudeConfigStore(), authProbe: ClaudeAuthProbe()),
+    CodexHarnessSetup()
 ]
 
-let discovery = DefaultAgentProviderDiscoveryService(
-    providerSetups: setups,
+let discovery = DefaultAgentHarnessDiscoveryService(
+    harnessSetups: setups,
     modelOptionSource: DefaultAgentModelOptionSource(
         codexSource: CodexAppServerModelOptionSource()
     )
 )
 
-let statuses = await discovery.providerStatuses(projectURL: projectURL)
+let statuses = await discovery.harnessStatuses(projectURL: projectURL)
 ```
 
-`AgentProviderStatus` reports installation, enablement, setup readiness, project trust, provider capabilities, selectable
-models, model-scoped effort options, and diagnostics. Use `AgentProviderDefinition.capabilities.supportsSpeedMode` before
+`AgentHarnessStatus` reports installation, enablement, setup readiness, project trust, harness capabilities, selectable
+models, model-scoped effort options, and diagnostics. Use `AgentHarnessDefinition.capabilities.supportsSpeedMode` before
 showing speed controls, and use `AgentModelOption.supportedEffortOptions` and
 `AgentModelOption.defaultEffortOption` before showing effort controls. Before discovery completes, render
 `AgentDefaultModelOptions.staticOptions(for:)` — for Claude it is exactly the list discovery reports, so a cold start
@@ -226,20 +238,20 @@ Use `DefaultAgentProjectTrustService` when the user chooses to trust a project:
 
 ```swift
 let trustService = DefaultAgentProjectTrustService(setups: setups)
-try await trustService.trustProject(providerId: .codex, projectURL: projectURL)
+try await trustService.trustProject(harnessId: .codex, projectURL: projectURL)
 ```
 
 Claude setup preserves unrelated `.claude.json` content such as MCP servers. Codex setup writes Codex's user-level project
 trust table and can report credential-source readiness without exposing token contents or running `codex login`.
 
-## Provider Notes
+## Harness Notes
 
 Claude and Codex share the host-facing runtime API, but their native transports differ:
 
 | Area | Claude | Codex |
 | --- | --- | --- |
 | Transport | Claude CLI stream JSON over stdin/stdout | Codex App Server JSON-RPC |
-| Provider setup | User `.claude.json` trust and hooks | User `~/.codex/config.toml` trust and auth readiness |
+| Harness setup | User `.claude.json` trust and hooks | User `~/.codex/config.toml` trust and auth readiness |
 | Interactions | Claude hook requests and stream events | App Server requests and notifications |
 | Models | Built-in `ClaudeModelOptionSource` | Static fallback or opt-in live `model/list` |
 | Plan mode | `collaborationMode: .plan` maps to Claude's internal `--permission-mode plan` | Idle threads use `thread/settings/update`; plan mode requires a concrete model |
@@ -248,13 +260,13 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Host tools and extra roots | Inline process MCP config and `--add-dir` | Per-thread MCP config and `runtimeWorkspaceRoots` |
 | Archive/delete | Validated no-op | App Server `thread/archive`, `thread/unarchive`, and `thread/delete` |
 
-Both built-in providers expose provider-neutral events, sessions, provider session metadata, usage, tool events, task
+Both built-in harnesses expose harness-neutral events, sessions, harness session metadata, usage, tool events, task
 events, typed sub-agent lifecycle, permission/collaboration state, prompt/approval interactions, MCP support, and
-context compaction lifecycle events. Inspect `AgentProviderDefinition.capabilities` before showing provider-specific UI.
+context compaction lifecycle events. Inspect `AgentHarnessDefinition.capabilities` before showing harness-specific UI.
 
-For detailed provider behavior, see [docs/provider-reference.md](docs/provider-reference.md).
+For detailed harness behavior, see [docs/harness-reference.md](docs/harness-reference.md).
 
-Use `AgentProviderSessionActionRouter(borrowing: adapterSet)` with the runtime's adapter set for session cleanup.
+Use `AgentHarnessSessionActionRouter(borrowing: adapterSet)` with the runtime's adapter set for session cleanup.
 This reaches the Codex server holding a loaded thread's writer lock and leaves shared adapters running. The default
 router and factory initializer own fresh adapters and shut them down after each action.
 
@@ -266,7 +278,7 @@ Run the macOS demo with:
 ./scripts/run-demo.sh
 ```
 
-The demo builds and launches `AgentCLIKitDemo`. It shows provider readiness, provider/model/effort/speed selection, persisted
+The demo builds and launches `AgentCLIKitDemo`. It shows harness readiness, harness/model/effort/speed selection, persisted
 session records, live output rendering, status snapshots, cancellation, Claude prompt handling, and Codex live model
 loading through App Server.
 
@@ -296,12 +308,12 @@ scratch/cache path and validates the demo product.
 ## Reference
 
 - [Practical examples](docs/examples.md)
-- [Provider reference](docs/provider-reference.md)
+- [Harness reference](docs/harness-reference.md)
 - [Runtime protocol](Sources/AgentCLIKit/Runtime/AgentRuntime.swift)
-- [Provider discovery](Sources/AgentCLIKit/Providers/AgentProviderDiscovery.swift)
-- [Provider definitions and capabilities](Sources/AgentCLIKit/Providers/AgentProviderDefinition.swift)
-- [Provider-neutral events](Sources/AgentCLIKit/Core/AgentEvents.swift)
-- [Provider-neutral interactions](Sources/AgentCLIKit/Interactions/AgentInteractions.swift)
+- [Harness discovery](Sources/AgentCLIKit/Harnesses/AgentHarnessDiscovery.swift)
+- [Harness definitions and capabilities](Sources/AgentCLIKit/Harnesses/AgentHarnessDefinition.swift)
+- [Harness-neutral events](Sources/AgentCLIKit/Core/AgentEvents.swift)
+- [Harness-neutral interactions](Sources/AgentCLIKit/Interactions/AgentInteractions.swift)
 
 ## License
 

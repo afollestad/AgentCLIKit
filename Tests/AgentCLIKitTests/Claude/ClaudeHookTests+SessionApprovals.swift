@@ -3,13 +3,13 @@ import XCTest
 @testable import AgentCLIKit
 
 extension ClaudeHookTests {
-    func testSessionApprovalCanMatchProviderNeutralGrant() async throws {
+    func testSessionApprovalCanMatchHarnessNeutralGrant() async throws {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()
         let approvalPolicyStore = ClaudeApprovalPolicyStore()
         let token = await tokenStore.issue(validFor: 60)
         let request = AgentSessionApprovalRequest(
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
             sessionId: "session-123",
             toolName: "Bash",

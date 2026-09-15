@@ -6,7 +6,7 @@ final class DefaultAgentRuntimeStartRaceTests: XCTestCase {
     func testConcurrentStartsForSameConversationAreRejected() async throws {
         let probe = StartRaceProbe()
         let runtime = DefaultAgentRuntime(adapters: [
-            DelayedStartProviderAdapter(probe: probe)
+            DelayedStartHarnessAdapter(probe: probe)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = spawnConfig()
@@ -33,7 +33,7 @@ final class DefaultAgentRuntimeStartRaceTests: XCTestCase {
     func testDestroyDuringStartCancelsPendingInstall() async throws {
         let probe = StartRaceProbe()
         let runtime = DefaultAgentRuntime(adapters: [
-            DelayedStartProviderAdapter(probe: probe)
+            DelayedStartHarnessAdapter(probe: probe)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = spawnConfig()
@@ -54,7 +54,7 @@ final class DefaultAgentRuntimeStartRaceTests: XCTestCase {
     func testShutdownDuringStartCancelsPendingInstall() async throws {
         let probe = StartRaceProbe()
         let runtime = DefaultAgentRuntime(adapters: [
-            DelayedStartProviderAdapter(probe: probe)
+            DelayedStartHarnessAdapter(probe: probe)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = spawnConfig()
@@ -72,9 +72,9 @@ final class DefaultAgentRuntimeStartRaceTests: XCTestCase {
         XCTAssertNil(status)
     }
 
-    func testSpawnIsRejectedWhileShutdownAwaitsProviderCleanup() async {
+    func testSpawnIsRejectedWhileShutdownAwaitsHarnessCleanup() async {
         let gate = ShutdownRaceGate()
-        let runtime = DefaultAgentRuntime(adapters: [ShutdownBlockingProviderAdapter(gate: gate)])
+        let runtime = DefaultAgentRuntime(adapters: [ShutdownBlockingHarnessAdapter(gate: gate)])
         let shutdownTask = Task {
             await runtime.shutdown()
         }
@@ -104,11 +104,11 @@ final class DefaultAgentRuntimeStartRaceTests: XCTestCase {
         await assertSubscriptionsFinish(runtime: runtime)
     }
 
-    func testDestroyDuringPreparedStartInvalidatesProviderResources() async throws {
+    func testDestroyDuringPreparedStartInvalidatesHarnessResources() async throws {
         let startProbe = StartRaceProbe()
-        let lifecycleProbe = ProviderLifecycleProbe()
+        let lifecycleProbe = HarnessLifecycleProbe()
         let runtime = DefaultAgentRuntime(adapters: [
-            DelayedPrepareProviderAdapter(startProbe: startProbe, lifecycleProbe: lifecycleProbe)
+            DelayedPrepareHarnessAdapter(startProbe: startProbe, lifecycleProbe: lifecycleProbe)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = spawnConfig()
@@ -132,9 +132,9 @@ final class DefaultAgentRuntimeStartRaceTests: XCTestCase {
         XCTAssertNil(status)
     }
 
-    func testDestroyHidesStateBeforeProviderCleanupCompletes() async throws {
+    func testDestroyHidesStateBeforeHarnessCleanupCompletes() async throws {
         let gate = TerminationCleanupGate()
-        let runtime = DefaultAgentRuntime(adapters: [BlockingTerminationProviderAdapter(gate: gate)])
+        let runtime = DefaultAgentRuntime(adapters: [BlockingTerminationHarnessAdapter(gate: gate)])
         let conversationId: AgentConversationID = "conversation"
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
 
@@ -151,9 +151,9 @@ final class DefaultAgentRuntimeStartRaceTests: XCTestCase {
         await destroyTask.value
     }
 
-    func testShutdownHidesStateBeforeProviderCleanupCompletes() async throws {
+    func testShutdownHidesStateBeforeHarnessCleanupCompletes() async throws {
         let gate = TerminationCleanupGate()
-        let runtime = DefaultAgentRuntime(adapters: [BlockingTerminationProviderAdapter(gate: gate)])
+        let runtime = DefaultAgentRuntime(adapters: [BlockingTerminationHarnessAdapter(gate: gate)])
         let conversationId: AgentConversationID = "conversation"
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
 
@@ -249,9 +249,9 @@ private actor StartRaceProbe {
     }
 }
 
-private struct DelayedStartProviderAdapter: AgentProviderAdapter {
+private struct DelayedStartHarnessAdapter: AgentHarnessAdapter {
     let probe: StartRaceProbe
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -271,10 +271,10 @@ private struct DelayedStartProviderAdapter: AgentProviderAdapter {
     }
 }
 
-private struct DelayedPrepareProviderAdapter: AgentProviderAdapter {
+private struct DelayedPrepareHarnessAdapter: AgentHarnessAdapter {
     let startProbe: StartRaceProbe
-    let lifecycleProbe: ProviderLifecycleProbe
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let lifecycleProbe: HarnessLifecycleProbe
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -338,9 +338,9 @@ private actor ShutdownRaceGate {
     }
 }
 
-private struct ShutdownBlockingProviderAdapter: AgentProviderAdapter {
+private struct ShutdownBlockingHarnessAdapter: AgentHarnessAdapter {
     let gate: ShutdownRaceGate
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -357,7 +357,7 @@ private struct ShutdownBlockingProviderAdapter: AgentProviderAdapter {
         Data()
     }
 
-    func shutdownProviderResources() async {
+    func shutdownHarnessResources() async {
         await gate.suspendShutdown()
     }
 }
@@ -391,9 +391,9 @@ private actor TerminationCleanupGate {
     }
 }
 
-private struct BlockingTerminationProviderAdapter: AgentProviderAdapter {
+private struct BlockingTerminationHarnessAdapter: AgentHarnessAdapter {
     let gate: TerminationCleanupGate
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,

@@ -1,7 +1,7 @@
-## Claude Provider
+## Claude Harness
 
 - Keep Claude launch arguments, stream wire decoding, settings/trust config, hook server behavior, model defaults, and approval policies here.
-- Keep provider-neutral runtime, session, event, hook-token, and interaction APIs outside this folder.
+- Keep harness-neutral runtime, session, event, hook-token, and interaction APIs outside this folder.
 - `ClaudeModelCatalog` is the only Claude model list, because the CLI has no listing command. Every entry is a pinned version; keep a family alias as `shortName` on each family's newest entry, or hosts lose typed input and strand alias selections they already persisted.
 - Keep `--verbose` with `--output-format stream-json`; Claude structured streaming depends on it.
 - Resume with `--resume` only when the canonical Claude session file exists; otherwise preserve continuity with `--session-id`.
@@ -11,7 +11,7 @@
 - Keep Claude speed mode unsupported; do not map fast mode to `--bare`, because that disables hooks and other host integration.
 - When `collaborationMode == .plan`, effective Claude launch permission mode is `"plan"` and takes precedence over approval `permissionMode`.
 - Register `PreCompact` and `PostCompact` hooks independently from approval-hook gating; do not model compaction as a tool-use hook.
-- If generated hook listener/settings prep fails, keep launching Claude without `--settings` instead of failing provider spawn solely because hooks are unavailable.
+- If generated hook listener/settings prep fails, keep launching Claude without `--settings` instead of failing harness spawn solely because hooks are unavailable.
 - `AskUserQuestion` deferred events should surface as `.prompt`, and `ExitPlanMode` deferred events as `.planModeExit`.
 - `content_block_start` for a `thinking` block decodes as a `"\n\n"` reasoning event so consecutive thinking blocks do not concatenate in hosts that append deltas. The decoder stays stateless, so the first thinking block of a turn also emits a leading break; hosts drop one that arrives with no reasoning text yet.
 - Correlate Claude compact stdout and hook events with the process token so consumers see stable `contextCompaction` IDs for start and terminal phases.
@@ -23,7 +23,7 @@
 - Hook approval interaction IDs must reuse Claude's `tool_use_id` / `toolUseId` / `toolUseID` when available; missing IDs need a stable fallback so retries can consume the same host decision.
 - Keep Claude transcript inspection helpers here. Host apps should use `ClaudeHookTranscriptReader` for restored hook approval state instead of parsing Claude JSONL session files themselves.
 - Stdin interaction resolutions are a Claude no-op: the CLI has no such message type, so `ClaudeInputEncoder` encodes them as empty data. Claude interactions resolve through hook decisions plus deferred-tool resume; a resume re-runs a deferred tool only when the transcript has its `hook_deferred_tool` marker (`ClaudeHookTranscriptReader.hasDeferredToolMarker`).
-- Claude setup readiness is probe-backed through `ClaudeAuthProbe`, which spawns the CLI because the OAuth credential lives in the keychain. An inconclusive probe reports ready (`ClaudeAuthReadiness.allowsProviderWork`), so a failed spawn cannot lock a host out of a working CLI.
-- Keep result-error auth text matching in `ClaudeAuthFailureText` so hosts read `AgentDiagnosticCode.providerAuthenticationRequired` instead of matching provider wire text themselves.
+- Claude setup readiness is probe-backed through `ClaudeAuthProbe`, which spawns the CLI because the OAuth credential lives in the keychain. An inconclusive probe reports ready (`ClaudeAuthReadiness.allowsHarnessWork`), so a failed spawn cannot lock a host out of a working CLI.
+- Keep result-error auth text matching in `ClaudeAuthFailureText` so hosts read `AgentDiagnosticCode.harnessAuthenticationRequired` instead of matching harness wire text themselves.
 - Every `result` frame decodes as terminal usage; only `ClaudeNoOpTurnTracker` may downgrade one, and only after task-notification traffic. A shape-only filter on zero usage breaks hosts that rely on the unknown-slash-command result staying terminal.
-- Stamp `AgentBackgroundTaskMetadata.delivery` on every terminal sub-agent event from task-notification traffic: system `task_notification`, `task-notification` user messages, and `queued_command` attachments are `dequeued`; `queue-operation` enqueues are `enqueued`. The runtime starts a provider-initiated turn only for `dequeued`.
+- Stamp `AgentBackgroundTaskMetadata.delivery` on every terminal sub-agent event from task-notification traffic: system `task_notification`, `task-notification` user messages, and `queued_command` attachments are `dequeued`; `queue-operation` enqueues are `enqueued`. The runtime starts a harness-initiated turn only for `dequeued`.

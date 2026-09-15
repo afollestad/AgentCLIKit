@@ -13,8 +13,8 @@ extension DefaultAgentRuntimeTests {
     }
 
     func testRuntimeAdapterSetKeepsExplicitAdapterOverride() async {
-        let runtime = DefaultAgentRuntime(adapterSet: AgentProviderAdapterSet(overriding: [
-            FakeProviderAdapter(command: shell("printf 'message:override\\n'"))
+        let runtime = DefaultAgentRuntime(adapterSet: AgentHarnessAdapterSet(overriding: [
+            FakeHarnessAdapter(command: shell("printf 'message:override\\n'"))
         ]))
 
         let adapters = await runtime.adapters
@@ -23,18 +23,18 @@ extension DefaultAgentRuntimeTests {
         XCTAssertEqual(adapters[.codex]?.definition.displayName, "Codex")
     }
 
-    func testEmptyAdapterSetReportsProviderNotRegistered() async throws {
-        let runtime = DefaultAgentRuntime(adapterSet: AgentProviderAdapterSet(adapters: []))
+    func testEmptyAdapterSetReportsHarnessNotRegistered() async throws {
+        let runtime = DefaultAgentRuntime(adapterSet: AgentHarnessAdapterSet(adapters: []))
 
         do {
             try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
-            XCTFail("Expected missing provider to fail before launch.")
+            XCTFail("Expected missing harness to fail before launch.")
         } catch let error as AgentCLIError {
-            guard case let .providerNotRegistered(providerId) = error else {
-                XCTFail("Expected providerNotRegistered, got \(error).")
+            guard case let .harnessNotRegistered(harnessId) = error else {
+                XCTFail("Expected harnessNotRegistered, got \(error).")
                 return
             }
-            XCTAssertEqual(providerId, .claude)
+            XCTAssertEqual(harnessId, .claude)
         }
     }
 }

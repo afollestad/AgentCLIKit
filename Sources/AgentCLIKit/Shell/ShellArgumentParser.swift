@@ -1,13 +1,13 @@
 import Foundation
 
-/// Parser for shell-style argument strings used in provider configuration.
+/// Parser for shell-style argument strings used in harness configuration.
 public enum ShellArgumentParser {
     // This compact state machine keeps quoting and escaping behavior in one pass.
     // swiftlint:disable cyclomatic_complexity function_body_length
     /// Splits a shell-style argument string into arguments.
     ///
     /// The parser intentionally supports only portable quoting and escaping rules needed by
-    /// provider launch configuration. It does not evaluate variables, command substitution, or globs.
+    /// harness launch configuration. It does not evaluate variables, command substitution, or globs.
     public static func parse(_ string: String) throws -> [String] {
         try lex(string).map(\.value)
     }

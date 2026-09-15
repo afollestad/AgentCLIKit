@@ -10,19 +10,19 @@ actor OutOfOrderSessionStore: AgentSessionStore {
         self.delays = delays
     }
 
-    func record(conversationId: AgentConversationID, providerId: AgentProviderID) async throws -> AgentSessionRecord? {
+    func record(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws -> AgentSessionRecord? {
         records[conversationId]
     }
 
     func save(_ record: AgentSessionRecord) async throws {
-        let delayKey = record.providerSessionName ?? record.providerSessionPreview ?? record.providerSessionId.rawValue
-        if let delay = delays[delayKey] ?? delays[record.providerSessionId.rawValue] {
+        let delayKey = record.harnessSessionName ?? record.harnessSessionPreview ?? record.harnessSessionId.rawValue
+        if let delay = delays[delayKey] ?? delays[record.harnessSessionId.rawValue] {
             try await Task.sleep(nanoseconds: delay)
         }
         records[record.conversationId] = record
     }
 
-    func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws {
+    func remove(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws {
         records[conversationId] = nil
     }
 
@@ -41,22 +41,22 @@ actor SelectiveFailureOutOfOrderSessionStore: AgentSessionStore {
         self.failingKeys = failingKeys
     }
 
-    func record(conversationId: AgentConversationID, providerId: AgentProviderID) async throws -> AgentSessionRecord? {
+    func record(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws -> AgentSessionRecord? {
         records[conversationId]
     }
 
     func save(_ record: AgentSessionRecord) async throws {
-        let delayKey = record.providerSessionName ?? record.providerSessionPreview ?? record.providerSessionId.rawValue
-        if let delay = delays[delayKey] ?? delays[record.providerSessionId.rawValue] {
+        let delayKey = record.harnessSessionName ?? record.harnessSessionPreview ?? record.harnessSessionId.rawValue
+        if let delay = delays[delayKey] ?? delays[record.harnessSessionId.rawValue] {
             try await Task.sleep(nanoseconds: delay)
         }
-        if failingKeys.contains(delayKey) || failingKeys.contains(record.providerSessionId.rawValue) {
+        if failingKeys.contains(delayKey) || failingKeys.contains(record.harnessSessionId.rawValue) {
             throw AgentCLIError.invalidInput("session store rejected save")
         }
         records[record.conversationId] = record
     }
 
-    func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws {
+    func remove(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws {
         records[conversationId] = nil
     }
 

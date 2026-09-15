@@ -70,7 +70,7 @@ final class ClaudeStreamDecoderCompactionTests: XCTestCase {
           "type": "system",
           "session_id": "session-123",
           "compact_result": "failed",
-          "compact_error": "Provider reported a compact failure.",
+          "compact_error": "Harness reported a compact failure.",
           "compactMetadata": {
             "trigger": "manual",
             "preTokens": 100000
@@ -83,12 +83,12 @@ final class ClaudeStreamDecoderCompactionTests: XCTestCase {
                 id: "claude-context-compaction-session-123-failed",
                 phase: .failed,
                 trigger: "manual",
-                errorMessage: "Provider reported a compact failure.",
+                errorMessage: "Harness reported a compact failure.",
                 preTokens: 100_000,
                 metadata: [
                     "session_id": .string("session-123"),
                     "compact_result": .string("failed"),
-                    "compact_error": .string("Provider reported a compact failure."),
+                    "compact_error": .string("Harness reported a compact failure."),
                     "trigger": .string("manual"),
                     "pre_tokens": .number(100_000)
                 ]

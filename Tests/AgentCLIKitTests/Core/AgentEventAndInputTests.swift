@@ -7,9 +7,9 @@ final class AgentEventAndInputTests: XCTestCase {
         let envelope = AgentEventEnvelope(
             generation: 1,
             index: 3,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: "provider-session",
+            harnessSessionId: "harness-session",
             source: .stdout,
             event: .message(AgentMessageEvent(role: .assistant, text: "Done.")),
             createdAt: Date(timeIntervalSince1970: 10)
@@ -144,7 +144,7 @@ final class AgentEventAndInputTests: XCTestCase {
 
     func testSessionMetadataEventRoundTripsThroughJSONAndDefaultsMetadata() throws {
         let event = AgentEvent.sessionMetadata(AgentSessionMetadataEvent(
-            providerSessionId: "session-1",
+            harnessSessionId: "session-1",
             name: "Generated Name",
             preview: "Generated Preview",
             metadata: ["provider": .string("codex")]
@@ -207,9 +207,9 @@ final class AgentEventAndInputTests: XCTestCase {
         let envelope = AgentEventEnvelope(
             generation: 1,
             index: 3,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: "provider-session",
+            harnessSessionId: "harness-session",
             source: .stdout,
             event: .toolCall(AgentToolCallEvent(
                 id: "tool-1",
@@ -301,7 +301,7 @@ final class AgentEventAndInputTests: XCTestCase {
 
     func testAgentSpawnConfigRoundTripsSessionForkThroughJSON() throws {
         let config = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: URL(fileURLWithPath: "/tmp/target"),
             sessionFork: AgentSessionForkRequest(
                 sourceSessionId: "source-session",
@@ -371,7 +371,7 @@ final class AgentEventAndInputTests: XCTestCase {
 
     private func hostToolSpawnConfig() -> AgentSpawnConfig {
         AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
             reasoningSummaryMode: .auto,
             permissionMode: "on-request",

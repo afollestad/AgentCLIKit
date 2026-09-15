@@ -88,7 +88,7 @@ extension CodexAppServerClient {
         )
         if speedMode == .fast, !supportsFastMode {
             throw AgentCLIError.unsupportedCapability(
-                providerId: CodexProviderAdapter.providerId,
+                harnessId: CodexHarnessAdapter.harnessId,
                 capability: "fast mode"
             )
         }
@@ -106,7 +106,7 @@ extension CodexAppServerClient {
         if spawnConfig.initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
            !supportsGoalMode {
             throw AgentCLIError.unsupportedCapability(
-                providerId: CodexProviderAdapter.providerId,
+                harnessId: CodexHarnessAdapter.harnessId,
                 capability: "goal mode"
             )
         }
@@ -167,7 +167,7 @@ extension CodexAppServerClient {
             return
         }
         throw AgentCLIError.unsupportedCapability(
-            providerId: CodexProviderAdapter.providerId,
+            harnessId: CodexHarnessAdapter.harnessId,
             capability: "app shots"
         )
     }
@@ -181,7 +181,7 @@ extension CodexAppServerClient {
         for attachment in message.attachments {
             guard attachment.isLocalImage else {
                 throw AgentCLIError.unsupportedInputAttachment(
-                    providerId: CodexProviderAdapter.providerId,
+                    harnessId: CodexHarnessAdapter.harnessId,
                     attachmentId: attachment.id,
                     type: attachment.type,
                     reason: "Codex only supports local image attachments."
@@ -189,7 +189,7 @@ extension CodexAppServerClient {
             }
             guard let fileURL = attachment.fileURL, fileURL.isFileURL, !fileURL.path.isEmpty else {
                 throw AgentCLIError.unsupportedInputAttachment(
-                    providerId: CodexProviderAdapter.providerId,
+                    harnessId: CodexHarnessAdapter.harnessId,
                     attachmentId: attachment.id,
                     type: attachment.type,
                     reason: "Local image attachments require a file URL."

@@ -73,7 +73,7 @@ extension DefaultAgentHostToolServer {
         let event = AgentHostToolServerFailure(
             processTokens: processTokens,
             message: "Host tools became unavailable because the local listener stopped unexpectedly. "
-                + "Replace the affected provider process before using host tools again."
+                + "Replace the affected harness process before using host tools again."
         )
         failureContinuations.values.forEach { $0.yield(event) }
     }

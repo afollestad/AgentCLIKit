@@ -391,8 +391,8 @@ private final class ClaudeConfigSnapshotCache: @unchecked Sendable {
 
 /// Bridge between generic MCP config and Claude config.
 public struct ClaudeMCPBridge: AgentMCPConfigAdapter {
-    /// Claude provider identifier.
-    public let providerId = ClaudeProviderAdapter.providerId
+    /// Claude harness identifier.
+    public let harnessId = ClaudeHarnessAdapter.harnessId
 
     /// Creates a Claude MCP bridge.
     public init() {}

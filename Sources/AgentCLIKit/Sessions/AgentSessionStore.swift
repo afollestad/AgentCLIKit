@@ -1,35 +1,35 @@
 import Foundation
 
-/// Persisted mapping between a host conversation and a provider session.
+/// Persisted mapping between a host conversation and a harness session.
 public struct AgentSessionRecord: Codable, Equatable, Sendable {
     /// Host-defined conversation identifier.
     public let conversationId: AgentConversationID
-    /// Provider identifier for the session.
-    public let providerId: AgentProviderID
-    /// Provider-defined session identifier.
-    public let providerSessionId: AgentSessionID
-    /// Provider-reported user-facing session name when known.
-    public let providerSessionName: String?
-    /// Provider-reported user-facing session preview when known.
-    public let providerSessionPreview: String?
-    /// Canonical working directory associated with the provider session, when known.
+    /// Harness identifier for the session.
+    public let harnessId: AgentHarnessID
+    /// Harness-defined session identifier.
+    public let harnessSessionId: AgentSessionID
+    /// Harness-reported user-facing session name when known.
+    public let harnessSessionName: String?
+    /// Harness-reported user-facing session preview when known.
+    public let harnessSessionPreview: String?
+    /// Canonical working directory associated with the harness session, when known.
     public let workingDirectory: URL?
-    /// Runtime generation associated with the provider session.
+    /// Runtime generation associated with the harness session.
     public let generation: Int
     /// Date the record was created.
     public let createdAt: Date
     /// Date the record was last updated.
     public let updatedAt: Date
-    /// Additional provider-neutral metadata.
+    /// Additional harness-neutral metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a session record.
     public init(
         conversationId: AgentConversationID,
-        providerId: AgentProviderID,
-        providerSessionId: AgentSessionID,
-        providerSessionName: String? = nil,
-        providerSessionPreview: String? = nil,
+        harnessId: AgentHarnessID,
+        harnessSessionId: AgentSessionID,
+        harnessSessionName: String? = nil,
+        harnessSessionPreview: String? = nil,
         workingDirectory: URL? = nil,
         generation: Int,
         createdAt: Date = Date(),
@@ -37,10 +37,10 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
         metadata: [String: JSONValue] = [:]
     ) {
         self.conversationId = conversationId
-        self.providerId = providerId
-        self.providerSessionId = providerSessionId
-        self.providerSessionName = providerSessionName
-        self.providerSessionPreview = providerSessionPreview
+        self.harnessId = harnessId
+        self.harnessSessionId = harnessSessionId
+        self.harnessSessionName = harnessSessionName
+        self.harnessSessionPreview = harnessSessionPreview
         self.workingDirectory = workingDirectory.map(AgentPathHelpers.canonicalFileURL)
         self.generation = generation
         self.createdAt = createdAt
@@ -52,47 +52,61 @@ public struct AgentSessionRecord: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
-        providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
-        providerSessionId = try container.decode(AgentSessionID.self, forKey: .providerSessionId)
-        providerSessionName = try container.decodeIfPresent(String.self, forKey: .providerSessionName)
-        providerSessionPreview = try container.decodeIfPresent(String.self, forKey: .providerSessionPreview)
+        harnessId = try container.decode(AgentHarnessID.self, forKey: .harnessId)
+        harnessSessionId = try container.decode(AgentSessionID.self, forKey: .harnessSessionId)
+        harnessSessionName = try container.decodeIfPresent(String.self, forKey: .harnessSessionName)
+        harnessSessionPreview = try container.decodeIfPresent(String.self, forKey: .harnessSessionPreview)
         workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory).map(AgentPathHelpers.canonicalFileURL)
         generation = try container.decode(Int.self, forKey: .generation)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         metadata = try container.decodeIfPresent([String: JSONValue].self, forKey: .metadata) ?? [:]
     }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case conversationId
+        case harnessId = "providerId"
+        case harnessSessionId = "providerSessionId"
+        case harnessSessionName = "providerSessionName"
+        case harnessSessionPreview = "providerSessionPreview"
+        case workingDirectory
+        case generation
+        case createdAt
+        case updatedAt
+        case metadata
+    }
 }
 
 public extension AgentSessionRecord {
-    /// Metadata key holding provider sessions this conversation used before `providerSessionId`.
-    static let supersededProviderSessionIdsMetadataKey = "superseded_provider_session_ids"
+    /// Metadata key holding harness sessions this conversation used before `harnessSessionId`; retain its persisted spelling.
+    static let supersededHarnessSessionIdsMetadataKey = "superseded_provider_session_ids"
 
     /// Maximum retained lineage entries, so a long-lived conversation cannot grow its record without bound.
-    static let supersededProviderSessionIdLimit = 128
+    static let supersededHarnessSessionIdLimit = 128
 
-    /// Provider sessions this conversation replaced, oldest first.
+    /// Harness sessions this conversation replaced, oldest first.
     ///
-    /// A provider that swaps a conversation onto a new native session — Codex forks a thread whenever a resumed
-    /// runtime needs a fresh host-tool route — leaves the previous session behind. Retiring only `providerSessionId`
+    /// A harness that swaps a conversation onto a new native session — Codex forks a thread whenever a resumed
+    /// runtime needs a fresh host-tool route — leaves the previous session behind. Retiring only `harnessSessionId`
     /// would orphan every earlier one, so the lineage travels with the record.
-    var supersededProviderSessionIds: [AgentSessionID] {
-        Self.supersededProviderSessionRawValues(in: metadata).map(AgentSessionID.init(rawValue:))
+    var supersededHarnessSessionIds: [AgentSessionID] {
+        Self.supersededHarnessSessionRawValues(in: metadata).map(AgentSessionID.init(rawValue:))
     }
 
-    /// Returns this record aimed at one superseded provider session, with no lineage of its own.
+    /// Returns this record aimed at one superseded harness session, with no lineage of its own.
     ///
-    /// Provider session actions fan out over `supersededProviderSessionIds`, so the per-session record they act on
+    /// Harness session actions fan out over `supersededHarnessSessionIds`, so the per-session record they act on
     /// must carry an empty lineage or the fan-out would recurse.
-    func retargeted(to providerSessionId: AgentSessionID) -> AgentSessionRecord {
+    func retargeted(to harnessSessionId: AgentSessionID) -> AgentSessionRecord {
         var retargetedMetadata = metadata
-        retargetedMetadata[Self.supersededProviderSessionIdsMetadataKey] = nil
+        retargetedMetadata[Self.supersededHarnessSessionIdsMetadataKey] = nil
         return AgentSessionRecord(
             conversationId: conversationId,
-            providerId: providerId,
-            providerSessionId: providerSessionId,
-            providerSessionName: providerSessionName,
-            providerSessionPreview: providerSessionPreview,
+            harnessId: harnessId,
+            harnessSessionId: harnessSessionId,
+            harnessSessionName: harnessSessionName,
+            harnessSessionPreview: harnessSessionPreview,
             workingDirectory: workingDirectory,
             generation: generation,
             createdAt: createdAt,
@@ -101,24 +115,24 @@ public extension AgentSessionRecord {
         )
     }
 
-    /// Appends `providerSessionId` to `metadata`'s lineage, ignoring duplicates and trimming to the retention limit.
-    static func appendingSupersededProviderSessionId(
-        _ providerSessionId: AgentSessionID,
+    /// Appends `harnessSessionId` to `metadata`'s lineage, ignoring duplicates and trimming to the retention limit.
+    static func appendingSupersededHarnessSessionId(
+        _ harnessSessionId: AgentSessionID,
         to metadata: [String: JSONValue]
     ) -> [String: JSONValue] {
-        var existing = supersededProviderSessionRawValues(in: metadata)
-        guard !existing.contains(providerSessionId.rawValue) else {
+        var existing = supersededHarnessSessionRawValues(in: metadata)
+        guard !existing.contains(harnessSessionId.rawValue) else {
             return metadata
         }
-        existing.append(providerSessionId.rawValue)
-        let retained = existing.suffix(supersededProviderSessionIdLimit)
+        existing.append(harnessSessionId.rawValue)
+        let retained = existing.suffix(supersededHarnessSessionIdLimit)
         var updated = metadata
-        updated[supersededProviderSessionIdsMetadataKey] = .array(retained.map(JSONValue.string))
+        updated[supersededHarnessSessionIdsMetadataKey] = .array(retained.map(JSONValue.string))
         return updated
     }
 
-    private static func supersededProviderSessionRawValues(in metadata: [String: JSONValue]) -> [String] {
-        guard case let .array(values)? = metadata[supersededProviderSessionIdsMetadataKey] else {
+    private static func supersededHarnessSessionRawValues(in metadata: [String: JSONValue]) -> [String] {
+        guard case let .array(values)? = metadata[supersededHarnessSessionIdsMetadataKey] else {
             return []
         }
         return values.compactMap { value in
@@ -130,24 +144,24 @@ public extension AgentSessionRecord {
     }
 }
 
-/// Storage contract for provider session mappings.
+/// Storage contract for harness session mappings.
 public protocol AgentSessionStore: Sendable {
-    /// Loads the latest record for a host conversation and provider.
-    func record(conversationId: AgentConversationID, providerId: AgentProviderID) async throws -> AgentSessionRecord?
+    /// Loads the latest record for a host conversation and harness.
+    func record(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws -> AgentSessionRecord?
     /// Saves or replaces a session record.
     func save(_ record: AgentSessionRecord) async throws
     /// Removes a session record.
-    func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws
+    func remove(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws
     /// Lists all session records.
     func allRecords() async throws -> [AgentSessionRecord]
 }
 
 public extension AgentSessionStore {
-    /// Loads records matching a provider and, when supplied, a canonical working directory.
-    func records(providerId: AgentProviderID, workingDirectory: URL? = nil) async throws -> [AgentSessionRecord] {
+    /// Loads records matching a harness and, when supplied, a canonical working directory.
+    func records(harnessId: AgentHarnessID, workingDirectory: URL? = nil) async throws -> [AgentSessionRecord] {
         let canonicalWorkingDirectory = workingDirectory.map(AgentPathHelpers.canonicalPath)
         return try await allRecords().filter { record in
-            guard record.providerId == providerId else {
+            guard record.harnessId == harnessId else {
                 return false
             }
             guard let canonicalWorkingDirectory else {
@@ -157,34 +171,34 @@ public extension AgentSessionStore {
         }
     }
 
-    /// Loads a record by provider session, optionally scoped to a canonical working directory.
+    /// Loads a record by harness session, optionally scoped to a canonical working directory.
     func record(
-        providerId: AgentProviderID,
-        providerSessionId: AgentSessionID,
+        harnessId: AgentHarnessID,
+        harnessSessionId: AgentSessionID,
         workingDirectory: URL? = nil
     ) async throws -> AgentSessionRecord? {
-        try await records(providerId: providerId, workingDirectory: workingDirectory)
-            .first { $0.providerSessionId == providerSessionId }
+        try await records(harnessId: harnessId, workingDirectory: workingDirectory)
+            .first { $0.harnessSessionId == harnessSessionId }
     }
 
-    /// Removes records matching a provider session, optionally scoped to a canonical working directory.
+    /// Removes records matching a harness session, optionally scoped to a canonical working directory.
     func remove(
-        providerId: AgentProviderID,
-        providerSessionId: AgentSessionID,
+        harnessId: AgentHarnessID,
+        harnessSessionId: AgentSessionID,
         workingDirectory: URL? = nil
     ) async throws {
-        let records = try await records(providerId: providerId, workingDirectory: workingDirectory)
-            .filter { $0.providerSessionId == providerSessionId }
+        let records = try await records(harnessId: harnessId, workingDirectory: workingDirectory)
+            .filter { $0.harnessSessionId == harnessSessionId }
         for record in records {
-            try await remove(conversationId: record.conversationId, providerId: record.providerId)
+            try await remove(conversationId: record.conversationId, harnessId: record.harnessId)
         }
     }
 
-    /// Removes all records for a provider, optionally scoped to a canonical working directory.
-    func remove(providerId: AgentProviderID, workingDirectory: URL? = nil) async throws {
-        let records = try await records(providerId: providerId, workingDirectory: workingDirectory)
+    /// Removes all records for a harness, optionally scoped to a canonical working directory.
+    func remove(harnessId: AgentHarnessID, workingDirectory: URL? = nil) async throws {
+        let records = try await records(harnessId: harnessId, workingDirectory: workingDirectory)
         for record in records {
-            try await remove(conversationId: record.conversationId, providerId: record.providerId)
+            try await remove(conversationId: record.conversationId, harnessId: record.harnessId)
         }
     }
 }
@@ -195,29 +209,29 @@ public actor InMemoryAgentSessionStore: AgentSessionStore {
 
     /// Creates an in-memory session store.
     public init(records: [AgentSessionRecord] = []) {
-        self.records = Dictionary(records.map { (SessionKey($0.conversationId, $0.providerId), $0) }, uniquingKeysWith: { _, new in new })
+        self.records = Dictionary(records.map { (SessionKey($0.conversationId, $0.harnessId), $0) }, uniquingKeysWith: { _, new in new })
     }
 
-    /// Loads the latest record for a host conversation and provider.
-    public func record(conversationId: AgentConversationID, providerId: AgentProviderID) async throws -> AgentSessionRecord? {
-        records[SessionKey(conversationId, providerId)]
+    /// Loads the latest record for a host conversation and harness.
+    public func record(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws -> AgentSessionRecord? {
+        records[SessionKey(conversationId, harnessId)]
     }
 
     /// Saves or replaces a session record.
     public func save(_ record: AgentSessionRecord) async throws {
-        records[SessionKey(record.conversationId, record.providerId)] = record
+        records[SessionKey(record.conversationId, record.harnessId)] = record
     }
 
     /// Removes a session record.
-    public func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws {
-        records[SessionKey(conversationId, providerId)] = nil
+    public func remove(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws {
+        records[SessionKey(conversationId, harnessId)] = nil
     }
 
     /// Lists all session records.
     public func allRecords() async throws -> [AgentSessionRecord] {
         records.values.sorted {
             if $0.conversationId.rawValue == $1.conversationId.rawValue {
-                return $0.providerId.rawValue < $1.providerId.rawValue
+                return $0.harnessId.rawValue < $1.harnessId.rawValue
             }
             return $0.conversationId.rawValue < $1.conversationId.rawValue
         }
@@ -242,22 +256,22 @@ public actor JSONFileAgentSessionStore: AgentSessionStore {
         decoder.dateDecodingStrategy = .iso8601
     }
 
-    /// Loads the latest record for a host conversation and provider.
-    public func record(conversationId: AgentConversationID, providerId: AgentProviderID) async throws -> AgentSessionRecord? {
-        try readRecords()[SessionKey(conversationId, providerId)]
+    /// Loads the latest record for a host conversation and harness.
+    public func record(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws -> AgentSessionRecord? {
+        try readRecords()[SessionKey(conversationId, harnessId)]
     }
 
     /// Saves or replaces a session record.
     public func save(_ record: AgentSessionRecord) async throws {
         var records = try readRecords()
-        records[SessionKey(record.conversationId, record.providerId)] = record
+        records[SessionKey(record.conversationId, record.harnessId)] = record
         try writeRecords(records)
     }
 
     /// Removes a session record.
-    public func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws {
+    public func remove(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws {
         var records = try readRecords()
-        records[SessionKey(conversationId, providerId)] = nil
+        records[SessionKey(conversationId, harnessId)] = nil
         try writeRecords(records)
     }
 
@@ -265,7 +279,7 @@ public actor JSONFileAgentSessionStore: AgentSessionStore {
     public func allRecords() async throws -> [AgentSessionRecord] {
         try readRecords().values.sorted {
             if $0.conversationId.rawValue == $1.conversationId.rawValue {
-                return $0.providerId.rawValue < $1.providerId.rawValue
+                return $0.harnessId.rawValue < $1.harnessId.rawValue
             }
             return $0.conversationId.rawValue < $1.conversationId.rawValue
         }
@@ -278,7 +292,7 @@ public actor JSONFileAgentSessionStore: AgentSessionStore {
         do {
             let data = try Data(contentsOf: fileURL)
             let records = try decoder.decode([AgentSessionRecord].self, from: data)
-            return Dictionary(records.map { (SessionKey($0.conversationId, $0.providerId), $0) }, uniquingKeysWith: { _, new in new })
+            return Dictionary(records.map { (SessionKey($0.conversationId, $0.harnessId), $0) }, uniquingKeysWith: { _, new in new })
         } catch {
             throw AgentCLIError.sessionStoreFailed(error.localizedDescription)
         }
@@ -291,7 +305,7 @@ public actor JSONFileAgentSessionStore: AgentSessionStore {
             // Store records as a sorted array to keep diffs deterministic for host apps that sync config files.
             let values = records.values.sorted {
                 if $0.conversationId.rawValue == $1.conversationId.rawValue {
-                    return $0.providerId.rawValue < $1.providerId.rawValue
+                    return $0.harnessId.rawValue < $1.harnessId.rawValue
                 }
                 return $0.conversationId.rawValue < $1.conversationId.rawValue
             }
@@ -304,10 +318,10 @@ public actor JSONFileAgentSessionStore: AgentSessionStore {
 
 private struct SessionKey: Hashable {
     let conversationId: AgentConversationID
-    let providerId: AgentProviderID
+    let harnessId: AgentHarnessID
 
-    init(_ conversationId: AgentConversationID, _ providerId: AgentProviderID) {
+    init(_ conversationId: AgentConversationID, _ harnessId: AgentHarnessID) {
         self.conversationId = conversationId
-        self.providerId = providerId
+        self.harnessId = harnessId
     }
 }

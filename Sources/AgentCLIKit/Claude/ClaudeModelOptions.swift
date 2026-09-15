@@ -6,9 +6,9 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
     public init() {}
 
     /// Returns Claude model options with model-scoped effort metadata.
-    public func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] {
-        guard providerId == ClaudeProviderDefinition.providerId else {
-            return AgentDefaultModelOptions.providerDefault(for: providerId)
+    public func modelOptions(for harnessId: AgentHarnessID) async -> [AgentModelOption] {
+        guard harnessId == ClaudeHarnessDefinition.harnessId else {
+            return AgentDefaultModelOptions.harnessDefault(for: harnessId)
         }
         return Self.staticModelOptions
     }
@@ -20,7 +20,7 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
     public static var staticModelOptions: [AgentModelOption] {
         ClaudeModelCatalog.entries.map { entry in
             AgentModelOption(
-                providerId: ClaudeProviderDefinition.providerId,
+                harnessId: ClaudeHarnessDefinition.harnessId,
                 id: entry.id,
                 model: entry.id,
                 label: entry.label,
@@ -33,8 +33,8 @@ public struct ClaudeModelOptionSource: AgentModelOptionSource {
         }
     }
 
-    private static func effortOption(_ value: String) -> AgentProviderOption {
-        AgentProviderOption(
+    private static func effortOption(_ value: String) -> AgentHarnessOption {
+        AgentHarnessOption(
             value: value,
             label: effortLabel(for: value),
             description: "Use \(effortLabel(for: value).lowercased()) reasoning effort."

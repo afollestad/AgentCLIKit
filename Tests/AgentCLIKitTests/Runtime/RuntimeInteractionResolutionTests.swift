@@ -6,11 +6,11 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
     func testPlanProposalMessageSynthesizesPlanModeExitInteraction() async throws {
         let recorder = PlanProposalRecorder()
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanProposalProviderAdapter(recorder: recorder)
+            PlanProposalHarnessAdapter(recorder: recorder)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             collaborationMode: .plan
         )
@@ -42,15 +42,15 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
             return message
         }.first)
         XCTAssertEqual(planMessage.role, .assistant)
-        XCTAssertEqual(planMessage.text, PlanProposalProviderAdapter.planMarkdown)
+        XCTAssertEqual(planMessage.text, PlanProposalHarnessAdapter.planMarkdown)
         XCTAssertEqual(planMessage.metadata[AgentPlanProposalMetadata.isProposal], .bool(true))
         XCTAssertEqual(planMessage.metadata[AgentPlanProposalMetadata.proposalId], .string("plan-1"))
-        XCTAssertEqual(planMessage.metadata[AgentPlanProposalMetadata.planMarkdown], .string(PlanProposalProviderAdapter.planMarkdown))
+        XCTAssertEqual(planMessage.metadata[AgentPlanProposalMetadata.planMarkdown], .string(PlanProposalHarnessAdapter.planMarkdown))
         XCTAssertEqual(interaction.id, "runtime-plan-exit-plan-1")
         XCTAssertEqual(interaction.prompt, "ExitPlanMode")
         XCTAssertEqual(interaction.metadata["tool_name"], .string("ExitPlanMode"))
-        XCTAssertEqual(interaction.metadata["tool_input"], .object(["plan": .string(PlanProposalProviderAdapter.planMarkdown)]))
-        XCTAssertEqual(interaction.metadata["plan"], .string(PlanProposalProviderAdapter.planMarkdown))
+        XCTAssertEqual(interaction.metadata["tool_input"], .object(["plan": .string(PlanProposalHarnessAdapter.planMarkdown)]))
+        XCTAssertEqual(interaction.metadata["plan"], .string(PlanProposalHarnessAdapter.planMarkdown))
         XCTAssertEqual(status?.waitingState, .planModeExit)
         XCTAssertEqual(status?.inputAvailability, .blocked(reason: "Waiting for plan-mode approval."))
     }
@@ -58,11 +58,11 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
     func testApprovedSyntheticPlanModeExitSwitchesToDefaultAndStartsImplementation() async throws {
         let recorder = PlanProposalRecorder()
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanProposalProviderAdapter(recorder: recorder)
+            PlanProposalHarnessAdapter(recorder: recorder)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             collaborationMode: .plan
         )
@@ -106,14 +106,14 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
         XCTAssertEqual(status?.waitingState, .idle)
     }
 
-    func testApprovedProviderPlanModeExitRespondsThenStartsImplementation() async throws {
+    func testApprovedHarnessPlanModeExitRespondsThenStartsImplementation() async throws {
         let recorder = PlanProposalRecorder()
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanProposalProviderAdapter(recorder: recorder, emitsProviderPlanExit: true)
+            PlanProposalHarnessAdapter(recorder: recorder, emitsHarnessPlanExit: true)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             collaborationMode: .plan
         )
@@ -125,7 +125,7 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
         })
         let interaction = try XCTUnwrap(Self.firstPlanModeExit(in: events))
         async let userMessageEvents = Self.collect(subscription.events, until: { envelopes in
-            envelopes.contains { $0.event == Self.providerPlanExitUserMessage }
+            envelopes.contains { $0.event == Self.harnessPlanExitUserMessage }
         })
 
         try await runtime.resolveInteraction(
@@ -140,14 +140,14 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
 
         XCTAssertEqual(recordedInputs.count, 2)
         guard case let .interactionResolution(resolution)? = recordedInputs.first else {
-            return XCTFail("Expected provider plan exit to be resolved first.")
+            return XCTFail("Expected harness plan exit to be resolved first.")
         }
         guard case let .userMessage(message)? = recordedInputs.last else {
-            return XCTFail("Expected approved provider plan to send a user message.")
+            return XCTFail("Expected approved harness plan to send a user message.")
         }
         XCTAssertEqual(resolution.id, interaction.id)
         XCTAssertEqual(message.text, "Implement plan")
-        XCTAssertTrue(emittedEvents.contains { $0.event == Self.providerPlanExitUserMessage })
+        XCTAssertTrue(emittedEvents.contains { $0.event == Self.harnessPlanExitUserMessage })
         XCTAssertEqual(status?.collaborationMode, .default)
         XCTAssertEqual(status?.waitingState, .idle)
     }
@@ -185,11 +185,11 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
     func testDeniedSyntheticPlanModeExitDoesNotStartImplementation() async throws {
         let recorder = PlanProposalRecorder()
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanProposalProviderAdapter(recorder: recorder)
+            PlanProposalHarnessAdapter(recorder: recorder)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             collaborationMode: .plan
         )
@@ -230,11 +230,11 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
     func testPlanProposalMessageDoesNotOverwritePendingPrompt() async throws {
         let recorder = PlanProposalRecorder()
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanProposalProviderAdapter(recorder: recorder, emitsPromptBeforePlan: true)
+            PlanProposalHarnessAdapter(recorder: recorder, emitsPromptBeforePlan: true)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             collaborationMode: .plan
         )
@@ -256,9 +256,9 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
         XCTAssertEqual(status?.waitingState, .prompt)
     }
 
-    func testRuntimeDoesNotReopenResolvedInteractionFromLateProviderFrame() async throws {
+    func testRuntimeDoesNotReopenResolvedInteractionFromLateHarnessFrame() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("""
+            FakeHarnessAdapter(command: shell("""
             printf 'interaction:prompt\\n'
             read resolution
             printf 'interaction:prompt\\n'
@@ -318,11 +318,11 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
         recorder: PlanProposalRecorder
     ) async throws -> PlanProposalRuntimeSession {
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanProposalProviderAdapter(recorder: recorder)
+            PlanProposalHarnessAdapter(recorder: recorder)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             collaborationMode: .plan
         )
@@ -334,14 +334,14 @@ final class RuntimeInteractionResolutionTests: XCTestCase {
         return PlanProposalRuntimeSession(runtime: runtime, conversationId: conversationId, events: events)
     }
 
-    /// The user message a runtime sends after approving a provider-emitted plan-mode exit.
-    private static let providerPlanExitUserMessage = AgentEvent.message(AgentMessageEvent(
+    /// The user message a runtime sends after approving a harness-emitted plan-mode exit.
+    private static let harnessPlanExitUserMessage = AgentEvent.message(AgentMessageEvent(
         role: .user,
         text: "Implement plan",
         metadata: [
-            "agent_plan_exit_interaction_id": .string("provider-plan-exit"),
-            AgentPlanProposalMetadata.proposalId: .string("provider-plan-exit"),
-            AgentPlanProposalMetadata.planMarkdown: .string(PlanProposalProviderAdapter.planMarkdown)
+            "agent_plan_exit_interaction_id": .string("harness-plan-exit"),
+            AgentPlanProposalMetadata.proposalId: .string("harness-plan-exit"),
+            AgentPlanProposalMetadata.planMarkdown: .string(PlanProposalHarnessAdapter.planMarkdown)
         ]
     ))
 
@@ -363,19 +363,19 @@ private struct PlanProposalRuntimeSession {
 
 actor PlanProposalRecorder {
     private(set) var inputs: [AgentInput] = []
-    private(set) var reconfigureContexts: [AgentProviderReconfigureContext] = []
+    private(set) var reconfigureContexts: [AgentHarnessReconfigureContext] = []
 
     func record(_ input: AgentInput) {
         inputs.append(input)
     }
 
-    func record(_ context: AgentProviderReconfigureContext) -> AgentProviderReconfigureResult {
+    func record(_ context: AgentHarnessReconfigureContext) -> AgentHarnessReconfigureResult {
         reconfigureContexts.append(context)
         return .appliedInPlace
     }
 }
 
-struct PlanProposalProviderAdapter: AgentProviderAdapter {
+struct PlanProposalHarnessAdapter: AgentHarnessAdapter {
     static let planMarkdown = "# Plan"
     static let revisedPlanMarkdown = "# Revised Plan"
     static let planMetadata = metadata(for: planMarkdown)
@@ -388,20 +388,20 @@ struct PlanProposalProviderAdapter: AgentProviderAdapter {
         ]
     }
 
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let recorder: PlanProposalRecorder
     var emitsPromptBeforePlan = false
-    var emitsProviderPlanExit = false
+    var emitsHarnessPlanExit = false
     var emitsPlanRevisionAfterResolution = false
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
         resumedSession: AgentSessionRecord?
     ) async throws -> AgentLaunchConfiguration {
-        if emitsProviderPlanExit {
+        if emitsHarnessPlanExit {
             return AgentLaunchConfiguration(
                 executable: "/bin/sh",
-                arguments: ["-c", "printf 'provider-plan-exit\\n'; while read line; do printf 'resolved:%s\\n' \"$line\"; done"]
+                arguments: ["-c", "printf 'harness-plan-exit\\n'; while read line; do printf 'resolved:%s\\n' \"$line\"; done"]
             )
         }
         if emitsPromptBeforePlan {
@@ -429,9 +429,9 @@ struct PlanProposalProviderAdapter: AgentProviderAdapter {
         if line == "prompt" {
             return [.interaction(AgentInteractionEvent(id: "prompt", kind: .prompt, prompt: "Continue?"))]
         }
-        if line == "provider-plan-exit" {
+        if line == "harness-plan-exit" {
             return [.interaction(AgentInteractionEvent(
-                id: "provider-plan-exit",
+                id: "harness-plan-exit",
                 kind: .planModeExit,
                 prompt: "ExitPlanMode",
                 metadata: [
@@ -452,7 +452,7 @@ struct PlanProposalProviderAdapter: AgentProviderAdapter {
         return Data("ok\n".utf8)
     }
 
-    func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
+    func reconfigure(context: AgentHarnessReconfigureContext) async throws -> AgentHarnessReconfigureResult {
         await recorder.record(context)
     }
 }

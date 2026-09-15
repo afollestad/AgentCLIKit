@@ -1,7 +1,7 @@
 import Foundation
 
 extension CodexAppServerNotificationDecoder {
-    func decodeThreadTokenUsageUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeThreadTokenUsageUpdated(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue,
@@ -47,7 +47,7 @@ extension CodexAppServerNotificationDecoder {
         )))]
     }
 
-    func decodeAccountRateLimitsUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeAccountRateLimitsUpdated(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let rateLimits = params["rateLimits"]?.codexObjectValue else {
             return []
@@ -79,14 +79,14 @@ extension CodexAppServerNotificationDecoder {
         ])
         return [codexRuntimeEvent(.rateLimit(AgentRateLimitEvent(
             status: status,
-            resetDate: resetAt.map(Self.dateFromProviderTimestamp),
+            resetDate: resetAt.map(Self.dateFromHarnessTimestamp),
             limitType: rateLimits["limitId"]?.codexStringValue ?? rateLimits["limitName"]?.codexStringValue,
             utilization: usedPercent.map { Double($0) / 100.0 },
             metadata: metadata
         )))]
     }
 
-    func decodeTurnPlanUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeTurnPlanUpdated(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue,
@@ -130,7 +130,7 @@ extension CodexAppServerNotificationDecoder {
         )))]
     }
 
-    func decodePlanDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodePlanDelta(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue,
@@ -157,7 +157,7 @@ extension CodexAppServerNotificationDecoder {
         )))]
     }
 
-    func decodeThreadCompacted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeThreadCompacted(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue else {
@@ -172,7 +172,7 @@ extension CodexAppServerNotificationDecoder {
         )))]
     }
 
-    func decodeModelRerouted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeModelRerouted(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue,
@@ -199,7 +199,7 @@ extension CodexAppServerNotificationDecoder {
         )))]
     }
 
-    func decodeModelVerification(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeModelVerification(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue,
@@ -233,8 +233,8 @@ extension CodexAppServerNotificationDecoder {
         }
     }
 
-    private func codexRuntimeEvent(_ event: AgentEvent) -> AgentProviderRuntimeEvent {
-        AgentProviderRuntimeEvent(event: event, source: .runtime)
+    private func codexRuntimeEvent(_ event: AgentEvent) -> AgentHarnessRuntimeEvent {
+        AgentHarnessRuntimeEvent(event: event, source: .runtime)
     }
 
     private func codexNotificationMetadata(
@@ -267,7 +267,7 @@ extension CodexAppServerNotificationDecoder {
         })
     }
 
-    private static func dateFromProviderTimestamp(_ timestamp: Int) -> Date {
+    private static func dateFromHarnessTimestamp(_ timestamp: Int) -> Date {
         if timestamp > 10_000_000_000 {
             return Date(timeIntervalSince1970: TimeInterval(timestamp) / 1000.0)
         }

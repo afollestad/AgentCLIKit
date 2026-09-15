@@ -18,7 +18,7 @@ struct CodexSessionTranscriptPlan: Equatable, Sendable {
         CodexSessionTranscriptPlanRecoveryKey(turnId: turnId, itemId: itemId, text: text)
     }
 
-    var runtimeEvent: AgentProviderRuntimeEvent {
+    var runtimeEvent: AgentHarnessRuntimeEvent {
         var metadata: [String: JSONValue] = [
             AgentPlanProposalMetadata.isProposal: .bool(true),
             AgentPlanProposalMetadata.proposalId: .string(itemId),
@@ -33,7 +33,7 @@ struct CodexSessionTranscriptPlan: Equatable, Sendable {
         if let completedAtMs {
             metadata["completed_at_ms"] = .number(Double(completedAtMs))
         }
-        return AgentProviderRuntimeEvent(
+        return AgentHarnessRuntimeEvent(
             event: .message(AgentMessageEvent(role: .assistant, text: text, metadata: metadata)),
             source: .runtime
         )

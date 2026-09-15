@@ -4,26 +4,26 @@ import Foundation
 public protocol CodexFeatureSupportChecking: Sendable {
     /// Returns whether the configured Codex executable supports fast mode.
     func supportsFastMode(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability?
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability?
     ) async -> Bool
     /// Returns whether the configured Codex executable supports native goal mode.
     func supportsGoalMode(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability?
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability?
     ) async -> Bool
     /// Returns whether the configured Codex executable supports thread-scoped runtime workspace roots.
     func supportsRuntimeWorkspaceRoots(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability?
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability?
     ) async -> Bool
 }
 
 public extension CodexFeatureSupportChecking {
     /// Defaults custom feature checkers to unsupported until they positively opt into runtime workspace roots.
     func supportsRuntimeWorkspaceRoots(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability?
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability?
     ) async -> Bool {
         false
     }
@@ -60,12 +60,12 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
 
     /// Returns whether the configured Codex executable supports fast mode.
     public func supportsFastMode(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability? = nil
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability? = nil
     ) async -> Bool {
         do {
             let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(
-                for: CodexProviderDefinition.definition,
+                for: CodexHarnessDefinition.definition,
                 availability: availability
             )
             let version = try await versionDescription(
@@ -91,12 +91,12 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
 
     /// Returns whether the configured Codex executable supports native goal mode.
     public func supportsGoalMode(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability? = nil
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability? = nil
     ) async -> Bool {
         do {
             let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(
-                for: CodexProviderDefinition.definition,
+                for: CodexHarnessDefinition.definition,
                 availability: availability
             )
             let version = try await versionDescription(configuration: resolvedConfiguration, availability: availability)
@@ -119,12 +119,12 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
 
     /// Returns whether Codex is new enough to honor `runtimeWorkspaceRoots` instead of silently ignoring it.
     public func supportsRuntimeWorkspaceRoots(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability? = nil
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability? = nil
     ) async -> Bool {
         do {
             let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(
-                for: CodexProviderDefinition.definition,
+                for: CodexHarnessDefinition.definition,
                 availability: availability
             )
             let version = try await versionDescription(configuration: resolvedConfiguration, availability: availability)
@@ -135,8 +135,8 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
     }
 
     private func versionDescription(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability?
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability?
     ) async throws -> String {
         if let version = availability?.versionDescription, !version.isEmpty {
             return version
@@ -147,7 +147,7 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
     }
 
     private func liveFeatureSupport(
-        configuration: CodexProviderAdapter.Configuration
+        configuration: CodexHarnessAdapter.Configuration
     ) async throws -> (supportsFastMode: Bool, supportsGoalMode: Bool) {
         let result = try await runFeatureProbeCommand(arguments: ["features", "list"], configuration: configuration)
         guard result.exitCode == 0 else {
@@ -159,7 +159,7 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
 
     private func runFeatureProbeCommand(
         arguments: [String],
-        configuration: CodexProviderAdapter.Configuration
+        configuration: CodexHarnessAdapter.Configuration
     ) async throws -> ShellCommandResult {
         let command = ShellCommand(
             executable: configuration.executablePath,
@@ -172,12 +172,12 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
 
     private func featureCommandArguments(
         _ arguments: [String],
-        configuration: CodexProviderAdapter.Configuration
+        configuration: CodexHarnessAdapter.Configuration
     ) -> [String] {
         configuration.executablePath == "/usr/bin/env" ? ["codex"] + arguments : arguments
     }
 
-    private func featureCommandEnvironment(_ configuration: CodexProviderAdapter.Configuration) -> [String: String] {
+    private func featureCommandEnvironment(_ configuration: CodexHarnessAdapter.Configuration) -> [String: String] {
         var environment = configuration.environment
         if let codexHomeDirectory = configuration.codexHomeDirectory {
             environment["CODEX_HOME"] = codexHomeDirectory.path
@@ -237,20 +237,20 @@ public actor DefaultCodexFeatureSupportChecker: CodexFeatureSupportChecking {
 }
 
 /// Dynamic Codex capability source backed by `CodexFeatureSupportChecking`.
-public struct CodexProviderCapabilitySource: AgentProviderCapabilitySource {
-    private let configuration: CodexProviderAdapter.Configuration
+public struct CodexHarnessCapabilitySource: AgentHarnessCapabilitySource {
+    private let configuration: CodexHarnessAdapter.Configuration
 
-    /// Creates a Codex provider capability source.
-    public init(configuration: CodexProviderAdapter.Configuration = CodexProviderAdapter.Configuration()) {
+    /// Creates a Codex harness capability source.
+    public init(configuration: CodexHarnessAdapter.Configuration = CodexHarnessAdapter.Configuration()) {
         self.configuration = configuration
     }
 
     /// Returns Codex capabilities with fast mode overlaid when the executable reports support.
     public func capabilities(
-        for definition: AgentProviderDefinition,
-        availability: AgentProviderAvailability?
-    ) async -> AgentProviderCapabilities {
-        guard definition.id == CodexProviderAdapter.providerId else {
+        for definition: AgentHarnessDefinition,
+        availability: AgentHarnessAvailability?
+    ) async -> AgentHarnessCapabilities {
+        guard definition.id == CodexHarnessAdapter.harnessId else {
             return definition.capabilities
         }
         let supportsFastMode = await configuration.featureSupportChecker.supportsFastMode(

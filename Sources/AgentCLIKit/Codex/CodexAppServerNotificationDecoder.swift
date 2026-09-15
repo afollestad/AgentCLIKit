@@ -4,7 +4,7 @@ struct CodexAppServerNotificationDecoder {
     private var itemDecoder = CodexAppServerItemEventDecoder()
 
     // swiftlint:disable:next cyclomatic_complexity
-    mutating func decode(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decode(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         if let itemEvents = itemDecoder.decode(notification) {
             return itemEvents
         }
@@ -44,34 +44,34 @@ struct CodexAppServerNotificationDecoder {
         }
     }
 
-    private func decodeThreadStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private func decodeThreadStarted(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let thread = params["thread"]?.codexObjectValue,
               let threadId = thread["id"]?.codexStringValue else {
             return []
         }
         return [runtimeEvent(.sessionMetadata(AgentSessionMetadataEvent(
-            providerSessionId: AgentSessionID(rawValue: threadId),
+            harnessSessionId: AgentSessionID(rawValue: threadId),
             name: thread["name"]?.codexStringValue,
             preview: thread["preview"]?.codexStringValue,
             metadata: metadata(method: notification.method, threadId: threadId)
         )))]
     }
 
-    private func decodeThreadNameUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private func decodeThreadNameUpdated(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = notification.threadId else {
             return []
         }
         return [runtimeEvent(.sessionMetadata(AgentSessionMetadataEvent(
-            providerSessionId: AgentSessionID(rawValue: threadId),
+            harnessSessionId: AgentSessionID(rawValue: threadId),
             name: params["threadName"]?.codexStringValue ?? params["thread"]?.codexObjectValue?["name"]?.codexStringValue,
             preview: params["threadPreview"]?.codexStringValue ?? params["thread"]?.codexObjectValue?["preview"]?.codexStringValue,
             metadata: metadata(method: notification.method, threadId: threadId)
         )))]
     }
 
-    private func decodeThreadStatusChanged(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private func decodeThreadStatusChanged(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let status = params["status"],
@@ -103,7 +103,7 @@ struct CodexAppServerNotificationDecoder {
         }
     }
 
-    private mutating func decodeTurnStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private mutating func decodeTurnStarted(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         itemDecoder.resetReasoningSection(threadId: notification.threadId)
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
@@ -126,7 +126,7 @@ struct CodexAppServerNotificationDecoder {
         ]
     }
 
-    private mutating func decodeTurnCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private mutating func decodeTurnCompleted(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         itemDecoder.resetReasoningSection(threadId: notification.threadId)
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
@@ -158,13 +158,13 @@ struct CodexAppServerNotificationDecoder {
         return events
     }
 
-    private func decodeThreadSettingsUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private func decodeThreadSettingsUpdated(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let settings = params["threadSettings"]?.codexObjectValue else {
             return []
         }
-        var events: [AgentProviderRuntimeEvent] = []
+        var events: [AgentHarnessRuntimeEvent] = []
         let metadata = metadata(
             method: notification.method,
             threadId: threadId,
@@ -190,7 +190,7 @@ struct CodexAppServerNotificationDecoder {
         return events
     }
 
-    private func decodeThreadGoalUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private func decodeThreadGoalUpdated(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let goal = params["goal"]?.codexObjectValue,
@@ -212,7 +212,7 @@ struct CodexAppServerNotificationDecoder {
         return [runtimeEvent(.goal(AgentGoalEvent(snapshot: snapshot)))]
     }
 
-    private func decodeThreadGoalCleared(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private func decodeThreadGoalCleared(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let threadId = notification.threadId else {
             return []
         }
@@ -228,8 +228,8 @@ struct CodexAppServerNotificationDecoder {
         return AgentCollaborationMode(rawValue: mode)
     }
 
-    private func runtimeEvent(_ event: AgentEvent) -> AgentProviderRuntimeEvent {
-        AgentProviderRuntimeEvent(event: event, source: .runtime)
+    private func runtimeEvent(_ event: AgentEvent) -> AgentHarnessRuntimeEvent {
+        AgentHarnessRuntimeEvent(event: event, source: .runtime)
     }
 
     private func metadata(

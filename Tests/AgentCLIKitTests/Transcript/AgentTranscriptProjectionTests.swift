@@ -64,7 +64,7 @@ final class AgentTranscriptProjectionTests: XCTestCase {
     func testProjectorDoesNotRenderSessionMetadata() {
         let projections = AgentTranscriptProjector().project([
             envelope(index: 0, event: .sessionMetadata(AgentSessionMetadataEvent(
-                providerSessionId: "session",
+                harnessSessionId: "session",
                 name: "Generated Name"
             )))
         ])
@@ -96,7 +96,7 @@ final class AgentTranscriptProjectionTests: XCTestCase {
     func testMetricsBuilderIgnoresSessionMetadata() {
         let metrics = AgentConversationMetricsBuilder().build(from: [
             envelope(index: 0, event: .sessionMetadata(AgentSessionMetadataEvent(
-                providerSessionId: "session",
+                harnessSessionId: "session",
                 name: "Generated Name"
             )))
         ])
@@ -108,9 +108,9 @@ final class AgentTranscriptProjectionTests: XCTestCase {
         AgentEventEnvelope(
             generation: 1,
             index: index,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stdout,
             event: event,
             createdAt: Date(timeIntervalSince1970: TimeInterval(index))

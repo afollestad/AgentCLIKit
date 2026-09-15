@@ -2,11 +2,11 @@ import XCTest
 
 @testable import AgentCLIKit
 
-/// Turn-active tracking across cancellation, usage events, and provider-owned activity.
+/// Turn-active tracking across cancellation, usage events, and harness-owned activity.
 extension DefaultAgentRuntimeStatusUpdateTests {
     func testStatusUpdatesPublishStoppedProcessAfterCancellation() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("sleep 5"))
+            StatusReportingHarnessAdapter(command: shell("sleep 5"))
         ])
         let stream = await runtime.statusUpdates(conversationId: "conversation")
         let accumulator = StatusAccumulator()
@@ -35,13 +35,13 @@ extension DefaultAgentRuntimeStatusUpdateTests {
 
     func testStatusReportsInitialPromptAsActiveTurn() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("sleep 1"))
         ])
 
         try await runtime.spawn(
             conversationId: "conversation",
             config: AgentSpawnConfig(
-                providerId: .claude,
+                harnessId: .claude,
                 workingDirectory: FileManager.default.temporaryDirectory,
                 initialPrompt: "Implement the parser"
             )
@@ -56,7 +56,7 @@ extension DefaultAgentRuntimeStatusUpdateTests {
 
     func testStatusKeepsTurnActiveUntilNonToolTerminalUsage() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("""
+            StatusReportingHarnessAdapter(command: shell("""
             while IFS= read -r line; do
               if [ "$line" = "finish" ]; then
                 printf 'usage:end_turn\\n'
@@ -90,13 +90,13 @@ extension DefaultAgentRuntimeStatusUpdateTests {
 
     func testStatusKeepsTurnActiveForInterimUsageUpdate() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("printf 'usage:usage_update\\n'; sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("printf 'usage:usage_update\\n'; sleep 1"))
         ])
 
         try await runtime.spawn(
             conversationId: "conversation",
             config: AgentSpawnConfig(
-                providerId: .claude,
+                harnessId: .claude,
                 workingDirectory: FileManager.default.temporaryDirectory,
                 initialPrompt: "Run tools"
             )
@@ -112,13 +112,13 @@ extension DefaultAgentRuntimeStatusUpdateTests {
 
     func testTerminalNilStopUsageKeepsTurnInactiveAfterLateInterimUsageUpdate() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("printf 'usage-terminal:nil\\nusage:usage_update\\n'; sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("printf 'usage-terminal:nil\\nusage:usage_update\\n'; sleep 1"))
         ])
 
         try await runtime.spawn(
             conversationId: "conversation",
             config: AgentSpawnConfig(
-                providerId: .claude,
+                harnessId: .claude,
                 workingDirectory: FileManager.default.temporaryDirectory,
                 initialPrompt: "Run tools"
             )
@@ -133,22 +133,22 @@ extension DefaultAgentRuntimeStatusUpdateTests {
         await runtime.shutdown()
     }
 
-    func testStatusUsesProviderOwnedActivityEvents() async throws {
-        let activitySource = ProviderActivitySource()
+    func testStatusUsesHarnessOwnedActivityEvents() async throws {
+        let activitySource = HarnessActivitySource()
         let runtime = DefaultAgentRuntime(adapters: [
-            ActivityReportingProviderAdapter(command: shell("sleep 1"), activitySource: activitySource)
+            ActivityReportingHarnessAdapter(command: shell("sleep 1"), activitySource: activitySource)
         ])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
         await waitForActivitySource(activitySource)
-        await activitySource.emit(AgentProviderRuntimeEvent(event: .activity(AgentActivityEvent(state: .active, turnId: "turn-1"))))
+        await activitySource.emit(AgentHarnessRuntimeEvent(event: .activity(AgentActivityEvent(state: .active, turnId: "turn-1"))))
         let active = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
             status.isTurnActive
         }
 
         XCTAssertTrue(active?.isTurnActive == true)
 
-        await activitySource.emit(AgentProviderRuntimeEvent(event: .activity(AgentActivityEvent(state: .idle, turnId: "turn-1"))))
+        await activitySource.emit(AgentHarnessRuntimeEvent(event: .activity(AgentActivityEvent(state: .idle, turnId: "turn-1"))))
         let idle = await waitUntilStatus(runtime: runtime, conversationId: "conversation") { status in
             !status.isTurnActive && status.lastEventIndex >= 2
         }
@@ -189,7 +189,7 @@ extension DefaultAgentRuntimeStatusUpdateTests {
         return await runtime.status(conversationId: conversationId)
     }
 
-    func waitForActivitySource(_ activitySource: ProviderActivitySource) async {
+    func waitForActivitySource(_ activitySource: HarnessActivitySource) async {
         for _ in 0..<100 {
             if await activitySource.isReady {
                 return

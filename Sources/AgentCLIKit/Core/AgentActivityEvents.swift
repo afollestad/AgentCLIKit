@@ -1,12 +1,12 @@
 import Foundation
 
-/// Provider turn or thread activity state used for runtime work detection.
+/// Harness turn or thread activity state used for runtime work detection.
 public struct AgentActivityEvent: Codable, Equatable, Sendable {
     /// Activity state.
     public let state: AgentActivityState
-    /// Provider turn identifier when known.
+    /// Harness turn identifier when known.
     public let turnId: String?
-    /// Provider-specific activity metadata.
+    /// Harness-specific activity metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates an activity event.
@@ -25,25 +25,25 @@ public struct AgentActivityEvent: Codable, Equatable, Sendable {
     }
 }
 
-/// Provider activity state.
+/// Harness activity state.
 public enum AgentActivityState: String, Codable, Hashable, Sendable {
-    /// Provider is actively working on a turn.
+    /// Harness is actively working on a turn.
     case active
-    /// Provider is not actively working on a turn.
+    /// Harness is not actively working on a turn.
     case idle
 }
 
-/// Provider context compaction lifecycle event.
+/// Harness context compaction lifecycle event.
 public struct AgentContextCompactionEvent: Codable, Equatable, Sendable {
-    /// Stable provider or runtime-defined compaction identifier.
+    /// Stable harness or runtime-defined compaction identifier.
     public let id: String
     /// Compaction lifecycle phase.
     public let phase: AgentContextCompactionPhase
-    /// Provider trigger, such as `manual` or `auto`, when known.
+    /// Harness trigger, such as `manual` or `auto`, when known.
     public let trigger: String?
-    /// Provider-supplied completion summary when known.
+    /// Harness-supplied completion summary when known.
     public let summary: String?
-    /// Provider-supplied failure detail when compaction fails.
+    /// Harness-supplied failure detail when compaction fails.
     public let errorMessage: String?
     /// Token count before compaction when known.
     public let preTokens: Int?
@@ -51,7 +51,7 @@ public struct AgentContextCompactionEvent: Codable, Equatable, Sendable {
     public let postTokens: Int?
     /// Compaction duration in milliseconds when known.
     public let durationMs: Int?
-    /// Provider-specific compaction metadata.
+    /// Harness-specific compaction metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a context compaction event.

@@ -54,18 +54,18 @@ final class AgentInteractionInboxTests: XCTestCase {
         XCTAssertEqual(resolution.metadata["prompt_answer_source"], .string("customResponse"))
     }
 
-    func testApprovalPolicyStoreTracksProviderScopedSessionGrant() async {
+    func testApprovalPolicyStoreTracksHarnessScopedSessionGrant() async {
         let store = InMemoryAgentApprovalPolicyStore()
         await store.save(AgentApprovalSelection(
             interactionId: "approval",
-            providerId: .claude,
+            harnessId: .claude,
             outcome: .approved,
             grantKind: .session,
             operation: "Bash"
         ))
 
-        let matching = await store.isApprovedForSession(providerId: .claude, operation: "Bash")
-        let otherOperation = await store.isApprovedForSession(providerId: .claude, operation: "Write")
+        let matching = await store.isApprovedForSession(harnessId: .claude, operation: "Bash")
+        let otherOperation = await store.isApprovedForSession(harnessId: .claude, operation: "Write")
 
         XCTAssertTrue(matching)
         XCTAssertFalse(otherOperation)

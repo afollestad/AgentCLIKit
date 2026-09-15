@@ -5,7 +5,7 @@ import XCTest
 final class DefaultAgentRuntimeCompactionTests: XCTestCase {
     func testContextCompactionTerminalSynthesizesStartAndDeduplicatesPhases() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'compact:completed\\ncompact:completed\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'compact:completed\\ncompact:completed\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
@@ -28,7 +28,7 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
         XCTAssertEqual(compactions.first?.metadata["synthetic"], .bool(true))
     }
 
-    func testProviderRuntimeContextCompactionEventsDeduplicatePhases() async throws {
+    func testHarnessRuntimeContextCompactionEventsDeduplicatePhases() async throws {
         let source = ContextCompactionRuntimeSource()
         let runtime = DefaultAgentRuntime(adapters: [
             ContextCompactionRuntimeAdapter(command: shell("sleep 1"), source: source)
@@ -38,15 +38,15 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         await waitForRuntimeSource(source)
-        await source.emit(AgentProviderRuntimeEvent(
+        await source.emit(AgentHarnessRuntimeEvent(
             event: .contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .started)),
             source: .hook
         ))
-        await source.emit(AgentProviderRuntimeEvent(
+        await source.emit(AgentHarnessRuntimeEvent(
             event: .contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .started)),
             source: .hook
         ))
-        await source.emit(AgentProviderRuntimeEvent(
+        await source.emit(AgentHarnessRuntimeEvent(
             event: .contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .completed)),
             source: .hook
         ))
@@ -73,7 +73,7 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
 
     func testCancelSynthesizesFailedTerminalForOpenContextCompaction() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'compact:started\\n'; sleep 5"))
+            FakeHarnessAdapter(command: shell("printf 'compact:started\\n'; sleep 5"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let startSubscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
@@ -103,7 +103,7 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
 
     func testContextCompactionStartAfterTerminalLifecycleSynthesizesFailedTerminal() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("sleep 5"))
+            FakeHarnessAdapter(command: shell("sleep 5"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -123,7 +123,7 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
         await runtime.shutdown()
     }
 
-    func testProviderRuntimeContextCompactionIgnoresTerminalAfterTerminal() async throws {
+    func testHarnessRuntimeContextCompactionIgnoresTerminalAfterTerminal() async throws {
         let source = ContextCompactionRuntimeSource()
         let runtime = DefaultAgentRuntime(adapters: [
             ContextCompactionRuntimeAdapter(command: shell("sleep 5"), source: source)
@@ -133,11 +133,11 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         await waitForRuntimeSource(source)
-        await source.emit(AgentProviderRuntimeEvent(
+        await source.emit(AgentHarnessRuntimeEvent(
             event: .contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .started)),
             source: .hook
         ))
-        await source.emit(AgentProviderRuntimeEvent(
+        await source.emit(AgentHarnessRuntimeEvent(
             event: .contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .failed)),
             source: .hook
         ))
@@ -148,7 +148,7 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
         })
         XCTAssertEqual(events.compactionEvents.map(\.phase), [.started, .failed])
 
-        await source.emit(AgentProviderRuntimeEvent(
+        await source.emit(AgentHarnessRuntimeEvent(
             event: .contextCompaction(AgentContextCompactionEvent(id: "compact-1", phase: .completed)),
             source: .hook
         ))
@@ -162,7 +162,7 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
 
     func testProcessExitSynthesizesFailedTerminalForOpenContextCompaction() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'compact:started\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'compact:started\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
@@ -176,7 +176,7 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
         let compactions = events.compactionEvents
 
         XCTAssertEqual(compactions.map(\.phase), [.started, .failed])
-        XCTAssertEqual(compactions.last?.errorMessage, "Context compaction did not finish before the provider process ended.")
+        XCTAssertEqual(compactions.last?.errorMessage, "Context compaction did not finish before the harness process ended.")
         XCTAssertEqual(compactions.last?.metadata["synthetic"], .bool(true))
         XCTAssertEqual(compactions.last?.metadata["terminal_reason"], .string("exited"))
     }
@@ -192,24 +192,24 @@ final class DefaultAgentRuntimeCompactionTests: XCTestCase {
 }
 
 private actor ContextCompactionRuntimeSource {
-    private var continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation?
+    private var continuation: AsyncStream<AgentHarnessRuntimeEvent>.Continuation?
     var isReady: Bool {
         continuation != nil
     }
 
-    func stream() -> AsyncStream<AgentProviderRuntimeEvent> {
-        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+    func stream() -> AsyncStream<AgentHarnessRuntimeEvent> {
+        let stream = AsyncStream<AgentHarnessRuntimeEvent>.makeStream()
         continuation = stream.continuation
         return stream.stream
     }
 
-    func emit(_ event: AgentProviderRuntimeEvent) {
+    func emit(_ event: AgentHarnessRuntimeEvent) {
         continuation?.yield(event)
     }
 }
 
-private struct ContextCompactionRuntimeAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+private struct ContextCompactionRuntimeAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
     let source: ContextCompactionRuntimeSource
 
@@ -228,7 +228,7 @@ private struct ContextCompactionRuntimeAdapter: AgentProviderAdapter {
         Data()
     }
 
-    func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
+    func runtimeEvents(context: AgentHarnessRuntimeContext) async -> AsyncStream<AgentHarnessRuntimeEvent> {
         await source.stream()
     }
 }

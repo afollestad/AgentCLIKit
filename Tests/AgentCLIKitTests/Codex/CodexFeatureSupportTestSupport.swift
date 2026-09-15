@@ -8,22 +8,22 @@ struct FixedCodexFeatureSupportChecker: CodexFeatureSupportChecking {
     var supportsRuntimeWorkspaceRoots = true
 
     func supportsFastMode(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability?
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability?
     ) async -> Bool {
         supportsFastMode
     }
 
     func supportsGoalMode(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability?
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability?
     ) async -> Bool {
         supportsGoalMode
     }
 
     func supportsRuntimeWorkspaceRoots(
-        configuration: CodexProviderAdapter.Configuration,
-        availability: AgentProviderAvailability?
+        configuration: CodexHarnessAdapter.Configuration,
+        availability: AgentHarnessAvailability?
     ) async -> Bool {
         supportsRuntimeWorkspaceRoots
     }

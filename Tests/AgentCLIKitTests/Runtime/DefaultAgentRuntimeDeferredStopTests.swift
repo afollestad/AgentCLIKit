@@ -7,7 +7,7 @@ final class DefaultAgentRuntimeDeferredStopTests: XCTestCase {
         // `cat` only ends at stdin EOF; a force kill would report a signal exit code instead of zero.
         let runtime = DefaultAgentRuntime(
             adapters: [
-                DeferredToolStopProviderAdapter(command: shell("printf 'approval\\ndeferred\\n'; cat > /dev/null"))
+                DeferredToolStopHarnessAdapter(command: shell("printf 'approval\\ndeferred\\n'; cat > /dev/null"))
             ],
             deferredStopKillGraceNanoseconds: 60_000_000_000
         )
@@ -33,7 +33,7 @@ final class DefaultAgentRuntimeDeferredStopTests: XCTestCase {
         // `sleep` ignores stdin EOF, so only the grace-period escalation can end this process.
         let runtime = DefaultAgentRuntime(
             adapters: [
-                DeferredToolStopProviderAdapter(command: shell("printf 'approval\\ndeferred\\n'; sleep 30"))
+                DeferredToolStopHarnessAdapter(command: shell("printf 'approval\\ndeferred\\n'; sleep 30"))
             ],
             deferredStopKillGraceNanoseconds: 100_000_000
         )

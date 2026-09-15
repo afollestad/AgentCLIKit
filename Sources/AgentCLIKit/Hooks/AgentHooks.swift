@@ -1,11 +1,11 @@
 import Foundation
 
-/// Provider-neutral hook event accepted from a local hook listener.
+/// Harness-neutral hook event accepted from a local hook listener.
 public struct AgentHookEvent: Codable, Equatable, Sendable {
     /// Event identifier supplied by the hook listener.
     public let id: String
-    /// Provider that emitted the hook.
-    public let providerId: AgentProviderID
+    /// Harness that emitted the hook.
+    public let harnessId: AgentHarnessID
     /// Hook name or phase.
     public let name: String
     /// Host conversation identifier when known.
@@ -18,22 +18,32 @@ public struct AgentHookEvent: Codable, Equatable, Sendable {
     /// Creates a hook event.
     public init(
         id: String,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         name: String,
         conversationId: AgentConversationID?,
         payload: JSONValue,
         receivedAt: Date = Date()
     ) {
         self.id = id
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.name = name
         self.conversationId = conversationId
         self.payload = payload
         self.receivedAt = receivedAt
     }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case harnessId = "providerId"
+        case name
+        case conversationId
+        case payload
+        case receivedAt
+    }
 }
 
-/// Bearer token issued to a provider hook process.
+/// Bearer token issued to a harness hook process.
 public struct AgentHookToken: Codable, Equatable, Hashable, Sendable {
     /// Opaque token value.
     public let value: String
@@ -60,18 +70,18 @@ public struct AgentHookResponse: Codable, Equatable, Sendable {
         self.body = body
     }
 
-    /// Successful hook response that leaves the provider to make its normal decision.
+    /// Successful hook response that leaves the harness to make its normal decision.
     public static var noDecision: AgentHookResponse {
         AgentHookResponse(statusCode: 200, body: nil)
     }
 
-    /// Successful hook response that explicitly lets the provider continue.
+    /// Successful hook response that explicitly lets the harness continue.
     public static var continueProcessing: AgentHookResponse {
         AgentHookResponse(statusCode: 200, body: .object(["continue": .bool(true)]))
     }
 }
 
-/// Token lifecycle service for local provider hook listeners.
+/// Token lifecycle service for local harness hook listeners.
 public actor AgentHookTokenStore {
     private var tokens: [String: AgentHookToken] = [:]
     private let now: @Sendable () -> Date
@@ -119,7 +129,7 @@ public actor AgentHookTokenStore {
     }
 }
 
-/// Minimal hook listener contract that providers can bridge to HTTP or another transport.
+/// Minimal hook listener contract that harnesses can bridge to HTTP or another transport.
 public protocol AgentHookListening: Sendable {
     /// Handles a hook event after transport-level token validation succeeds.
     func handle(_ event: AgentHookEvent) async -> AgentHookResponse

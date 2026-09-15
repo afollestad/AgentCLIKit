@@ -3,9 +3,9 @@ import Foundation
 /// Model option source that queries Codex App Server `model/list` on demand.
 ///
 /// This source starts a temporary App Server transport for Codex when its cache is missing or expired. It is
-/// intentionally opt-in so default provider discovery can avoid launching Codex.
+/// intentionally opt-in so default harness discovery can avoid launching Codex.
 public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
-    private let configuration: CodexProviderAdapter.Configuration
+    private let configuration: CodexHarnessAdapter.Configuration
     private let fallbackSource: any AgentModelOptionSource
     private let cache = AgentModelOptionMemoryCache()
     private let maximumPages: Int
@@ -14,7 +14,7 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
 
     /// Creates a Codex App Server model option source.
     public init(
-        configuration: CodexProviderAdapter.Configuration = CodexProviderAdapter.Configuration(),
+        configuration: CodexHarnessAdapter.Configuration = CodexHarnessAdapter.Configuration(),
         fallbackSource: any AgentModelOptionSource = StaticAgentModelOptionSource(),
         maximumPages: Int = 10,
         cacheTimeToLive: TimeInterval = 300,
@@ -28,27 +28,27 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
     }
 
     /// Returns Codex model options from App Server when possible, falling back to cached or static options.
-    public func modelOptions(for providerId: AgentProviderID) async -> [AgentModelOption] {
-        guard providerId == CodexProviderAdapter.providerId else {
-            return await fallbackSource.modelOptions(for: providerId)
+    public func modelOptions(for harnessId: AgentHarnessID) async -> [AgentModelOption] {
+        guard harnessId == CodexHarnessAdapter.harnessId else {
+            return await fallbackSource.modelOptions(for: harnessId)
         }
-        if let cached = cache.freshOptions(providerId: providerId, now: now(), cacheTimeToLive: cacheTimeToLive), !cached.isEmpty {
+        if let cached = cache.freshOptions(harnessId: harnessId, now: now(), cacheTimeToLive: cacheTimeToLive), !cached.isEmpty {
             return cached
         }
         do {
             let liveOptions = try await liveModelOptions()
             guard !liveOptions.isEmpty else {
-                return await fallbackOptions(providerId: providerId)
+                return await fallbackOptions(harnessId: harnessId)
             }
-            cache.save(liveOptions, providerId: providerId, fetchedAt: now())
+            cache.save(liveOptions, harnessId: harnessId, fetchedAt: now())
             return liveOptions
         } catch {
-            return await fallbackOptions(providerId: providerId)
+            return await fallbackOptions(harnessId: harnessId)
         }
     }
 
     private func liveModelOptions() async throws -> [AgentModelOption] {
-        let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(for: CodexProviderDefinition.definition)
+        let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(for: CodexHarnessDefinition.definition)
         let transport = resolvedConfiguration.makeTransport(resolvedConfiguration)
         try await transport.start()
         do {
@@ -73,17 +73,17 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
         }
     }
 
-    private func fallbackOptions(providerId: AgentProviderID) async -> [AgentModelOption] {
-        if let cached = cache.staleOptions(providerId: providerId), !cached.isEmpty {
+    private func fallbackOptions(harnessId: AgentHarnessID) async -> [AgentModelOption] {
+        if let cached = cache.staleOptions(harnessId: harnessId), !cached.isEmpty {
             return cached
         }
-        let fallback = await fallbackSource.modelOptions(for: providerId)
+        let fallback = await fallbackSource.modelOptions(for: harnessId)
         return fallback.isEmpty
-            ? AgentDefaultModelOptions.providerDefault(for: providerId, description: "Use the Codex default model.")
+            ? AgentDefaultModelOptions.harnessDefault(for: harnessId, description: "Use the Codex default model.")
             : fallback
     }
 
-    private func initializeParams(configuration: CodexProviderAdapter.Configuration) -> JSONValue {
+    private func initializeParams(configuration: CodexHarnessAdapter.Configuration) -> JSONValue {
         .object([
             "clientInfo": .object([
                 "name": .string("AgentCLIKit"),
@@ -140,7 +140,7 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
             ?? object["short_name"]?.codexNonEmptyString
             ?? object["slug"]?.codexNonEmptyString
         return AgentModelOption(
-            providerId: CodexProviderAdapter.providerId,
+            harnessId: CodexHarnessAdapter.harnessId,
             id: id,
             model: model,
             label: displayName,
@@ -201,11 +201,11 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
         "codex", "high", "latest", "low", "max", "mini", "nano", "preview", "pro", "turbo"
     ]
 
-    private static func reasoningEffortOptions(from value: JSONValue?) -> [AgentProviderOption] {
+    private static func reasoningEffortOptions(from value: JSONValue?) -> [AgentHarnessOption] {
         value?.codexArrayValue?.compactMap(reasoningEffortOption(from:)) ?? []
     }
 
-    private static func reasoningEffortOption(from value: JSONValue) -> AgentProviderOption? {
+    private static func reasoningEffortOption(from value: JSONValue) -> AgentHarnessOption? {
         if let rawValue = value.codexNonEmptyString {
             return synthesizedEffortOption(rawValue)
         }
@@ -213,7 +213,7 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
               let effort = object["reasoningEffort"]?.codexNonEmptyString ?? object["reasoning_effort"]?.codexNonEmptyString else {
             return nil
         }
-        return AgentProviderOption(
+        return AgentHarnessOption(
             value: effort,
             label: effortLabel(for: effort),
             description: object["description"]?.codexNonEmptyString ?? effortDescription(for: effort)
@@ -221,9 +221,9 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
     }
 
     private static func completedEffortMetadata(
-        supportedEfforts: [AgentProviderOption],
+        supportedEfforts: [AgentHarnessOption],
         defaultEffortValue: String?
-    ) -> (supportedEfforts: [AgentProviderOption], defaultEffort: AgentProviderOption?) {
+    ) -> (supportedEfforts: [AgentHarnessOption], defaultEffort: AgentHarnessOption?) {
         guard let defaultEffortValue else {
             return (supportedEfforts, nil)
         }
@@ -234,8 +234,8 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
         return (supportedEfforts + [defaultEffort], defaultEffort)
     }
 
-    private static func synthesizedEffortOption(_ value: String) -> AgentProviderOption {
-        AgentProviderOption(
+    private static func synthesizedEffortOption(_ value: String) -> AgentHarnessOption {
+        AgentHarnessOption(
             value: value,
             label: effortLabel(for: value),
             description: effortDescription(for: value)
@@ -261,17 +261,17 @@ public struct CodexAppServerModelOptionSource: AgentModelOptionSource {
 
 private final class AgentModelOptionMemoryCache: @unchecked Sendable {
     private let lock = NSLock()
-    private var optionsByProvider: [AgentProviderID: CachedAgentModelOptions] = [:]
+    private var optionsByHarness: [AgentHarnessID: CachedAgentModelOptions] = [:]
 
-    func save(_ options: [AgentModelOption], providerId: AgentProviderID, fetchedAt: Date) {
+    func save(_ options: [AgentModelOption], harnessId: AgentHarnessID, fetchedAt: Date) {
         lock.withLock {
-            optionsByProvider[providerId] = CachedAgentModelOptions(options: options, fetchedAt: fetchedAt)
+            optionsByHarness[harnessId] = CachedAgentModelOptions(options: options, fetchedAt: fetchedAt)
         }
     }
 
-    func freshOptions(providerId: AgentProviderID, now: Date, cacheTimeToLive: TimeInterval) -> [AgentModelOption]? {
+    func freshOptions(harnessId: AgentHarnessID, now: Date, cacheTimeToLive: TimeInterval) -> [AgentModelOption]? {
         lock.withLock {
-            guard let cached = optionsByProvider[providerId],
+            guard let cached = optionsByHarness[harnessId],
                   now.timeIntervalSince(cached.fetchedAt) <= cacheTimeToLive else {
                 return nil
             }
@@ -279,9 +279,9 @@ private final class AgentModelOptionMemoryCache: @unchecked Sendable {
         }
     }
 
-    func staleOptions(providerId: AgentProviderID) -> [AgentModelOption]? {
+    func staleOptions(harnessId: AgentHarnessID) -> [AgentModelOption]? {
         lock.withLock {
-            optionsByProvider[providerId]?.options
+            optionsByHarness[harnessId]?.options
         }
     }
 }

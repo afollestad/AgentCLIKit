@@ -34,9 +34,9 @@ final class CodexModelOptionSourceTests: XCTestCase {
 
     func testAppServerModelOptionSourceFallsBackToStaticOptionsAfterFailure() async {
         let transport = FakeCodexAppServerTransport(threadIds: [], failModelListRequests: true)
-        let fallback = StaticAgentModelOptionSource(optionsByProvider: [
+        let fallback = StaticAgentModelOptionSource(optionsByHarness: [
             .codex: [
-                AgentModelOption(providerId: .codex, id: "fallback", model: "fallback", label: "Fallback")
+                AgentModelOption(harnessId: .codex, id: "fallback", model: "fallback", label: "Fallback")
             ]
         ])
         let source = CodexAppServerModelOptionSource(
@@ -146,9 +146,9 @@ final class CodexModelOptionSourceTests: XCTestCase {
             modelListResponses: Self.singleModelListResponse(id: "stale"),
             failModelListRequestsAfterSuccessCount: 1
         )
-        let fallback = StaticAgentModelOptionSource(optionsByProvider: [
+        let fallback = StaticAgentModelOptionSource(optionsByHarness: [
             .codex: [
-                AgentModelOption(providerId: .codex, id: "fallback", model: "fallback", label: "Fallback")
+                AgentModelOption(harnessId: .codex, id: "fallback", model: "fallback", label: "Fallback")
             ]
         ])
         let source = CodexAppServerModelOptionSource(
@@ -173,10 +173,10 @@ final class CodexModelOptionSourceTests: XCTestCase {
     private func configuration(
         transport: FakeCodexAppServerTransport,
         executablePath: String = "/usr/bin/env",
-        executableResolver: any AgentProviderExecutableResolving = RecordingExecutableResolver(path: nil),
+        executableResolver: any AgentHarnessExecutableResolving = RecordingExecutableResolver(path: nil),
         recorder: CodexTransportConfigurationRecorder? = nil
-    ) -> CodexProviderAdapter.Configuration {
-        CodexProviderAdapter.Configuration(
+    ) -> CodexHarnessAdapter.Configuration {
+        CodexHarnessAdapter.Configuration(
             executablePath: executablePath,
             makeTransport: { configuration in
                 recorder?.record(configuration)

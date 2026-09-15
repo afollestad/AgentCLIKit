@@ -6,9 +6,9 @@ import XCTest
 final class CodexAppServerInteractionRequestTests: XCTestCase {
     func testCommandApprovalRequestResolvesExplicitAmendmentOnce() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
         let spawnConfig = AgentSpawnConfig(
-            providerId: .codex,
+            harnessId: .codex,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
             permissionMode: "on-request"
         )
@@ -61,8 +61,8 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
 
     func testFileChangeApprovalMapsDeclineAndCancel() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -101,8 +101,8 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
 
     func testPermissionProfileApprovalGrantsAndDenialUsesErrorFallback() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -124,7 +124,7 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
         _ = try await adapter.encodeInput(
             .interactionResolution(AgentApprovalSelection(
                 interactionId: interactions[0].id,
-                providerId: .codex,
+                harnessId: .codex,
                 outcome: .approved,
                 grantKind: .session,
                 operation: "Permissions"
@@ -150,8 +150,8 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
 
     func testMcpElicitationPromptAcceptsContent() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -185,8 +185,8 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
 
     func testUnsupportedDynamicToolCallRespondsAndEmitsDiagnostic() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -211,8 +211,8 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
 
     func testReplacingRuntimeBindingDropsPendingRequestFromOldProcess() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
         let oldProcessToken = UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID()
         let newProcessToken = UUID(uuidString: "00000000-0000-0000-0000-000000000002") ?? UUID()
 
@@ -247,8 +247,8 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
 
     func testCompletedTurnDropsPendingApproval() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -273,8 +273,8 @@ final class CodexAppServerInteractionRequestTests: XCTestCase {
 }
 
 extension CodexAppServerInteractionRequestTests {
-    func configuration(transport: FakeCodexAppServerTransport) -> CodexProviderAdapter.Configuration {
-        CodexProviderAdapter.Configuration(
+    func configuration(transport: FakeCodexAppServerTransport) -> CodexHarnessAdapter.Configuration {
+        CodexHarnessAdapter.Configuration(
             requestTimeout: 0.1,
             probeTimeout: 0.1,
             makeTransport: { _ in transport },
@@ -286,11 +286,11 @@ extension CodexAppServerInteractionRequestTests {
         threadId: AgentSessionID,
         spawnConfig: AgentSpawnConfig,
         processToken: UUID? = nil
-    ) -> AgentProviderRuntimeContext {
-        AgentProviderRuntimeContext(
+    ) -> AgentHarnessRuntimeContext {
+        AgentHarnessRuntimeContext(
             conversationId: "conversation",
             processToken: processToken ?? Self.processToken,
-            providerSessionId: threadId,
+            harnessSessionId: threadId,
             spawnConfig: spawnConfig
         )
     }
@@ -299,11 +299,11 @@ extension CodexAppServerInteractionRequestTests {
         threadId: AgentSessionID,
         spawnConfig: AgentSpawnConfig,
         processToken: UUID? = nil
-    ) -> AgentProviderInputContext {
-        AgentProviderInputContext(
+    ) -> AgentHarnessInputContext {
+        AgentHarnessInputContext(
             conversationId: "conversation",
             processToken: processToken ?? Self.processToken,
-            providerSessionId: threadId,
+            harnessSessionId: threadId,
             spawnConfig: spawnConfig,
             isTurnActive: true
         )
@@ -465,8 +465,8 @@ extension CodexAppServerInteractionRequestTests {
 
     static let exitPlanMarkdown = "# Plan\n\n- Implement the requested change."
 
-    static func collect(_ stream: AsyncStream<AgentProviderRuntimeEvent>, count: Int) async -> [AgentProviderRuntimeEvent] {
-        var events: [AgentProviderRuntimeEvent] = []
+    static func collect(_ stream: AsyncStream<AgentHarnessRuntimeEvent>, count: Int) async -> [AgentHarnessRuntimeEvent] {
+        var events: [AgentHarnessRuntimeEvent] = []
         for await event in stream {
             events.append(event)
             if events.count >= count {
@@ -476,11 +476,11 @@ extension CodexAppServerInteractionRequestTests {
         return events
     }
 
-    static func interaction(from events: [AgentProviderRuntimeEvent]) throws -> AgentInteractionEvent {
+    static func interaction(from events: [AgentHarnessRuntimeEvent]) throws -> AgentInteractionEvent {
         try XCTUnwrap(interactions(from: events).first)
     }
 
-    static func interactions(from events: [AgentProviderRuntimeEvent]) throws -> [AgentInteractionEvent] {
+    static func interactions(from events: [AgentHarnessRuntimeEvent]) throws -> [AgentInteractionEvent] {
         let interactions = events.compactMap { event -> AgentInteractionEvent? in
             guard case let .interaction(interaction) = event.event else {
                 return nil

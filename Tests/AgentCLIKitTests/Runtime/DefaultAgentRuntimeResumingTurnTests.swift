@@ -24,7 +24,7 @@ struct DefaultAgentRuntimeResumingTurnTests {
     func `ordinary spawn preserves prompt based activity`(hasPrompt: Bool) async throws {
         try await withRuntime { fixture in
             let config = AgentSpawnConfig(
-                providerId: .claude,
+                harnessId: .claude,
                 workingDirectory: FileManager.default.temporaryDirectory,
                 initialPrompt: hasPrompt ? "Start work" : nil
             )
@@ -60,7 +60,7 @@ struct DefaultAgentRuntimeResumingTurnTests {
     @Test func `failure ends a resumed turn`() async throws {
         try await withRuntime { fixture in
             try await fixture.runtime.spawn(conversationId: fixture.id, config: fixture.config, resumingTurn: true)
-            let status = try await fixture.emit(.lifecycle(AgentLifecycleEvent(state: .failed, message: "Provider failed")))
+            let status = try await fixture.emit(.lifecycle(AgentLifecycleEvent(state: .failed, message: "Harness failed")))
             #expect(!status.isTurnActive)
         }
     }
@@ -83,16 +83,16 @@ private enum SubsequentStart: CaseIterable {
 }
 
 private struct ResumingTurnFixture {
-    let source: ProviderActivitySource
+    let source: HarnessActivitySource
     let runtime: DefaultAgentRuntime
     let id: AgentConversationID = "conversation"
-    let config = AgentSpawnConfig(providerId: .claude, workingDirectory: FileManager.default.temporaryDirectory)
+    let config = AgentSpawnConfig(harnessId: .claude, workingDirectory: FileManager.default.temporaryDirectory)
 
     init() {
-        let source = ProviderActivitySource()
+        let source = HarnessActivitySource()
         self.source = source
         runtime = DefaultAgentRuntime(adapters: [
-            ActivityReportingProviderAdapter(
+            ActivityReportingHarnessAdapter(
                 command: AgentLaunchConfiguration(executable: "/bin/cat"),
                 activitySource: source
             )
@@ -102,7 +102,7 @@ private struct ResumingTurnFixture {
     func emit(_ event: AgentEvent) async throws -> AgentRuntimeStatus {
         let previousStatus = try #require(await runtime.status(conversationId: id))
         let statuses = await runtime.statusUpdates(conversationId: id)
-        await source.emit(AgentProviderRuntimeEvent(event: event))
+        await source.emit(AgentHarnessRuntimeEvent(event: event))
         for await status in statuses where status.lastEventIndex > previousStatus.lastEventIndex {
             return status
         }

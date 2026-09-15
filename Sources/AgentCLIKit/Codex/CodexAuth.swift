@@ -26,7 +26,7 @@ public struct CodexAuthReadiness: Codable, Equatable, Sendable {
     public let credentialSources: [CodexAuthCredentialSource]
     /// Auth file path checked by the probe.
     public let authFilePath: String
-    /// Host-facing diagnostics that can be surfaced by provider setup UI.
+    /// Host-facing diagnostics that can be surfaced by harness setup UI.
     public let diagnostics: [String]
 
     /// Whether any inspectable credential material was found.

@@ -10,7 +10,7 @@ struct AgentHostToolServerFailure: Equatable, Sendable {
 protocol AgentHostToolServing: Sendable {
     func register(
         conversationId: AgentConversationID,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         processToken: UUID,
         server: AgentHostToolServerMetadata,
         tools: [AgentHostToolDefinition]
@@ -68,7 +68,7 @@ actor DefaultAgentHostToolServer: AgentHostToolServing {
 
     private struct RegistrationContext {
         let conversationId: AgentConversationID
-        let providerId: AgentProviderID
+        let harnessId: AgentHarnessID
         let processToken: UUID
     }
 
@@ -100,7 +100,7 @@ actor DefaultAgentHostToolServer: AgentHostToolServing {
 
     func register(
         conversationId: AgentConversationID,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         processToken: UUID,
         server metadata: AgentHostToolServerMetadata,
         tools: [AgentHostToolDefinition]
@@ -118,7 +118,7 @@ actor DefaultAgentHostToolServer: AgentHostToolServing {
         do {
             let prepared = try await prepareRegistration(
                 conversationId: conversationId,
-                providerId: providerId,
+                harnessId: harnessId,
                 processToken: processToken,
                 metadata: metadata,
                 tools: tools
@@ -143,7 +143,7 @@ actor DefaultAgentHostToolServer: AgentHostToolServing {
 
     private func prepareRegistration(
         conversationId: AgentConversationID,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         processToken: UUID,
         metadata: AgentHostToolServerMetadata,
         tools: [AgentHostToolDefinition]
@@ -165,7 +165,7 @@ actor DefaultAgentHostToolServer: AgentHostToolServing {
         let server = await configuredServer(
             registrationContext: RegistrationContext(
                 conversationId: conversationId,
-                providerId: providerId,
+                harnessId: harnessId,
                 processToken: processToken
             ),
             metadata: metadata,
@@ -219,7 +219,7 @@ actor DefaultAgentHostToolServer: AgentHostToolServing {
             let requestId = Self.requestId(from: Server.currentHandlerContext?.httpContext?.body)
             let context = AgentHostToolCallContext(
                 conversationId: registrationContext.conversationId,
-                providerId: registrationContext.providerId,
+                harnessId: registrationContext.harnessId,
                 processToken: registrationContext.processToken,
                 requestId: requestId
             )
@@ -377,7 +377,7 @@ actor DefaultAgentHostToolServer: AgentHostToolServing {
     }
 
     private func validate(metadata: AgentHostToolServerMetadata, tools: [AgentHostToolDefinition]) throws {
-        guard metadata.hasValidProviderName else {
+        guard metadata.hasValidHarnessName else {
             throw AgentCLIError.invalidInput("Host tool server names must be 1 to 128 ASCII letters, numbers, underscores, or hyphens.")
         }
         guard !tools.isEmpty else {
@@ -385,7 +385,7 @@ actor DefaultAgentHostToolServer: AgentHostToolServing {
         }
         var names = Set<String>()
         for tool in tools {
-            guard tool.hasValidProviderName else {
+            guard tool.hasValidHarnessName else {
                 throw AgentCLIError.invalidInput("Host tool names must be 1 to 128 ASCII letters, numbers, periods, underscores, or hyphens.")
             }
             guard names.insert(tool.name).inserted else {

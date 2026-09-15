@@ -1,15 +1,15 @@
 import Foundation
 
-/// Approval request surfaced by a provider or hook.
+/// Approval request surfaced by a harness or hook.
 public struct AgentApprovalRequest: Codable, Equatable, Sendable {
     /// Interaction identifier resolved by the host.
     public let id: AgentInteractionID
-    /// Provider that requested approval.
-    public let providerId: AgentProviderID
+    /// Harness that requested approval.
+    public let harnessId: AgentHarnessID
     /// Host conversation identifier.
     public let conversationId: AgentConversationID
-    /// Provider session identifier when known.
-    public let providerSessionId: AgentSessionID?
+    /// Harness session identifier when known.
+    public let harnessSessionId: AgentSessionID?
     /// Operation or tool name requiring approval.
     public let operation: String
     /// User-facing reason or summary.
@@ -18,7 +18,7 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
     public let input: JSONValue
     /// Canonical operation input used for approval identity, when available.
     public let approvalIdentityInput: JSONValue?
-    /// Provider permission mode active when the approval was requested.
+    /// Harness permission mode active when the approval was requested.
     public let permissionMode: String?
     /// Date the request was created.
     public let createdAt: Date
@@ -26,9 +26,9 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
     /// Creates an approval request.
     public init(
         id: AgentInteractionID,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         conversationId: AgentConversationID,
-        providerSessionId: AgentSessionID? = nil,
+        harnessSessionId: AgentSessionID? = nil,
         operation: String,
         reason: String,
         input: JSONValue,
@@ -37,9 +37,9 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         createdAt: Date = Date()
     ) {
         self.id = id
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.conversationId = conversationId
-        self.providerSessionId = providerSessionId
+        self.harnessSessionId = harnessSessionId
         self.operation = operation
         self.reason = reason
         self.input = input
@@ -52,9 +52,9 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decode(AgentInteractionID.self, forKey: .id)
-        self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
+        self.harnessId = try container.decode(AgentHarnessID.self, forKey: .harnessId)
         self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
-        self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
+        self.harnessSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .harnessSessionId)
         self.operation = try container.decode(String.self, forKey: .operation)
         self.reason = try container.decode(String.self, forKey: .reason)
         self.input = try container.decode(JSONValue.self, forKey: .input)
@@ -102,15 +102,15 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         sessionApprovalRequest?.recommendedSessionApprovalScope
     }
 
-    /// Provider-neutral session approval request for this approval when enough metadata is available.
+    /// Harness-neutral session approval request for this approval when enough metadata is available.
     public var sessionApprovalRequest: AgentSessionApprovalRequest? {
-        guard let providerSessionId else {
+        guard let harnessSessionId else {
             return nil
         }
         return AgentSessionApprovalRequest(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversationId,
-            sessionId: providerSessionId,
+            sessionId: harnessSessionId,
             toolName: operation,
             toolInput: input,
             approvalIdentityToolInput: approvalIdentityInput
@@ -139,6 +139,20 @@ public struct AgentApprovalRequest: Codable, Equatable, Sendable {
         }
         return String(value.prefix(limit - 1)) + "..."
     }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case harnessId = "providerId"
+        case conversationId
+        case harnessSessionId = "providerSessionId"
+        case operation
+        case reason
+        case input
+        case approvalIdentityInput
+        case permissionMode
+        case createdAt
+    }
 }
 
 /// Prompt request asking the host to collect free-form user input.
@@ -147,13 +161,13 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
     public let id: AgentInteractionID
     /// Host conversation identifier.
     public let conversationId: AgentConversationID
-    /// Provider session identifier when known.
-    public let providerSessionId: AgentSessionID?
+    /// Harness session identifier when known.
+    public let harnessSessionId: AgentSessionID?
     /// User-facing prompt text.
     public let prompt: String
     /// Optional default answer.
     public let defaultResponse: String?
-    /// Structured answer options when the provider asks a fixed-choice question.
+    /// Structured answer options when the harness asks a fixed-choice question.
     public let options: [AgentPromptOption]
     /// Whether the host may submit text that is not one of `options`.
     public let allowsCustomResponse: Bool
@@ -162,7 +176,7 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
     public init(
         id: AgentInteractionID,
         conversationId: AgentConversationID,
-        providerSessionId: AgentSessionID? = nil,
+        harnessSessionId: AgentSessionID? = nil,
         prompt: String,
         defaultResponse: String? = nil,
         options: [AgentPromptOption] = [],
@@ -170,7 +184,7 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
     ) {
         self.id = id
         self.conversationId = conversationId
-        self.providerSessionId = providerSessionId
+        self.harnessSessionId = harnessSessionId
         self.prompt = prompt
         self.defaultResponse = defaultResponse
         self.options = options
@@ -182,15 +196,26 @@ public struct AgentPromptRequest: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decode(AgentInteractionID.self, forKey: .id)
         self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
-        self.providerSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .providerSessionId)
+        self.harnessSessionId = try container.decodeIfPresent(AgentSessionID.self, forKey: .harnessSessionId)
         self.prompt = try container.decode(String.self, forKey: .prompt)
         self.defaultResponse = try container.decodeIfPresent(String.self, forKey: .defaultResponse)
         self.options = try container.decodeIfPresent([AgentPromptOption].self, forKey: .options) ?? []
         self.allowsCustomResponse = try container.decodeIfPresent(Bool.self, forKey: .allowsCustomResponse) ?? true
     }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case conversationId
+        case harnessSessionId = "providerSessionId"
+        case prompt
+        case defaultResponse
+        case options
+        case allowsCustomResponse
+    }
 }
 
-/// One selectable answer for a structured provider prompt.
+/// One selectable answer for a structured harness prompt.
 public struct AgentPromptOption: Codable, Equatable, Sendable, Identifiable {
     /// Stable option identifier used when resolving the prompt.
     public let id: String
@@ -198,9 +223,9 @@ public struct AgentPromptOption: Codable, Equatable, Sendable, Identifiable {
     public let label: String
     /// Optional user-facing description for the option.
     public let description: String?
-    /// Text sent back to the provider when this option is selected.
+    /// Text sent back to the harness when this option is selected.
     public let responseText: String
-    /// Provider-neutral option metadata.
+    /// Harness-neutral option metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a prompt option.
@@ -238,7 +263,7 @@ public struct AgentPromptOption: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
-/// Source of an answer submitted for a provider prompt.
+/// Source of an answer submitted for a harness prompt.
 public enum AgentPromptAnswerSource: Codable, Equatable, Sendable {
     /// A fixed prompt option was selected.
     case option(id: String)
@@ -246,15 +271,15 @@ public enum AgentPromptAnswerSource: Codable, Equatable, Sendable {
     case customResponse
 }
 
-/// Host answer for a pending provider prompt.
+/// Host answer for a pending harness prompt.
 public struct AgentPromptAnswer: Codable, Equatable, Sendable {
     /// Interaction being answered.
     public let interactionId: AgentInteractionID
-    /// Answer text sent to the provider.
+    /// Answer text sent to the harness.
     public let responseText: String
     /// Whether the answer came from a fixed option or custom input.
     public let source: AgentPromptAnswerSource
-    /// Provider-neutral answer metadata.
+    /// Harness-neutral answer metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a prompt answer.

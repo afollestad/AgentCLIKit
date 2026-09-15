@@ -1,6 +1,6 @@
 import Foundation
 
-/// Generates a short provider-neutral preview from an initial session prompt.
+/// Generates a short harness-neutral preview from an initial session prompt.
 public enum AgentSessionPreviewGenerator {
     /// Generates a user-facing preview from an initial prompt.
     ///

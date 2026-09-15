@@ -1,18 +1,18 @@
 import Foundation
 
-/// Provider-neutral lifecycle status for an active or terminal goal.
+/// Harness-neutral lifecycle status for an active or terminal goal.
 public enum AgentGoalStatus: String, Codable, Hashable, Sendable {
-    /// Provider is actively pursuing the goal.
+    /// Harness is actively pursuing the goal.
     case active
-    /// Provider has paused goal pursuit and may be resumed where supported.
+    /// Harness has paused goal pursuit and may be resumed where supported.
     case paused
-    /// Provider reported that the goal was achieved.
+    /// Harness reported that the goal was achieved.
     case achieved
-    /// Provider reported that the goal is blocked.
+    /// Harness reported that the goal is blocked.
     case blocked
-    /// Provider stopped goal pursuit because a usage or budget limit was reached.
+    /// Harness stopped goal pursuit because a usage or budget limit was reached.
     case usageLimited
-    /// Provider reported that the goal was cleared.
+    /// Harness reported that the goal was cleared.
     case cleared
 
     /// Whether this status should be treated as terminal by hosts.
@@ -26,33 +26,33 @@ public enum AgentGoalStatus: String, Codable, Hashable, Sendable {
     }
 }
 
-/// Provider-neutral action that can be requested for an active goal.
+/// Harness-neutral action that can be requested for an active goal.
 public enum AgentGoalAction: String, Codable, Hashable, Sendable, CaseIterable {
-    /// Pause goal pursuit where the provider supports it.
+    /// Pause goal pursuit where the harness supports it.
     case pause
-    /// Resume a paused goal where the provider supports it.
+    /// Resume a paused goal where the harness supports it.
     case resume
-    /// Delete or clear the active goal where the provider supports it.
+    /// Delete or clear the active goal where the harness supports it.
     case delete
 }
 
-/// Provider-reported goal state for a conversation.
+/// Harness-reported goal state for a conversation.
 public struct AgentGoalSnapshot: Codable, Equatable, Sendable {
     /// User-visible goal objective.
     public let objective: String
-    /// Provider-reported status.
+    /// Harness-reported status.
     public let status: AgentGoalStatus
-    /// Actions currently supported by this provider/session for the goal.
+    /// Actions currently supported by this harness/session for the goal.
     public let availableActions: [AgentGoalAction]
     /// Optional elapsed time in seconds.
     public let elapsedSeconds: Int?
-    /// Optional turn count reported by the provider.
+    /// Optional turn count reported by the harness.
     public let turnCount: Int?
-    /// Optional token count reported by the provider.
+    /// Optional token count reported by the harness.
     public let tokenCount: Int?
-    /// Optional provider-facing reason or detail for the status.
+    /// Optional harness-facing reason or detail for the status.
     public let statusReason: String?
-    /// Provider-specific metadata for hosts that need richer display or diagnostics.
+    /// Harness-specific metadata for hosts that need richer display or diagnostics.
     public let metadata: [String: JSONValue]
 
     /// Creates a goal snapshot.
@@ -90,15 +90,15 @@ public struct AgentGoalSnapshot: Codable, Equatable, Sendable {
     }
 }
 
-/// Provider-neutral goal event emitted by adapters or runtime-owned provider resources.
+/// Harness-neutral goal event emitted by adapters or runtime-owned harness resources.
 public struct AgentGoalEvent: Codable, Equatable, Sendable {
-    /// Latest provider-reported snapshot. `nil` when the provider confirmed the goal was cleared.
+    /// Latest harness-reported snapshot. `nil` when the harness confirmed the goal was cleared.
     public let snapshot: AgentGoalSnapshot?
-    /// Whether this event represents a provider-confirmed clear/delete.
+    /// Whether this event represents a harness-confirmed clear/delete.
     public let isCleared: Bool
-    /// Last known objective when a provider reports a clear without an active snapshot.
+    /// Last known objective when a harness reports a clear without an active snapshot.
     public let objective: String?
-    /// Provider-specific metadata for diagnostics.
+    /// Harness-specific metadata for diagnostics.
     public let metadata: [String: JSONValue]
 
     /// Creates a goal event.
@@ -114,7 +114,7 @@ public struct AgentGoalEvent: Codable, Equatable, Sendable {
         self.metadata = metadata
     }
 
-    /// Creates a provider-confirmed clear event.
+    /// Creates a harness-confirmed clear event.
     public static func cleared(objective: String? = nil, metadata: [String: JSONValue] = [:]) -> AgentGoalEvent {
         AgentGoalEvent(snapshot: nil, isCleared: true, objective: objective, metadata: metadata)
     }
@@ -131,7 +131,7 @@ public struct AgentGoalEvent: Codable, Equatable, Sendable {
 
 /// Metadata keys for goal-mode inputs and events.
 public enum AgentGoalMetadata {
-    /// Marks an initial provider input that should use provider-native goal-start transport.
+    /// Marks an initial harness input that should use harness-native goal-start transport.
     public static let isInitialGoalTransport = "agent_goal_initial_transport"
     /// Stores the user-visible goal objective.
     public static let objective = "agent_goal_objective"

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Stateful reducer that turns provider task-tool events into task-list snapshots.
+/// Stateful reducer that turns harness task-tool events into task-list snapshots.
 public struct AgentTaskListReducer: Sendable {
     private static let taskToolNames: Set<String> = ["TaskCreate", "TaskUpdate", "TaskList", "TaskGet"]
     private var currentSnapshot: AgentTaskListSnapshot?
@@ -17,7 +17,7 @@ public struct AgentTaskListReducer: Sendable {
         pendingCreatedItemIdsByToolCallId = [:]
     }
 
-    /// Returns whether the tool name is part of the provider task-list tool family.
+    /// Returns whether the tool name is part of the harness task-list tool family.
     public static func isTaskToolName(_ name: String) -> Bool {
         taskToolNames.contains(name)
     }

@@ -17,9 +17,9 @@ Perform a repo-aware quality audit of the current AgentCLIKit changes before the
 4. Review changes for:
    - Bugs.
    - Edge cases.
-   - Regressions, especially accidental provider-specific behavior in generic code.
-   - Provider boundary leaks between generic runtime code and provider folders.
-   - Future provider feasibility, including Codex-style adapters that may not use Claude stream JSON.
+   - Regressions, especially accidental harness-specific behavior in generic code.
+   - Harness boundary leaks between generic runtime code and harness folders.
+   - Future harness feasibility, including Codex-style adapters that may not use Claude stream JSON.
    - Performance risks in process streaming, replay buffers, or transcript grouping.
    - Dead or stale code.
    - File-size pressure.

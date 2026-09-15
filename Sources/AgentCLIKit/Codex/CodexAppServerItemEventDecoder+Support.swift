@@ -69,8 +69,8 @@ extension CodexAppServerItemEventDecoder {
         return metadata
     }
 
-    func runtimeEvent(_ event: AgentEvent) -> AgentProviderRuntimeEvent {
-        AgentProviderRuntimeEvent(event: event, source: .runtime)
+    func runtimeEvent(_ event: AgentEvent) -> AgentHarnessRuntimeEvent {
+        AgentHarnessRuntimeEvent(event: event, source: .runtime)
     }
 
     func textContent(_ value: JSONValue) -> String {

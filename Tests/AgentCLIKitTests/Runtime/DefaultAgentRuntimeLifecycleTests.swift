@@ -6,7 +6,7 @@ import XCTest
 final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
     func testLifecycleStdoutReplayAndStatus() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'message:first\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'message:first\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -26,7 +26,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testLifecycleReplayIncludesStartingAndRunningEvents() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'message:first\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'message:first\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -46,7 +46,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testLaunchFailureThrowsAndRecordsFailedStatus() async {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: AgentLaunchConfiguration(executable: "/no/such/executable"))
+            FakeHarnessAdapter(command: AgentLaunchConfiguration(executable: "/no/such/executable"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -61,7 +61,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testLaunchFailureRejectsLaterInput() async {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: AgentLaunchConfiguration(executable: "/no/such/executable"))
+            FakeHarnessAdapter(command: AgentLaunchConfiguration(executable: "/no/such/executable"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -78,7 +78,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testImmediateProcessExitRecordsExitStatus() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("true"))
+            FakeHarnessAdapter(command: shell("true"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -90,7 +90,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testCancelDoesNotOverrideExitedStatus() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("true"))
+            FakeHarnessAdapter(command: shell("true"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -104,7 +104,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testCancelDoesNotOverrideFailedStatus() async {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: AgentLaunchConfiguration(executable: "/no/such/executable"))
+            FakeHarnessAdapter(command: AgentLaunchConfiguration(executable: "/no/such/executable"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -117,7 +117,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testCancelAndDestroyUpdateRuntimeState() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("sleep 5"))
+            FakeHarnessAdapter(command: shell("sleep 5"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -135,12 +135,12 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
         XCTAssertNil(destroyed)
     }
 
-    func testDestroyForceTerminatesProviderProcessThatIgnoresSoftSignals() async throws {
+    func testDestroyForceTerminatesHarnessProcessThatIgnoresSoftSignals() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let pidFile = directory.appendingPathComponent("provider.pid")
+        let pidFile = directory.appendingPathComponent("harness.pid")
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("echo $$ > '\(pidFile.path)'; trap '' INT TERM; while true; do :; done"))
+            FakeHarnessAdapter(command: shell("echo $$ > '\(pidFile.path)'; trap '' INT TERM; while true; do :; done"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -159,7 +159,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testCancelRejectsLaterInputImmediately() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("sleep 5"))
+            FakeHarnessAdapter(command: shell("sleep 5"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -177,7 +177,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testConcurrentCancelCallsEmitSingleCancelledLifecycle() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("sleep 5"))
+            FakeHarnessAdapter(command: shell("sleep 5"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -198,9 +198,9 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
         XCTAssertEqual(cancelledEvents.count, 1)
     }
 
-    func testKillTerminatesProviderProcess() async throws {
+    func testKillTerminatesHarnessProcess() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("sleep 5"))
+            FakeHarnessAdapter(command: shell("sleep 5"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -211,9 +211,9 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
         XCTAssertEqual(status?.state, .failed)
     }
 
-    func testKillForceTerminatesProviderProcessThatIgnoresSoftSignals() async throws {
+    func testKillForceTerminatesHarnessProcessThatIgnoresSoftSignals() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("trap '' INT TERM; while true; do :; done"))
+            FakeHarnessAdapter(command: shell("trap '' INT TERM; while true; do :; done"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -226,7 +226,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 
     func testKillRejectsLaterInputImmediately() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("sleep 5"))
+            FakeHarnessAdapter(command: shell("sleep 5"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -248,7 +248,7 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
             shell("printf 'message:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            SequencedProviderAdapter(launchSequence: launchSequence)
+            SequencedHarnessAdapter(launchSequence: launchSequence)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -272,11 +272,11 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
     func testReconfigureAppliedInPlaceUpdatesRuntimeStatusWithoutRestart() async throws {
         let recorder = ReconfigureRecorder(result: .appliedInPlace)
         let runtime = DefaultAgentRuntime(adapters: [
-            ReconfiguringProviderAdapter(command: shell("sleep 5"), recorder: recorder)
+            ReconfiguringHarnessAdapter(command: shell("sleep 5"), recorder: recorder)
         ])
         let conversationId: AgentConversationID = "conversation"
         let updatedConfig = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             permissionMode: "on-request",
             collaborationMode: .plan
@@ -298,18 +298,18 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
     func testReconfigureNextTurnRequiredKeepsCurrentRuntimeStatus() async throws {
         let recorder = ReconfigureRecorder(result: .nextTurnRequired)
         let runtime = DefaultAgentRuntime(adapters: [
-            ReconfiguringProviderAdapter(command: shell("sleep 5"), recorder: recorder)
+            ReconfiguringHarnessAdapter(command: shell("sleep 5"), recorder: recorder)
         ])
         let conversationId: AgentConversationID = "conversation"
         let initialConfig = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             permissionMode: "default",
             collaborationMode: .default,
             initialPrompt: "Start"
         )
         let updatedConfig = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             permissionMode: "on-request",
             collaborationMode: .plan
@@ -355,21 +355,21 @@ final class DefaultAgentRuntimeLifecycleTests: XCTestCase {
 }
 
 private actor ReconfigureRecorder {
-    private(set) var contexts: [AgentProviderReconfigureContext] = []
-    let result: AgentProviderReconfigureResult
+    private(set) var contexts: [AgentHarnessReconfigureContext] = []
+    let result: AgentHarnessReconfigureResult
 
-    init(result: AgentProviderReconfigureResult) {
+    init(result: AgentHarnessReconfigureResult) {
         self.result = result
     }
 
-    func record(_ context: AgentProviderReconfigureContext) -> AgentProviderReconfigureResult {
+    func record(_ context: AgentHarnessReconfigureContext) -> AgentHarnessReconfigureResult {
         contexts.append(context)
         return result
     }
 }
 
-private struct ReconfiguringProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+private struct ReconfiguringHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
     let recorder: ReconfigureRecorder
 
@@ -388,7 +388,7 @@ private struct ReconfiguringProviderAdapter: AgentProviderAdapter {
         Data()
     }
 
-    func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
+    func reconfigure(context: AgentHarnessReconfigureContext) async throws -> AgentHarnessReconfigureResult {
         await recorder.record(context)
     }
 }

@@ -44,7 +44,7 @@ public struct ClaudeHookDecision: Codable, Equatable, Sendable {
 
 /// Session-scoped key for transient Claude hook decisions.
 public struct ClaudeTransientDecisionKey: Codable, Hashable, Sendable {
-    /// Provider session that emitted the hook, when known.
+    /// Harness session that emitted the hook, when known.
     public let sessionId: AgentSessionID?
     /// Hook interaction identifier, usually Claude's tool use ID.
     public let interactionId: AgentInteractionID
@@ -80,26 +80,26 @@ public protocol ClaudeTransientDecisionStoring: Sendable {
     func consumeTransientDecision(id: AgentInteractionID) async -> ClaudeHookDecision?
     /// Discards a transient one-shot hook decision.
     func discardTransientDecision(id: AgentInteractionID) async
-    /// Records a transient one-shot hook decision for a provider session.
+    /// Records a transient one-shot hook decision for a harness session.
     func recordTransientDecision(_ decision: ClaudeHookDecision, for key: ClaudeTransientDecisionKey) async
-    /// Consumes and removes a transient one-shot hook decision for a provider session.
+    /// Consumes and removes a transient one-shot hook decision for a harness session.
     func consumeTransientDecision(for key: ClaudeTransientDecisionKey) async -> ClaudeHookDecision?
-    /// Discards a transient one-shot hook decision for a provider session.
+    /// Discards a transient one-shot hook decision for a harness session.
     func discardTransientDecision(for key: ClaudeTransientDecisionKey) async
 }
 
 public extension ClaudeTransientDecisionStoring {
-    /// Records a transient one-shot hook decision for a provider session.
+    /// Records a transient one-shot hook decision for a harness session.
     func recordTransientDecision(_ decision: ClaudeHookDecision, for key: ClaudeTransientDecisionKey) async {
         await recordTransientDecision(decision, id: key.interactionId)
     }
 
-    /// Consumes and removes a transient one-shot hook decision for a provider session.
+    /// Consumes and removes a transient one-shot hook decision for a harness session.
     func consumeTransientDecision(for key: ClaudeTransientDecisionKey) async -> ClaudeHookDecision? {
         await consumeTransientDecision(id: key.interactionId)
     }
 
-    /// Discards a transient one-shot hook decision for a provider session.
+    /// Discards a transient one-shot hook decision for a harness session.
     func discardTransientDecision(for key: ClaudeTransientDecisionKey) async {
         await discardTransientDecision(id: key.interactionId)
     }
@@ -135,7 +135,7 @@ public actor ClaudeApprovalPolicyStore: ClaudeApprovalPolicyStoring, ClaudeTrans
             || isSessionApproved(operation: operation)
     }
 
-    /// Records a provider-neutral durable session approval grant.
+    /// Records a harness-neutral durable session approval grant.
     public func recordSessionApproval(_ grant: AgentSessionApprovalGrant) -> AgentSessionApprovalRecordResult {
         let inserted = sessionApprovalGrants.insert(grant).inserted
         return AgentSessionApprovalRecordResult(isEffective: true, wasInserted: inserted)
@@ -146,20 +146,20 @@ public actor ClaudeApprovalPolicyStore: ClaudeApprovalPolicyStoring, ClaudeTrans
         sessionApprovalGrants.remove(grant)
     }
 
-    /// Returns whether a provider-neutral approval request matches a durable session grant.
+    /// Returns whether a harness-neutral approval request matches a durable session grant.
     public func allowsSessionApproval(_ request: AgentSessionApprovalRequest) -> Bool {
         request.sessionApprovalGrantCandidates
             .contains { sessionApprovalGrants.contains($0) }
     }
 
-    /// Removes durable session approval grants for a provider session.
+    /// Removes durable session approval grants for a harness session.
     public func removeSessionApprovals(
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         conversationId: AgentConversationID,
         sessionId: AgentSessionID
     ) {
         sessionApprovalGrants = sessionApprovalGrants.filter {
-            $0.providerId != providerId || $0.conversationId != conversationId || $0.sessionId != sessionId
+            $0.harnessId != harnessId || $0.conversationId != conversationId || $0.sessionId != sessionId
         }
     }
 
@@ -190,17 +190,17 @@ public actor ClaudeApprovalPolicyStore: ClaudeApprovalPolicyStoring, ClaudeTrans
         transientDecisions.removeValue(forKey: ClaudeTransientDecisionKey(sessionId: nil, interactionId: id))
     }
 
-    /// Records a transient one-shot hook decision for a provider session.
+    /// Records a transient one-shot hook decision for a harness session.
     public func recordTransientDecision(_ decision: ClaudeHookDecision, for key: ClaudeTransientDecisionKey) async {
         transientDecisions[key] = decision
     }
 
-    /// Consumes and removes a transient one-shot hook decision for a provider session.
+    /// Consumes and removes a transient one-shot hook decision for a harness session.
     public func consumeTransientDecision(for key: ClaudeTransientDecisionKey) async -> ClaudeHookDecision? {
         removeTransientDecision(for: key)
     }
 
-    /// Discards a transient one-shot hook decision for a provider session.
+    /// Discards a transient one-shot hook decision for a harness session.
     public func discardTransientDecision(for key: ClaudeTransientDecisionKey) async {
         transientDecisions.removeValue(forKey: key)
     }

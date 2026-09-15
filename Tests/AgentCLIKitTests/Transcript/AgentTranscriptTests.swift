@@ -40,9 +40,9 @@ final class AgentTranscriptTests: XCTestCase {
 
     func testDefaultPolicyDoesNotGroupAcrossConversations() {
         let entries = AgentTranscriptBuilder().build(from: [
-            envelope(index: 0, providerId: .claude, conversationId: "one", role: .assistant, text: "A"),
-            envelope(index: 1, providerId: .claude, conversationId: "two", role: .assistant, text: "B"),
-            envelope(index: 2, providerId: .claude, conversationId: "three", role: .assistant, text: "C")
+            envelope(index: 0, harnessId: .claude, conversationId: "one", role: .assistant, text: "A"),
+            envelope(index: 1, harnessId: .claude, conversationId: "two", role: .assistant, text: "B"),
+            envelope(index: 2, harnessId: .claude, conversationId: "three", role: .assistant, text: "C")
         ])
 
         XCTAssertEqual(entries.map(\.text), ["A", "B", "C"])
@@ -61,16 +61,16 @@ final class AgentTranscriptTests: XCTestCase {
     }
 
     private func envelope(index: Int, role: AgentMessageRole, text: String) -> AgentEventEnvelope {
-        envelope(index: index, providerId: .claude, conversationId: "conversation", role: role, text: text)
+        envelope(index: index, harnessId: .claude, conversationId: "conversation", role: role, text: text)
     }
 
     private func envelope(generation: Int, index: Int, role: AgentMessageRole, text: String) -> AgentEventEnvelope {
-        envelope(index: index, providerId: .claude, conversationId: "conversation", generation: generation, role: role, text: text)
+        envelope(index: index, harnessId: .claude, conversationId: "conversation", generation: generation, role: role, text: text)
     }
 
     private func envelope(
         index: Int,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         conversationId: AgentConversationID,
         generation: Int = 1,
         role: AgentMessageRole,
@@ -79,9 +79,9 @@ final class AgentTranscriptTests: XCTestCase {
         AgentEventEnvelope(
             generation: generation,
             index: index,
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversationId,
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stdout,
             event: .message(AgentMessageEvent(role: role, text: text)),
             createdAt: Date(timeIntervalSince1970: TimeInterval(index))
@@ -92,9 +92,9 @@ final class AgentTranscriptTests: XCTestCase {
         AgentEventEnvelope(
             generation: 1,
             index: index,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stderr,
             event: .diagnostic(AgentDiagnosticEvent(severity: .info, message: "detail")),
             createdAt: Date(timeIntervalSince1970: TimeInterval(index))

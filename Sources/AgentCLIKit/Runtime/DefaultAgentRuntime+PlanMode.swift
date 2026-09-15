@@ -17,7 +17,7 @@ extension DefaultAgentRuntime {
             return
         }
         let proposalId = message.metadata.stringValue(AgentPlanProposalMetadata.proposalId)
-            ?? "\(envelope.providerId.rawValue)-\(envelope.generation)-\(envelope.index)"
+            ?? "\(envelope.harnessId.rawValue)-\(envelope.generation)-\(envelope.index)"
         let proposalKey = Self.planRevisionKey(proposalId: proposalId, planMarkdown: planMarkdown)
         let hasPriorRevisionForProposal = state.synthesizedPlanExitProposalKeys.contains {
             $0.hasPrefix(Self.planRevisionKeyPrefix(proposalId: proposalId))
@@ -104,7 +104,7 @@ extension DefaultAgentRuntime {
         return true
     }
 
-    func providerPlanExitInteraction(
+    func harnessPlanExitInteraction(
         id: AgentInteractionID,
         conversationId: AgentConversationID
     ) -> RuntimePlanExitInteraction? {
@@ -130,13 +130,13 @@ extension DefaultAgentRuntime {
             AgentPlanProposalMetadata.proposalId: .string(proposalId),
             AgentPlanProposalMetadata.planMarkdown: .string(planMarkdown),
             "agent_plan_interaction_source": .string("runtime"),
-            "provider_id": .string(envelope.providerId.rawValue),
+            "provider_id": .string(envelope.harnessId.rawValue),
             "tool_name": .string("ExitPlanMode"),
             "tool_input": .object(["plan": .string(planMarkdown)]),
             "plan": .string(planMarkdown)
         ]
-        if let providerSessionId = envelope.providerSessionId?.rawValue {
-            metadata["session_id"] = .string(providerSessionId)
+        if let harnessSessionId = envelope.harnessSessionId?.rawValue {
+            metadata["session_id"] = .string(harnessSessionId)
         }
         return metadata
     }
@@ -320,7 +320,7 @@ private extension AgentMessageEvent {
 private extension AgentSpawnConfig {
     func withCollaborationMode(_ collaborationMode: AgentCollaborationMode?) -> AgentSpawnConfig {
         AgentSpawnConfig(
-            providerId: providerId,
+            harnessId: harnessId,
             workingDirectory: workingDirectory,
             arguments: arguments,
             environment: environment,

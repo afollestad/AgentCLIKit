@@ -54,11 +54,11 @@ extension DefaultAgentRuntime {
         guard let state = states[conversationId], state.processToken == processToken else {
             return
         }
-        let line = redactedProviderOutput(line, processToken: processToken)
+        let line = redactedHarnessOutput(line, processToken: processToken)
         if source == .stderr {
             appendStderr(line, conversationId: conversationId)
             append(
-                .diagnostic(AgentDiagnosticEvent(code: .providerStderr, severity: .info, message: line)),
+                .diagnostic(AgentDiagnosticEvent(code: .harnessStderr, severity: .info, message: line)),
                 source: .stderr,
                 conversationId: conversationId
             )
@@ -68,20 +68,20 @@ extension DefaultAgentRuntime {
             return
         }
         do {
-            let context = AgentProviderOutputContext(
+            let context = AgentHarnessOutputContext(
                 conversationId: conversationId,
                 processToken: processToken,
-                providerSessionId: state.providerSessionId,
+                harnessSessionId: state.harnessSessionId,
                 spawnConfig: state.spawnConfig
             )
             let events = try await state.adapter.decodeStdoutLine(line, context: context)
-            await appendDecodedProviderEvents(events, conversationId: conversationId, processToken: processToken)
+            await appendDecodedHarnessEvents(events, conversationId: conversationId, processToken: processToken)
         } catch {
-            await appendProviderDecodeFailure(error, line: line, conversationId: conversationId, processToken: processToken)
+            await appendHarnessDecodeFailure(error, line: line, conversationId: conversationId, processToken: processToken)
         }
     }
 
-    private func appendDecodedProviderEvents(
+    private func appendDecodedHarnessEvents(
         _ events: [AgentEvent],
         conversationId: AgentConversationID,
         processToken: UUID
@@ -94,19 +94,19 @@ extension DefaultAgentRuntime {
         for decodedEvent in events {
             let eventsToAppend = lifecycleGuardedEvents(from: decodedEvent, conversationId: conversationId)
             for event in eventsToAppend {
-                await recordProviderSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
+                await recordHarnessSessionIfNeeded(from: event, conversationId: conversationId, processToken: processToken)
                 guard states[conversationId]?.processToken == processToken else {
                     return
                 }
-                guard shouldAppendProviderEvent(event, conversationId: conversationId) else {
+                guard shouldAppendHarnessEvent(event, conversationId: conversationId) else {
                     continue
                 }
-                if let turnStart = providerInitiatedTurnStart(for: event, conversationId: conversationId) {
+                if let turnStart = harnessInitiatedTurnStart(for: event, conversationId: conversationId) {
                     append(turnStart, source: .runtime, conversationId: conversationId)
                 }
                 hasDeferredToolStop = hasDeferredToolStop || isDeferredToolStop(event)
                 append(event, source: .stdout, conversationId: conversationId)
-                if let turnEnd = providerInitiatedTurnEnd(for: event, conversationId: conversationId) {
+                if let turnEnd = harnessInitiatedTurnEnd(for: event, conversationId: conversationId) {
                     append(turnEnd, source: .runtime, conversationId: conversationId)
                 }
             }
@@ -119,7 +119,7 @@ extension DefaultAgentRuntime {
         }
     }
 
-    private func appendProviderDecodeFailure(
+    private func appendHarnessDecodeFailure(
         _ error: Error,
         line: String,
         conversationId: AgentConversationID,
@@ -132,9 +132,9 @@ extension DefaultAgentRuntime {
         }
         let tail = states[conversationId]?.stderrTail.joined(separator: "\n") ?? ""
         let message = tail.isEmpty ? error.localizedDescription : "\(error.localizedDescription)\nRecent stderr:\n\(tail)"
-        // Preserve the raw stdout frame in metadata so provider decoder gaps can be fixed from host logs.
+        // Preserve the raw stdout frame in metadata so harness decoder gaps can be fixed from host logs.
         append(.diagnostic(AgentDiagnosticEvent(
-            code: .providerDecodeFailed,
+            code: .harnessDecodeFailed,
             severity: .error,
             message: message,
             metadata: [
@@ -145,19 +145,19 @@ extension DefaultAgentRuntime {
         )), source: .runtime, conversationId: conversationId)
     }
 
-    private func shouldAppendProviderEvent(_ event: AgentEvent, conversationId: AgentConversationID) -> Bool {
-        guard var state = states[conversationId], var gate = state.providerResumeReplayGate else {
+    private func shouldAppendHarnessEvent(_ event: AgentEvent, conversationId: AgentConversationID) -> Bool {
+        guard var state = states[conversationId], var gate = state.harnessResumeReplayGate else {
             return true
         }
         // Suppressed replay events must not re-trigger deferred-stop handling or pending interactions.
         let shouldSuppress = gate.shouldSuppress(event)
-        state.providerResumeReplayGate = gate.isFinished ? nil : gate
+        state.harnessResumeReplayGate = gate.isFinished ? nil : gate
         states[conversationId] = state
         return !shouldSuppress
     }
 
     private func stopProcessAfterDeferredToolStop(conversationId: AgentConversationID) {
-        // The provider is waiting on host fallback approval. Close stdin so it exits on its own after flushing
+        // The harness is waiting on host fallback approval. Close stdin so it exits on its own after flushing
         // deferred-tool session records; an immediate kill can race those writes and strip the transcript marker
         // a later resume needs to re-run the deferred tool. `hasDeferredToolStop` already drops trailing stdout.
         guard var state = states[conversationId] else {
@@ -206,8 +206,8 @@ extension DefaultAgentRuntime {
         case .cancelled, .exited, .failed:
             states[conversationId]?.stdin = nil
             states[conversationId]?.stdinWriter = nil
-            states[conversationId]?.providerEventTasks.forEach { $0.cancel() }
-            states[conversationId]?.providerEventTasks = []
+            states[conversationId]?.harnessEventTasks.forEach { $0.cancel() }
+            states[conversationId]?.harnessEventTasks = []
             // Cancellation publishes while the process may still be running; publish again
             // from the termination callback so hosts clear cached process-running flags.
             publishStatus(conversationId: conversationId)
@@ -226,18 +226,18 @@ extension DefaultAgentRuntime {
         emitFailedContextCompactionsForTerminalProcess(
             conversationId: conversationId,
             reason: state.rawValue,
-            message: "Context compaction did not finish before the provider process ended."
+            message: "Context compaction did not finish before the harness process ended."
         )
         emitFailedSubAgentsForTerminalProcess(
             conversationId: conversationId,
             reason: state.rawValue,
-            message: "Sub-agent did not finish before the provider process ended."
+            message: "Sub-agent did not finish before the harness process ended."
         )
         emitLifecycle(state, conversationId: conversationId, exitCode: exitCode)
         states[conversationId]?.stdin = nil
         states[conversationId]?.stdinWriter = nil
-        states[conversationId]?.providerEventTasks.forEach { $0.cancel() }
-        states[conversationId]?.providerEventTasks = []
+        states[conversationId]?.harnessEventTasks.forEach { $0.cancel() }
+        states[conversationId]?.harnessEventTasks = []
         await invalidateProcessResources(adapter: latest.adapter, processToken: processToken)
     }
 
@@ -253,7 +253,7 @@ extension DefaultAgentRuntime {
             let isWaitingOnDeferredInteraction = states[conversationId]?.hasDeferredToolStop == true &&
                 states[conversationId]?.waitingState != .idle
             if !isWaitingOnDeferredInteraction {
-                states[conversationId]?.inputAvailability = .blocked(reason: "The provider process is \(state.rawValue).")
+                states[conversationId]?.inputAvailability = .blocked(reason: "The harness process is \(state.rawValue).")
                 states[conversationId]?.waitingState = .idle
             }
         }
@@ -277,7 +277,7 @@ extension DefaultAgentRuntime {
 
     func emitSessionContinuity(
         _ continuity: AgentSessionContinuity?,
-        providerSessionId: AgentSessionID?,
+        harnessSessionId: AgentSessionID?,
         conversationId: AgentConversationID
     ) {
         guard let continuity else {
@@ -285,18 +285,18 @@ extension DefaultAgentRuntime {
         }
         let message: String? = switch continuity {
         case .fresh:
-            "Started a fresh provider session."
+            "Started a fresh harness session."
         case .resumed:
-            "Resumed provider session."
+            "Resumed harness session."
         case .forked:
-            "Forked provider session."
+            "Forked harness session."
         case .restartedFresh:
-            "Provider session artifact was unavailable; restarted with the saved session identifier."
+            "Harness session artifact was unavailable; restarted with the saved session identifier."
         }
         append(
             .sessionContinuity(AgentSessionContinuityEvent(
                 continuity: continuity,
-                providerSessionId: providerSessionId,
+                harnessSessionId: harnessSessionId,
                 message: message
             )),
             source: .runtime,
@@ -327,14 +327,14 @@ extension DefaultAgentRuntime {
         let envelope = AgentEventEnvelope(
             generation: state.generation,
             index: (state.events.last?.index ?? -1) + 1,
-            providerId: state.providerId,
+            harnessId: state.harnessId,
             conversationId: conversationId,
-            providerSessionId: state.providerSessionId,
+            harnessSessionId: state.harnessSessionId,
             source: source,
             event: event
         )
         state.events.append(envelope)
-        notifyProviderOfStatusSideEffects(for: event, adapter: state.adapter, conversationId: conversationId)
+        notifyHarnessOfStatusSideEffects(for: event, adapter: state.adapter, conversationId: conversationId)
         state.compactReplayBuffer(replayLimit: replayLimit)
         state.subscribers.values.forEach { $0.yield(envelope) }
         states[conversationId] = state
@@ -350,9 +350,9 @@ extension DefaultAgentRuntime {
         }
         applySessionMetadataStatusSideEffects(for: metadata, state: &state)
         return .sessionMetadata(AgentSessionMetadataEvent(
-            providerSessionId: metadata.providerSessionId ?? state.providerSessionId,
-            name: state.providerSessionName,
-            preview: state.providerSessionPreview,
+            harnessSessionId: metadata.harnessSessionId ?? state.harnessSessionId,
+            name: state.harnessSessionName,
+            preview: state.harnessSessionPreview,
             metadata: metadata.metadata
         ))
     }
@@ -361,13 +361,13 @@ extension DefaultAgentRuntime {
         guard case let .interaction(interaction) = event else {
             return true
         }
-        // Provider output can replay an interaction after the host already resolved it; keep the runtime monotonic.
+        // Harness output can replay an interaction after the host already resolved it; keep the runtime monotonic.
         return !state.resolvedInteractions.contains(interaction.id)
     }
 
-    private func notifyProviderOfStatusSideEffects(
+    private func notifyHarnessOfStatusSideEffects(
         for event: AgentEvent,
-        adapter: any AgentProviderAdapter,
+        adapter: any AgentHarnessAdapter,
         conversationId: AgentConversationID
     ) {
         guard case let .permissionMode(permissionMode) = event else {
@@ -397,7 +397,7 @@ extension DefaultAgentRuntime {
         case let .usage(usage):
             if usage.endsActiveTurn {
                 state.isTurnActive = false
-                state.providerInitiatedTurnId = nil
+                state.harnessInitiatedTurnId = nil
             }
         case let .lifecycle(lifecycle):
             applyLifecycleStatusSideEffects(for: lifecycle, state: &state)
@@ -439,7 +439,7 @@ extension DefaultAgentRuntime {
         if lifecycle.state == .running { state.inputAvailability = .available }
         if lifecycle.state.isTerminal {
             state.isTurnActive = false
-            state.providerInitiatedTurnId = nil
+            state.harnessInitiatedTurnId = nil
             state.backgroundTasks.processDidEnd()
         }
     }

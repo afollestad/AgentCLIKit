@@ -21,7 +21,7 @@ extension AgentHostToolServerTests {
         XCTAssertEqual(
             failure.message,
             "Host tools became unavailable because the local listener stopped unexpectedly. "
-                + "Replace the affected provider process before using host tools again."
+                + "Replace the affected harness process before using host tools again."
         )
         let firstRegistrationRemains = await server.isRegistered(processToken: firstToken)
         XCTAssertFalse(firstRegistrationRemains)

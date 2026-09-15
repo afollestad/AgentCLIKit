@@ -13,8 +13,8 @@ public actor ClaudeHookServer {
     private var permissionModes: [AgentConversationID: String] = [:]
     private var compactHookTokensByProcess: [UUID: String] = [:]
     private var launchContextsByProcess: [UUID: ClaudeHookLaunchContext] = [:]
-    private var compactHookContinuations: [UUID: AsyncStream<AgentProviderRuntimeEvent>.Continuation] = [:]
-    private var pendingCompactHookEvents: [UUID: [AgentProviderRuntimeEvent]] = [:]
+    private var compactHookContinuations: [UUID: AsyncStream<AgentHarnessRuntimeEvent>.Continuation] = [:]
+    private var pendingCompactHookEvents: [UUID: [AgentHarnessRuntimeEvent]] = [:]
 
     /// Creates a Claude hook server.
     /// - Parameters:
@@ -115,7 +115,7 @@ public actor ClaudeHookServer {
     /// Attaches a runtime event continuation for compact hook events.
     public func registerCompactRuntimeEvents(
         processToken: UUID,
-        continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation
+        continuation: AsyncStream<AgentHarnessRuntimeEvent>.Continuation
     ) {
         compactHookContinuations[processToken] = continuation
         let pending = pendingCompactHookEvents.removeValue(forKey: processToken) ?? []
@@ -128,7 +128,7 @@ public actor ClaudeHookServer {
         pendingCompactHookEvents[processToken] = nil
     }
 
-    /// Updates the cached permission mode for a conversation from provider status output.
+    /// Updates the cached permission mode for a conversation from harness status output.
     public func updatePermissionMode(_ permissionMode: String?, for conversationId: AgentConversationID) {
         if let permissionMode {
             permissionModes[conversationId] = permissionMode
@@ -168,9 +168,9 @@ public actor ClaudeHookServer {
         let approvalIdentityInput = approvalIdentityInput(operation: operation, request: request)
         let approval = AgentApprovalRequest(
             id: interactionId,
-            providerId: ClaudeProviderAdapter.providerId,
+            harnessId: ClaudeHarnessAdapter.harnessId,
             conversationId: request.conversationId,
-            providerSessionId: request.sessionId,
+            harnessSessionId: request.sessionId,
             operation: operation,
             reason: "Claude requested tool approval.",
             input: request.toolInput ?? request.payload,
@@ -225,7 +225,7 @@ public actor ClaudeHookServer {
             promptRequest: AgentPromptRequest(
                 id: interactionId,
                 conversationId: request.conversationId,
-                providerSessionId: request.sessionId,
+                harnessSessionId: request.sessionId,
                 prompt: prompt,
                 options: request.promptOptions,
                 allowsCustomResponse: request.allowsCustomPromptResponse
@@ -251,9 +251,9 @@ public actor ClaudeHookServer {
         }
         let approval = AgentApprovalRequest(
             id: interactionId,
-            providerId: ClaudeProviderAdapter.providerId,
+            harnessId: ClaudeHarnessAdapter.harnessId,
             conversationId: request.conversationId,
-            providerSessionId: request.sessionId,
+            harnessSessionId: request.sessionId,
             operation: "ExitPlanMode",
             reason: "Claude requested to exit planning mode.",
             input: request.toolInput ?? request.payload,
@@ -286,7 +286,7 @@ public actor ClaudeHookServer {
         }
 
         // Hook transports have hard deadlines and launch teardown can invalidate tokens, so an unstructured race keeps the HTTP
-        // request releasable even if a host UI provider is still waiting on user input.
+        // request releasable even if a host UI harness is still waiting on user input.
         let decision = await withCheckedContinuation { continuation in
             race.setContinuation(continuation)
             let decisionTask = Task {
@@ -334,14 +334,14 @@ public actor ClaudeHookServer {
         interactionId: AgentInteractionID,
         request: ClaudeHookRequest
     ) async -> ClaudeHookDecision? {
-        // Transient approvals are keyed by Claude's provider session plus tool_use_id so a retried hook can resolve the same record.
+        // Transient approvals are keyed by Claude's harness session plus tool_use_id so a retried hook can resolve the same record.
         if let decision = await transientDecision(operation: operation, interactionId: interactionId, request: request) {
             await resolveInteractionIfNeeded(decision, interactionId: interactionId, approvedOutcome: .approved, deniedOutcome: .denied)
             return decision
         }
         if let sessionId = request.sessionId {
             let approvalRequest = AgentSessionApprovalRequest(
-                providerId: ClaudeProviderAdapter.providerId,
+                harnessId: ClaudeHarnessAdapter.harnessId,
                 conversationId: request.conversationId,
                 sessionId: sessionId,
                 toolName: operation,

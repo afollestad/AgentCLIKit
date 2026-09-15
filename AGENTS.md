@@ -14,25 +14,25 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `.agents/AGENTS.md`: repo-local agent workflows.
 - `.agents/checks/AGENTS.md`: repo-local review, audit, and check workflows.
 - `docs/AGENTS.md`: README and human-facing documentation.
-- `Sources/AgentCLIKit/Claude/AGENTS.md`: Claude provider adapter, config, stream decoding, and hook server behavior.
+- `Sources/AgentCLIKit/Claude/AGENTS.md`: Claude harness adapter, config, stream decoding, and hook server behavior.
 - `Sources/AgentCLIKit/Claude/Hooks/AGENTS.md`: Claude hook transport.
 - `Sources/AgentCLIKit/Codex/AGENTS.md`: Codex App Server metadata, wire formats, config, and permission semantics.
-- `Sources/AgentCLIKit/MCP/AGENTS.md`: provider-neutral MCP config and process-scoped host tools.
+- `Sources/AgentCLIKit/MCP/AGENTS.md`: harness-neutral MCP config and process-scoped host tools.
 - `Sources/AgentCLIKit/Runtime/AGENTS.md`: runtime process lifecycle, replay buffers, and deferred-tool resume behavior.
 - `Sources/AgentCLIKitDemo/AGENTS.md`: macOS demo app.
 - `Sources/AgentCLIKitDemo/Interactions/AGENTS.md`: demo prompt and hook-decision UI.
 
 ## Architecture
 
-- Keep generic runtime, event, session, interaction, transcript, MCP, skills, and provider-detection code outside provider-specific folders.
+- Keep generic runtime, event, session, interaction, transcript, MCP, skills, and harness-detection code outside harness-specific folders.
 - Put Claude-specific launch details, wire formats, config files, hook behavior, model defaults, effort defaults, and policies under `Sources/AgentCLIKit/Claude/`.
 - Put Codex-specific launch details, wire formats, config files, App Server model-list handling, and policies under `Sources/AgentCLIKit/Codex/`.
-- Keep sessionless one-shot prompts outside `DefaultAgentRuntime`; generic request/result/error APIs stay provider-neutral, while provider-specific CLI command details stay in each provider folder.
-- Additional providers should use their own sibling provider folders rather than adding provider-specific branches to generic runtime code.
+- Keep sessionless one-shot prompts outside `DefaultAgentRuntime`; generic request/result/error APIs stay harness-neutral, while harness-specific CLI command details stay in each harness folder.
+- Additional harnesses should use their own sibling harness folders rather than adding harness-specific branches to generic runtime code.
 - Public APIs must use generic names and avoid host-app concepts such as SwiftData, view models, drafts, notifications, and keep-awake services.
 - Additive public `Codable` changes should decode older persisted values with defaults.
 - Compatibility tests live under `Tests/AgentCLIKitTests/Compatibility/` and should prove host-mappable behavior without importing host app code.
-- Keep provider executable lookup in the shared resolver/detector layer; provider adapters should consume resolved paths instead of duplicating `PATH`, login-shell, or fallback-directory logic.
+- Keep harness executable lookup in the shared resolver/detector layer; harness adapters should consume resolved paths instead of duplicating `PATH`, login-shell, or fallback-directory logic.
 
 ## Build And Test
 
@@ -59,14 +59,14 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 
 ## Documentation And Comments
 
-- Add doc comments for public protocols, structs, enums, methods, and provider extension points.
+- Add doc comments for public protocols, structs, enums, methods, and harness extension points.
 - Add concise implementation comments for non-obvious concurrency, process teardown, stream pumping, hook timeout, replay-buffer eviction, approval replay, and session continuity logic.
 - Avoid comments that restate what the next line of code already says.
 
 ## Test Fixtures
 
 - Put SwiftPM test fixtures under `Tests/AgentCLIKitTests/Resources/` and keep `Package.swift` test target resources in sync.
-- Prefer fixture files for provider payloads that are reused, large, or copied from real streams.
+- Prefer fixture files for harness payloads that are reused, large, or copied from real streams.
 
 ## Repo-Local Workflows
 

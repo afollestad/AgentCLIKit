@@ -5,7 +5,7 @@ import XCTest
 final class DefaultAgentRuntimeTests: XCTestCase {
     func testSubscribeAfterIndexReplaysOnlyLaterEvents() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -20,7 +20,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testMarkPersistedCompactsOldReplayBuffer() async throws {
         let runtime = DefaultAgentRuntime(
-            adapters: [FakeProviderAdapter(command: shell("printf 'message:one\\nmessage:two\\nmessage:three\\n'"))],
+            adapters: [FakeHarnessAdapter(command: shell("printf 'message:one\\nmessage:two\\nmessage:three\\n'"))],
             replayLimit: 2
         )
         let conversationId: AgentConversationID = "conversation"
@@ -38,7 +38,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testReplayBufferKeepsUnpersistedEventsBeyondReplayLimit() async throws {
         let runtime = DefaultAgentRuntime(
-            adapters: [FakeProviderAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))],
+            adapters: [FakeHarnessAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))],
             replayLimit: 1
         )
         let conversationId: AgentConversationID = "conversation"
@@ -55,7 +55,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testMarkPersistedClampsFutureCursorToKnownEvents() async throws {
         let runtime = DefaultAgentRuntime(
-            adapters: [FakeProviderAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))],
+            adapters: [FakeHarnessAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))],
             replayLimit: 1
         )
         let conversationId: AgentConversationID = "conversation"
@@ -77,7 +77,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testMalformedStdoutIncludesRecentStderrTail() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'tail detail\\n' >&2; sleep 0.05; printf 'malformed\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'tail detail\\n' >&2; sleep 0.05; printf 'malformed\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -100,14 +100,14 @@ final class DefaultAgentRuntimeTests: XCTestCase {
         }
         XCTAssertTrue(diagnostics.contains { $0.message.contains("Malformed fake stdout.") })
         XCTAssertTrue(diagnostics.contains { $0.message.contains("tail detail") })
-        XCTAssertTrue(diagnostics.contains { $0.code == .providerDecodeFailed })
+        XCTAssertTrue(diagnostics.contains { $0.code == .harnessDecodeFailed })
         XCTAssertTrue(diagnostics.contains { $0.metadata["stderr_tail"] == .string("tail detail") })
         XCTAssertTrue(diagnostics.contains { $0.metadata["raw_stdout_line"] == .string("malformed") })
     }
 
-    func testSendSerializesInputToProviderStdin() async throws {
+    func testSendSerializesInputToHarnessStdin() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("read first; read second; printf \"message:$first\\nmessage:$second\\n\""))
+            FakeHarnessAdapter(command: shell("read first; read second; printf \"message:$first\\nmessage:$second\\n\""))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -130,7 +130,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testRuntimeEmitsAcceptedSteeringInputAfterActiveTurnWrite() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            SteeringFallbackProviderAdapter(command: shell("sleep 2"))
+            SteeringFallbackHarnessAdapter(command: shell("sleep 2"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let metadata: [String: JSONValue] = [
@@ -170,7 +170,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testSendUserMessageFailsWhileInteractionIsPending() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'interaction:prompt\\n'; sleep 1"))
+            FakeHarnessAdapter(command: shell("printf 'interaction:prompt\\n'; sleep 1"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -194,7 +194,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testResolveInteractionSendsResolutionOnceAndUnblocksInput() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("""
+            FakeHarnessAdapter(command: shell("""
             printf 'interaction:prompt\\n'
             read resolution
             read message
@@ -222,7 +222,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testConcurrentSendsPreserveCallOrderThroughAsyncEncoding() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            DelayedEncodingProviderAdapter(command: shell("read first; read second; printf \"message:$first,$second\\n\""))
+            DelayedEncodingHarnessAdapter(command: shell("read first; read second; printf \"message:$first,$second\\n\""))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -241,7 +241,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testSubscribeBeforeSpawnReceivesFutureEvents() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'message:future\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'message:future\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -256,7 +256,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testRuntimeFlushesFinalStdoutLineWithoutTrailingNewline() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'message:final'"))
+            FakeHarnessAdapter(command: shell("printf 'message:final'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -271,7 +271,7 @@ final class DefaultAgentRuntimeTests: XCTestCase {
 
     func testSubscribeBeforeSpawnReturnsUsableGenerationForPersistence() async throws {
         let runtime = DefaultAgentRuntime(
-            adapters: [FakeProviderAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))],
+            adapters: [FakeHarnessAdapter(command: shell("printf 'message:first\\nmessage:second\\n'"))],
             replayLimit: 1
         )
         let conversationId: AgentConversationID = "conversation"

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Diagnostic information emitted by a provider or runtime.
+/// Diagnostic information emitted by a harness or runtime.
 public struct AgentDiagnosticEvent: Codable, Equatable, Sendable {
     /// Stable machine-readable code for host UI mapping.
     public let code: AgentDiagnosticCode?
@@ -8,7 +8,7 @@ public struct AgentDiagnosticEvent: Codable, Equatable, Sendable {
     public let severity: AgentDiagnosticSeverity
     /// Diagnostic message.
     public let message: String
-    /// Provider-specific diagnostic fields.
+    /// Harness-specific diagnostic fields.
     public let metadata: [String: JSONValue]
 
     /// Creates a diagnostic event.
@@ -35,14 +35,15 @@ public struct AgentDiagnosticEvent: Codable, Equatable, Sendable {
 }
 
 /// Stable machine-readable diagnostic codes for host UI mapping and logging.
+/// Raw values retain their original spelling so persisted diagnostics remain readable.
 public enum AgentDiagnosticCode: String, Codable, Hashable, Sendable {
-    /// Provider stderr output forwarded as a diagnostic.
-    case providerStderr
-    /// Provider stdout could not be decoded.
-    case providerDecodeFailed
-    /// Provider hook approval failed before it could be resolved.
+    /// Harness stderr output forwarded as a diagnostic.
+    case harnessStderr = "providerStderr"
+    /// Harness stdout could not be decoded.
+    case harnessDecodeFailed = "providerDecodeFailed"
+    /// Harness hook approval failed before it could be resolved.
     case hookApprovalFailed
-    /// Provider session persistence failed.
+    /// Harness session persistence failed.
     case sessionStoreSaveFailed
     /// Codex App Server process exited unexpectedly.
     case codexAppServerCrash
@@ -56,12 +57,12 @@ public enum AgentDiagnosticCode: String, Codable, Hashable, Sendable {
     case codexAppServerShutdownTimeout
     /// The runtime could not start implementation after a plan-mode approval.
     case planImplementationStartFailed
-    /// The process-scoped host MCP listener stopped after provider launch.
+    /// The process-scoped host MCP listener stopped after harness launch.
     case hostToolServerUnavailable
-    /// The provider rejected the turn because its stored credential must be renewed.
+    /// The harness rejected the turn because its stored credential must be renewed.
     ///
     /// Hosts should offer a sign-in path rather than presenting this as an ordinary turn failure.
-    case providerAuthenticationRequired
+    case harnessAuthenticationRequired = "providerAuthenticationRequired"
 }
 
 /// Severity for diagnostic events.
@@ -74,11 +75,11 @@ public enum AgentDiagnosticSeverity: String, Codable, Hashable, Sendable {
     case error
 }
 
-/// Raw provider output event.
+/// Raw harness output event.
 public struct AgentRawOutputEvent: Codable, Equatable, Sendable {
     /// Raw output line or chunk.
     public let text: String
-    /// Whether the text was complete at the provider stream boundary.
+    /// Whether the text was complete at the harness stream boundary.
     public let isComplete: Bool
 
     /// Creates a raw output event.

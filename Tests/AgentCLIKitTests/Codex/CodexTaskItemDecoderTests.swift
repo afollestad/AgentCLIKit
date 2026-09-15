@@ -139,7 +139,7 @@ final class CodexTaskItemDecoderTests: XCTestCase {
         let completedEvents = decoder.decode(rawResponseItemCompleted(item: [
             "id": .string("raw-2"),
             "type": .string("context_compaction"),
-            "encrypted_content": .string("provider-internal")
+            "encrypted_content": .string("harness-internal")
         ])).map(\.event)
 
         XCTAssertEqual(triggerEvents, [

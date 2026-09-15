@@ -107,9 +107,9 @@ extension DefaultAgentRuntime {
         case .cancelled:
             return "Context compaction was interrupted by host cancellation."
         case .exited, .failed:
-            return "Context compaction did not finish before the provider process ended."
+            return "Context compaction did not finish before the harness process ended."
         case .starting, .running:
-            return "Context compaction did not finish before the provider process ended."
+            return "Context compaction did not finish before the harness process ended."
         }
     }
 }

@@ -14,7 +14,7 @@ actor ClaudeNoOpTurnTracker {
 
     private var armedProcessTokens: Set<UUID> = []
 
-    func normalize(_ events: [AgentEvent], context: AgentProviderOutputContext) -> [AgentEvent] {
+    func normalize(_ events: [AgentEvent], context: AgentHarnessOutputContext) -> [AgentEvent] {
         events.compactMap { normalize($0, processToken: context.processToken) }
     }
 

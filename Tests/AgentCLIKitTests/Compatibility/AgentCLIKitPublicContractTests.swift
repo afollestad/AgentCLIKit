@@ -27,21 +27,21 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentPendingAction.self)
     }
 
-    func testProviderRuntimeTypesRemainSendable() {
+    func testHarnessRuntimeTypesRemainSendable() {
         assertSendable(AgentSpawnConfig.self)
-        assertSendable(AgentProviderAdapterSet.self)
-        assertSendable(AgentProviderSessionActionRouter.self)
-        assertSendable(AgentProviderLaunchContext.self)
-        assertSendable(AgentProviderOutputContext.self)
-        assertSendable(AgentProviderInputContext.self)
-        assertSendable(AgentProviderRuntimeContext.self)
-        assertSendable(AgentProviderInterruptContext.self)
-        assertSendable(AgentProviderEncodedGoalStart.self)
-        assertSendable(AgentProviderGoalStartContext.self)
-        assertSendable(AgentProviderGoalActionContext.self)
-        assertSendable(AgentProviderReconfigureContext.self)
-        assertSendable(AgentProviderReconfigureResult.self)
-        assertSendable(AgentProviderRuntimeEvent.self)
+        assertSendable(AgentHarnessAdapterSet.self)
+        assertSendable(AgentHarnessSessionActionRouter.self)
+        assertSendable(AgentHarnessLaunchContext.self)
+        assertSendable(AgentHarnessOutputContext.self)
+        assertSendable(AgentHarnessInputContext.self)
+        assertSendable(AgentHarnessRuntimeContext.self)
+        assertSendable(AgentHarnessInterruptContext.self)
+        assertSendable(AgentHarnessEncodedGoalStart.self)
+        assertSendable(AgentHarnessGoalStartContext.self)
+        assertSendable(AgentHarnessGoalActionContext.self)
+        assertSendable(AgentHarnessReconfigureContext.self)
+        assertSendable(AgentHarnessReconfigureResult.self)
+        assertSendable(AgentHarnessRuntimeEvent.self)
     }
 
     func testHostToolTypesRemainSendable() {
@@ -55,21 +55,21 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(AgentHostToolEndpoint.self)
     }
 
-    func testProviderServiceTypesRemainSendable() {
+    func testHarnessServiceTypesRemainSendable() {
         assertSendable(AgentProjectTrustStatus.self)
         assertSendable(DefaultAgentProjectTrustService.self)
-        assertSendable(AgentProviderInstallationState.self)
+        assertSendable(AgentHarnessInstallationState.self)
         assertSendable(AgentModelOption.self)
-        assertSendable(AgentProviderStatus.self)
-        assertSendable(StaticAgentProviderEnablementSource.self)
-        assertSendable(StaticAgentProviderCapabilitySource.self)
-        assertSendable(DefaultAgentProviderCapabilitySource.self)
-        assertSendable(CodexProviderCapabilitySource.self)
+        assertSendable(AgentHarnessStatus.self)
+        assertSendable(StaticAgentHarnessEnablementSource.self)
+        assertSendable(StaticAgentHarnessCapabilitySource.self)
+        assertSendable(DefaultAgentHarnessCapabilitySource.self)
+        assertSendable(CodexHarnessCapabilitySource.self)
         assertSendable(DefaultCodexFeatureSupportChecker.self)
-        assertSendable(DefaultAgentProviderExecutableResolver.self)
+        assertSendable(DefaultAgentHarnessExecutableResolver.self)
         assertSendable(StaticAgentModelOptionSource.self)
         assertSendable(DefaultAgentModelOptionSource.self)
-        assertSendable(DefaultAgentProviderDiscoveryService.self)
+        assertSendable(DefaultAgentHarnessDiscoveryService.self)
         assertSendable(CodexConfig.self)
         assertSendable(CodexConfigSnapshot.self)
         assertSendable(CodexMCPServerConfig.self)
@@ -77,8 +77,8 @@ final class AgentCLIKitPublicContractTests: XCTestCase {
         assertSendable(CodexAuthProbe.self)
         assertSendable(CodexAppServerModelOptionSource.self)
         assertSendable(AgentCommandApprovalNormalizationPolicy.self)
-        assertSendable(CodexProviderAdapter.Configuration.self)
-        assertSendable(ClaudeProviderAdapter.Configuration.self)
+        assertSendable(CodexHarnessAdapter.Configuration.self)
+        assertSendable(ClaudeHarnessAdapter.Configuration.self)
         assertSendable(MainActorClaudeHookDecisionProvider.self)
     }
 

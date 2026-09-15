@@ -44,9 +44,9 @@ public struct MessageTranscriptGroupingPolicy: AgentTranscriptGroupingPolicy {
             return false
         }
         return current.role == message.role
-            && previous.providerId == next.providerId
+            && previous.harnessId == next.harnessId
             && previous.conversationId == next.conversationId
-            && previous.providerSessionId == next.providerSessionId
+            && previous.harnessSessionId == next.harnessSessionId
             && previous.generation == next.generation
             && previous.index + 1 == next.index
     }

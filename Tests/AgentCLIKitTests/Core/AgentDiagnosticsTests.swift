@@ -20,9 +20,9 @@ final class AgentDiagnosticsTests: XCTestCase {
 
     func testDiagnosticEventRoundTripsCodeAndMetadata() throws {
         let diagnostic = AgentDiagnosticEvent(
-            code: .providerDecodeFailed,
+            code: .harnessDecodeFailed,
             severity: .error,
-            message: "Could not decode provider output.",
+            message: "Could not decode harness output.",
             metadata: ["raw_stdout_line": .string("{")]
         )
 

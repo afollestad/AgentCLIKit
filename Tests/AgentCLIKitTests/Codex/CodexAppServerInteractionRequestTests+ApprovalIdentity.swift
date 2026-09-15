@@ -6,7 +6,7 @@ import XCTest
 extension CodexAppServerInteractionRequestTests {
     func testCommandApprovalIncludesApprovalIdentityToolInput() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: approvalIdentityConfiguration(transport: transport))
+        let adapter = CodexHarnessAdapter(configuration: approvalIdentityConfiguration(transport: transport))
         let spawnConfig = approvalIdentitySpawnConfig()
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
@@ -29,13 +29,13 @@ extension CodexAppServerInteractionRequestTests {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let approvalStore = InMemoryAgentApprovalPolicyStore()
         _ = await approvalStore.recordSessionApproval(AgentSessionApprovalGrant(
-            providerId: .codex,
+            harnessId: .codex,
             conversationId: "conversation",
             sessionId: "thread-123",
             matchKind: .bashCommandGroup,
             matchValue: "git add"
         ))
-        let adapter = CodexProviderAdapter(configuration: approvalIdentityConfiguration(
+        let adapter = CodexHarnessAdapter(configuration: approvalIdentityConfiguration(
             transport: transport,
             sessionApprovalPolicyStore: approvalStore
         ))
@@ -60,7 +60,7 @@ extension CodexAppServerInteractionRequestTests {
 
     func testScopedCommandSessionApprovalResolvesCurrentRequestOnce() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: approvalIdentityConfiguration(transport: transport))
+        let adapter = CodexHarnessAdapter(configuration: approvalIdentityConfiguration(transport: transport))
         let spawnConfig = approvalIdentitySpawnConfig()
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
@@ -95,8 +95,8 @@ private extension CodexAppServerInteractionRequestTests {
     func approvalIdentityConfiguration(
         transport: FakeCodexAppServerTransport,
         sessionApprovalPolicyStore: any AgentSessionApprovalPolicyStore = InMemoryAgentApprovalPolicyStore()
-    ) -> CodexProviderAdapter.Configuration {
-        CodexProviderAdapter.Configuration(
+    ) -> CodexHarnessAdapter.Configuration {
+        CodexHarnessAdapter.Configuration(
             requestTimeout: 0.1,
             probeTimeout: 0.1,
             sessionApprovalPolicyStore: sessionApprovalPolicyStore,
@@ -107,26 +107,26 @@ private extension CodexAppServerInteractionRequestTests {
 
     func approvalIdentitySpawnConfig() -> AgentSpawnConfig {
         AgentSpawnConfig(
-            providerId: .codex,
+            harnessId: .codex,
             workingDirectory: URL(fileURLWithPath: "/tmp/project"),
             permissionMode: "on-request"
         )
     }
 
-    func approvalIdentityRuntimeContext(spawnConfig: AgentSpawnConfig) -> AgentProviderRuntimeContext {
-        AgentProviderRuntimeContext(
+    func approvalIdentityRuntimeContext(spawnConfig: AgentSpawnConfig) -> AgentHarnessRuntimeContext {
+        AgentHarnessRuntimeContext(
             conversationId: "conversation",
             processToken: Self.approvalIdentityProcessToken,
-            providerSessionId: "thread-123",
+            harnessSessionId: "thread-123",
             spawnConfig: spawnConfig
         )
     }
 
-    func approvalIdentityInputContext(spawnConfig: AgentSpawnConfig) -> AgentProviderInputContext {
-        AgentProviderInputContext(
+    func approvalIdentityInputContext(spawnConfig: AgentSpawnConfig) -> AgentHarnessInputContext {
+        AgentHarnessInputContext(
             conversationId: "conversation",
             processToken: Self.approvalIdentityProcessToken,
-            providerSessionId: "thread-123",
+            harnessSessionId: "thread-123",
             spawnConfig: spawnConfig,
             isTurnActive: true
         )
@@ -171,10 +171,10 @@ private extension CodexAppServerInteractionRequestTests {
     }
 
     static func collectApprovalIdentityEvents(
-        _ stream: AsyncStream<AgentProviderRuntimeEvent>,
+        _ stream: AsyncStream<AgentHarnessRuntimeEvent>,
         count: Int
-    ) async -> [AgentProviderRuntimeEvent] {
-        var events: [AgentProviderRuntimeEvent] = []
+    ) async -> [AgentHarnessRuntimeEvent] {
+        var events: [AgentHarnessRuntimeEvent] = []
         for await event in stream {
             events.append(event)
             if events.count >= count {
@@ -184,7 +184,7 @@ private extension CodexAppServerInteractionRequestTests {
         return events
     }
 
-    static func approvalIdentityInteraction(from events: [AgentProviderRuntimeEvent]) throws -> AgentInteractionEvent {
+    static func approvalIdentityInteraction(from events: [AgentHarnessRuntimeEvent]) throws -> AgentInteractionEvent {
         try XCTUnwrap(events.compactMap { runtimeEvent in
             if case let .interaction(interaction) = runtimeEvent.event {
                 return interaction

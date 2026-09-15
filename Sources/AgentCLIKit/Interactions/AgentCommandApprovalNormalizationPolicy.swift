@@ -1,6 +1,6 @@
 import Foundation
 
-/// Policy for deriving a provider-neutral approval identity from wrapped command tool input.
+/// Policy for deriving a harness-neutral approval identity from wrapped command tool input.
 public struct AgentCommandApprovalNormalizationPolicy: Codable, Equatable, Sendable {
     /// Default policy used by approval requests when no host-specific identity was supplied.
     public static let `default` = AgentCommandApprovalNormalizationPolicy()

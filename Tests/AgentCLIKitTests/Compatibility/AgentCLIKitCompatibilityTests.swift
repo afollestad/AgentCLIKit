@@ -7,9 +7,9 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         let envelope = AgentEventEnvelope(
             generation: 2,
             index: 7,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: "session",
+            harnessSessionId: "session",
             source: .stdout,
             event: .message(AgentMessageEvent(role: .assistant, text: "Done")),
             createdAt: Date(timeIntervalSince1970: 10)
@@ -17,9 +17,9 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
 
         let record = HostEventRecord(envelope: envelope)
 
-        XCTAssertEqual(record.providerId, "claude")
+        XCTAssertEqual(record.harnessId, "claude")
         XCTAssertEqual(record.conversationId, "conversation")
-        XCTAssertEqual(record.providerSessionId, "session")
+        XCTAssertEqual(record.harnessSessionId, "session")
         XCTAssertEqual(record.generation, 2)
         XCTAssertEqual(record.index, 7)
         XCTAssertEqual(record.source, "stdout")
@@ -37,18 +37,18 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         let first = AgentEventEnvelope(
             generation: 3,
             index: 10,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: "session",
+            harnessSessionId: "session",
             source: .stdout,
             event: .message(AgentMessageEvent(role: .assistant, text: "First"))
         )
         let second = AgentEventEnvelope(
             generation: 3,
             index: 11,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: "session",
+            harnessSessionId: "session",
             source: .stdout,
             event: .message(AgentMessageEvent(role: .assistant, text: "Second"))
         )
@@ -63,17 +63,17 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
     }
 
     func testClaudeLaunchCoversResumeAndFreshSessionSemantics() async throws {
-        let adapter = ClaudeProviderAdapter(
+        let adapter = ClaudeHarnessAdapter(
             executablePath: "/opt/homebrew/bin/claude",
             sessionFileExists: { _ in true }
         )
         let session = AgentSessionRecord(
             conversationId: "conversation",
-            providerId: .claude,
-            providerSessionId: "session",
+            harnessId: .claude,
+            harnessSessionId: "session",
             generation: 1
         )
-        let config = AgentSpawnConfig(providerId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp"))
+        let config = AgentSpawnConfig(harnessId: .claude, workingDirectory: URL(fileURLWithPath: "/tmp"))
 
         let resumed = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: session)
         let fresh = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
@@ -86,41 +86,41 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
     func testRuntimeStatusSnapshotRemainsHostMappable() {
         let status = AgentRuntimeStatus(
             conversationId: "conversation",
-            providerId: .claude,
+            harnessId: .claude,
             generation: 3,
             state: .running,
             lastEventIndex: 12,
-            providerSessionId: "provider-session",
+            harnessSessionId: "harness-session",
             isTurnActive: true
         )
 
         let snapshot = HostStatusSnapshot(status: status)
 
-        XCTAssertEqual(snapshot.providerId, "claude")
+        XCTAssertEqual(snapshot.harnessId, "claude")
         XCTAssertEqual(snapshot.state, "running")
         XCTAssertEqual(snapshot.lastEventIndex, 12)
-        XCTAssertEqual(snapshot.providerSessionId, "provider-session")
-        XCTAssertNil(snapshot.providerSessionName)
-        XCTAssertNil(snapshot.providerSessionPreview)
+        XCTAssertEqual(snapshot.harnessSessionId, "harness-session")
+        XCTAssertNil(snapshot.harnessSessionName)
+        XCTAssertNil(snapshot.harnessSessionPreview)
         XCTAssertTrue(snapshot.isTurnActive)
     }
 
-    func testProviderIdDecodesKnownPersistedValue() throws {
-        for expectedProviderId in AgentProviderID.allCases {
-            let data = Data("\"\(expectedProviderId.rawValue)\"".utf8)
+    func testHarnessIdDecodesKnownPersistedValue() throws {
+        for expectedHarnessId in AgentHarnessID.allCases {
+            let data = Data("\"\(expectedHarnessId.rawValue)\"".utf8)
 
-            let providerId = try JSONDecoder().decode(AgentProviderID.self, from: data)
-            let encoded = try JSONEncoder().encode(providerId)
+            let harnessId = try JSONDecoder().decode(AgentHarnessID.self, from: data)
+            let encoded = try JSONEncoder().encode(harnessId)
 
-            XCTAssertEqual(providerId, expectedProviderId)
-            XCTAssertEqual(String(data: encoded, encoding: .utf8), "\"\(expectedProviderId.rawValue)\"")
+            XCTAssertEqual(harnessId, expectedHarnessId)
+            XCTAssertEqual(String(data: encoded, encoding: .utf8), "\"\(expectedHarnessId.rawValue)\"")
         }
     }
 
-    func testProviderIdRejectsUnknownPersistedValue() {
-        let data = Data(#""future-provider""#.utf8)
+    func testHarnessIdRejectsUnknownPersistedValue() {
+        let data = Data(#""future-harness""#.utf8)
 
-        XCTAssertThrowsError(try JSONDecoder().decode(AgentProviderID.self, from: data))
+        XCTAssertThrowsError(try JSONDecoder().decode(AgentHarnessID.self, from: data))
     }
 
     func testOlderUsageEventPayloadDefaultsNewTypedFields() throws {
@@ -205,14 +205,14 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertFalse(status.isTurnActive)
         XCTAssertNil(status.collaborationMode)
         XCTAssertNil(status.goal)
-        XCTAssertNil(status.providerSessionName)
-        XCTAssertNil(status.providerSessionPreview)
+        XCTAssertNil(status.harnessSessionName)
+        XCTAssertNil(status.harnessSessionPreview)
     }
 
-    func testOlderProviderCapabilitiesPayloadDefaultsGoalFields() throws {
+    func testOlderHarnessCapabilitiesPayloadDefaultsGoalFields() throws {
         let data = Data(#"{"supportsPlanMode":true,"supportsSpeedMode":true}"#.utf8)
 
-        let capabilities = try JSONDecoder().decode(AgentProviderCapabilities.self, from: data)
+        let capabilities = try JSONDecoder().decode(AgentHarnessCapabilities.self, from: data)
 
         XCTAssertTrue(capabilities.supportsPlanMode)
         XCTAssertTrue(capabilities.supportsSpeedMode)
@@ -238,7 +238,7 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
         XCTAssertEqual(decoded, event)
     }
 
-    func testOlderSessionRecordPayloadDefaultsProviderSessionMetadata() throws {
+    func testOlderSessionRecordPayloadDefaultsHarnessSessionMetadata() throws {
         let data = Data(
             """
             {
@@ -256,9 +256,9 @@ final class AgentCLIKitCompatibilityTests: XCTestCase {
 
         let record = try decoder.decode(AgentSessionRecord.self, from: data)
 
-        XCTAssertEqual(record.providerSessionId, "session")
-        XCTAssertNil(record.providerSessionName)
-        XCTAssertNil(record.providerSessionPreview)
+        XCTAssertEqual(record.harnessSessionId, "session")
+        XCTAssertNil(record.harnessSessionName)
+        XCTAssertNil(record.harnessSessionPreview)
         XCTAssertEqual(record.metadata, [:])
     }
 }
@@ -281,17 +281,17 @@ private struct HostSubscriptionCursor {
 }
 
 private struct HostEventRecord {
-    let providerId: String
+    let harnessId: String
     let conversationId: String
-    let providerSessionId: String?
+    let harnessSessionId: String?
     let generation: Int
     let index: Int
     let source: String
 
     init(envelope: AgentEventEnvelope) {
-        self.providerId = envelope.providerId.rawValue
+        self.harnessId = envelope.harnessId.rawValue
         self.conversationId = envelope.conversationId.rawValue
-        self.providerSessionId = envelope.providerSessionId?.rawValue
+        self.harnessSessionId = envelope.harnessSessionId?.rawValue
         self.generation = envelope.generation
         self.index = envelope.index
         self.source = envelope.source.rawValue
@@ -299,21 +299,21 @@ private struct HostEventRecord {
 }
 
 private struct HostStatusSnapshot {
-    let providerId: String
+    let harnessId: String
     let state: String
     let lastEventIndex: Int
-    let providerSessionId: String?
-    let providerSessionName: String?
-    let providerSessionPreview: String?
+    let harnessSessionId: String?
+    let harnessSessionName: String?
+    let harnessSessionPreview: String?
     let isTurnActive: Bool
 
     init(status: AgentRuntimeStatus) {
-        self.providerId = status.providerId.rawValue
+        self.harnessId = status.harnessId.rawValue
         self.state = status.state.rawValue
         self.lastEventIndex = status.lastEventIndex
-        self.providerSessionId = status.providerSessionId?.rawValue
-        self.providerSessionName = status.providerSessionName
-        self.providerSessionPreview = status.providerSessionPreview
+        self.harnessSessionId = status.harnessSessionId?.rawValue
+        self.harnessSessionName = status.harnessSessionName
+        self.harnessSessionPreview = status.harnessSessionPreview
         self.isTurnActive = status.isTurnActive
     }
 }

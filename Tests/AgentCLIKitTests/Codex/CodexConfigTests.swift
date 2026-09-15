@@ -209,11 +209,11 @@ final class CodexConfigTests: XCTestCase {
         ])
     }
 
-    func testProviderSetupKeepsAuthReadinessSeparateFromProjectTrust() async throws {
+    func testHarnessSetupKeepsAuthReadinessSeparateFromProjectTrust() async throws {
         let codexHome = temporaryDirectory()
         let projectURL = temporaryDirectory().appendingPathComponent("project", isDirectory: true)
         try FileManager.default.createDirectory(at: projectURL, withIntermediateDirectories: true)
-        let setup = CodexProviderSetup(codexHomeDirectoryURL: codexHome)
+        let setup = CodexHarnessSetup(codexHomeDirectoryURL: codexHome)
 
         let authReadiness = setup.authReadiness()
         let trustStatus = try await setup.projectTrustStatus(for: projectURL)
@@ -223,10 +223,10 @@ final class CodexConfigTests: XCTestCase {
         XCTAssertEqual(trustStatus, .notTrusted)
     }
 
-    func testProviderSetupSeparatesCachedAndRefreshedAuthReadiness() async throws {
+    func testHarnessSetupSeparatesCachedAndRefreshedAuthReadiness() async throws {
         let codexHome = temporaryDirectory()
         let authFileURL = codexHome.appendingPathComponent("auth.json")
-        let setup = CodexProviderSetup(codexHomeDirectoryURL: codexHome)
+        let setup = CodexHarnessSetup(codexHomeDirectoryURL: codexHome)
         try FileManager.default.createDirectory(at: codexHome, withIntermediateDirectories: true)
         try "{}".write(to: authFileURL, atomically: true, encoding: .utf8)
         let refreshedReadiness = await setup.setupReadiness()

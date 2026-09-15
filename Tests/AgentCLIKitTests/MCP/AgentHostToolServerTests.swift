@@ -17,7 +17,7 @@ final class AgentHostToolServerTests: XCTestCase {
         addTeardownBlock { await server.shutdown() }
         let endpoint = try await server.register(
             conversationId: "trusted-conversation",
-            providerId: .codex,
+            harnessId: .codex,
             processToken: processToken,
             server: AgentHostToolServerMetadata(
                 name: "alveary_host",
@@ -138,7 +138,7 @@ final class AgentHostToolServerTests: XCTestCase {
         do {
             _ = try await server.register(
                 conversationId: "conversation",
-                providerId: .claude,
+                harnessId: .claude,
                 processToken: UUID(),
                 server: AgentHostToolServerMetadata(),
                 tools: [Self.proposalTool, Self.proposalTool]
@@ -159,7 +159,7 @@ final class AgentHostToolServerTests: XCTestCase {
         do {
             _ = try await server.register(
                 conversationId: "conversation",
-                providerId: .codex,
+                harnessId: .codex,
                 processToken: UUID(),
                 server: AgentHostToolServerMetadata(name: "company.host"),
                 tools: [Self.proposalTool]
@@ -266,7 +266,7 @@ final class AgentHostToolServerTests: XCTestCase {
         do {
             _ = try await server.register(
                 conversationId: "conversation",
-                providerId: .claude,
+                harnessId: .claude,
                 processToken: UUID(),
                 server: AgentHostToolServerMetadata(),
                 tools: [tool]
@@ -283,7 +283,7 @@ final class AgentHostToolServerTests: XCTestCase {
     ) async throws -> AgentHostToolEndpoint {
         try await server.register(
             conversationId: "conversation",
-            providerId: .claude,
+            harnessId: .claude,
             processToken: processToken,
             server: AgentHostToolServerMetadata(),
             tools: [simpleTool(named: "echo")]
@@ -361,7 +361,7 @@ final class AgentHostToolServerTests: XCTestCase {
     ) {
         XCTAssertEqual(values.count, 1)
         XCTAssertEqual(values.first?.context.conversationId, "trusted-conversation")
-        XCTAssertEqual(values.first?.context.providerId, .codex)
+        XCTAssertEqual(values.first?.context.harnessId, .codex)
         XCTAssertEqual(values.first?.context.processToken, processToken)
         XCTAssertEqual(values.first?.context.requestId, "string:call-1")
         XCTAssertEqual(values.first?.call.name, "propose_scheduled_task")

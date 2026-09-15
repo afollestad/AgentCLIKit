@@ -5,7 +5,7 @@ import XCTest
 final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
     func testStatusUpdatesPublishPermissionModeAndWaitingState() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("printf 'permission:plan\\ncollaboration:plan\\ninteraction:prompt\\n'; sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("printf 'permission:plan\\ncollaboration:plan\\ninteraction:prompt\\n'; sleep 1"))
         ])
         let stream = await runtime.statusUpdates(conversationId: "conversation")
         var iterator = stream.makeAsyncIterator()
@@ -23,7 +23,7 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 
     func testStatusReportsProcessLifecycleFlags() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("sleep 1"))
         ])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
@@ -43,7 +43,7 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 
     func testGoalStatusUpdatesPublishGoalWithoutChangingTurnState() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("printf 'goal:active:Ship goal mode\\ngoal:achieved:Ship goal mode\\n'; sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("printf 'goal:active:Ship goal mode\\ngoal:achieved:Ship goal mode\\n'; sleep 1"))
         ])
         let stream = await runtime.statusUpdates(conversationId: "conversation")
         var iterator = stream.makeAsyncIterator()
@@ -70,7 +70,7 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 
     func testGoalActionWithoutGoalThrowsUnavailable() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("sleep 1"))
         ])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
@@ -89,13 +89,13 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 
     func testInitialGoalWithoutInitialPromptDoesNotSeedLocalGoal() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            GoalActionProviderAdapter(command: shell("sleep 1"))
+            GoalActionHarnessAdapter(command: shell("sleep 1"))
         ])
 
         try await runtime.spawn(
             conversationId: "conversation",
             config: AgentSpawnConfig(
-                providerId: .claude,
+                harnessId: .claude,
                 workingDirectory: FileManager.default.temporaryDirectory,
                 initialGoal: "Ship goal mode"
             )
@@ -107,15 +107,15 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
-    func testUnsupportedGoalActionThrowsProviderError() async throws {
+    func testUnsupportedGoalActionThrowsHarnessError() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("sleep 1"))
         ])
 
         try await runtime.spawn(
             conversationId: "conversation",
             config: AgentSpawnConfig(
-                providerId: .claude,
+                harnessId: .claude,
                 workingDirectory: FileManager.default.temporaryDirectory,
                 initialGoal: "Ship goal mode",
                 initialPrompt: "Ship goal mode"
@@ -124,7 +124,7 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 
         do {
             try await runtime.performGoalAction(.pause, conversationId: "conversation")
-            XCTFail("Expected unsupported provider action to throw.")
+            XCTFail("Expected unsupported harness action to throw.")
         } catch let error as AgentCLIError {
             XCTAssertEqual(error.code, .unsupportedCapability)
             XCTAssertEqual(error.metadata["provider_id"], .string("claude"))
@@ -134,15 +134,15 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
-    func testGoalActionUnavailableForCurrentSnapshotThrowsBeforeProvider() async throws {
+    func testGoalActionUnavailableForCurrentSnapshotThrowsBeforeHarness() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            GoalActionProviderAdapter(command: shell("sleep 1"))
+            GoalActionHarnessAdapter(command: shell("sleep 1"))
         ])
 
         try await runtime.spawn(
             conversationId: "conversation",
             config: AgentSpawnConfig(
-                providerId: .claude,
+                harnessId: .claude,
                 workingDirectory: FileManager.default.temporaryDirectory,
                 initialGoal: "Ship goal mode",
                 initialPrompt: "Ship goal mode"
@@ -161,9 +161,9 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
-    func testEncodedGoalActionDoesNotMarkTurnActiveAndClearsAfterProviderEvent() async throws {
+    func testEncodedGoalActionDoesNotMarkTurnActiveAndClearsAfterHarnessEvent() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            GoalActionProviderAdapter(command: shell("""
+            GoalActionHarnessAdapter(command: shell("""
             printf 'goal:active:Ship goal mode\\n'
             while IFS= read -r line; do
               if [ "$line" = "goal-clear" ]; then
@@ -193,7 +193,7 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 
     func testExistingSessionGoalStartEncodesInputAndMarksTurnActive() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            GoalStartProviderAdapter(command: shell("""
+            GoalStartHarnessAdapter(command: shell("""
             while IFS= read -r line; do
               if [ "$line" = "goal-start:Ship goal mode" ]; then
                 printf 'goal:active:Ship goal mode\\n'
@@ -217,7 +217,7 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 
     func testExistingSessionGoalStartAllowsTerminalSnapshot() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            GoalStartProviderAdapter(command: shell("""
+            GoalStartHarnessAdapter(command: shell("""
             printf 'goal:achieved:Old goal\\n'
             while IFS= read -r line; do
               if [ "$line" = "goal-start:New goal" ]; then
@@ -245,7 +245,7 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
 
     func testExistingSessionGoalStartRejectsNonTerminalGoal() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            GoalStartProviderAdapter(command: shell("printf 'goal:active:Ship goal mode\\n'; sleep 1"))
+            GoalStartHarnessAdapter(command: shell("printf 'goal:active:Ship goal mode\\n'; sleep 1"))
         ])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
@@ -264,16 +264,16 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
-    func testExistingSessionGoalStartUnsupportedThrowsProviderError() async throws {
+    func testExistingSessionGoalStartUnsupportedThrowsHarnessError() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("sleep 1"))
+            StatusReportingHarnessAdapter(command: shell("sleep 1"))
         ])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
 
         do {
             try await runtime.startGoal("Ship goal mode", conversationId: "conversation")
-            XCTFail("Expected unsupported provider goal start to throw.")
+            XCTFail("Expected unsupported harness goal start to throw.")
         } catch let error as AgentCLIError {
             XCTAssertEqual(error.code, .unsupportedCapability)
             XCTAssertEqual(error.metadata["provider_id"], .string("claude"))
@@ -283,9 +283,9 @@ final class DefaultAgentRuntimeStatusUpdateTests: XCTestCase {
         await runtime.shutdown()
     }
 
-    func testGoalActionUnavailableWhenProviderRemovesActionForActiveTurn() async throws {
+    func testGoalActionUnavailableWhenHarnessRemovesActionForActiveTurn() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            GoalActionProviderAdapter(
+            GoalActionHarnessAdapter(
                 command: shell("printf 'goal:active:Ship goal mode\\n'; sleep 1"),
                 hideActionsWhileTurnActive: true
             )

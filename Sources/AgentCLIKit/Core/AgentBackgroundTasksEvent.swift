@@ -1,14 +1,14 @@
 import Foundation
 
-/// A provider task that keeps running inside the provider process after the turn that started it ended.
+/// A harness task that keeps running inside the harness process after the turn that started it ended.
 public struct AgentBackgroundTask: Codable, Equatable, Sendable {
-    /// Provider task identifier, matched against the `task_id` metadata of the terminal sub-agent event that later reports it.
+    /// Harness task identifier, matched against the `task_id` metadata of the terminal sub-agent event that later reports it.
     public let id: String
-    /// Provider task kind, such as `local_agent` or `local_bash`, when reported.
+    /// Harness task kind, such as `local_agent` or `local_bash`, when reported.
     public let kind: String?
     /// Human-readable task description when reported.
     public let description: String?
-    /// Whether the provider marks the task as ambient, such as a long-lived monitor that never reports completion. Ambient
+    /// Whether the harness marks the task as ambient, such as a long-lived monitor that never reports completion. Ambient
     /// tasks are excluded from `AgentRuntimeStatus.liveBackgroundTaskCount` so they cannot pin a process forever.
     public let isAmbient: Bool
 
@@ -21,27 +21,27 @@ public struct AgentBackgroundTask: Codable, Equatable, Sendable {
     }
 }
 
-/// Metadata keys the runtime reads from provider events to track background tasks, so provider adapters and the
-/// provider-neutral runtime agree without the runtime importing provider types.
+/// Metadata keys the runtime reads from harness events to track background tasks, so harness adapters and the
+/// harness-neutral runtime agree without the runtime importing harness types.
 public enum AgentBackgroundTaskMetadata {
-    /// Sub-agent metadata key holding the provider task id that `AgentBackgroundTask.id` matches.
+    /// Sub-agent metadata key holding the harness task id that `AgentBackgroundTask.id` matches.
     public static let taskId = "task_id"
-    /// Terminal sub-agent metadata key telling whether the provider is consuming the notification now (`dequeued`) or
-    /// only parking it (`enqueued`). Only `dequeued` starts a provider-initiated turn.
+    /// Terminal sub-agent metadata key telling whether the harness is consuming the notification now (`dequeued`) or
+    /// only parking it (`enqueued`). Only `dequeued` starts a harness-initiated turn.
     public static let delivery = "delivery"
     public static let dequeuedDelivery = "dequeued"
     public static let enqueuedDelivery = "enqueued"
-    /// Usage metadata key set to `true` on a provider no-op result the adapter downgraded to interim usage, which ends
-    /// a provider-initiated turn without ending a host-started one.
+    /// Usage metadata key set to `true` on a harness no-op result the adapter downgraded to interim usage, which ends
+    /// a harness-initiated turn without ending a host-started one.
     public static let noOpResult = "provider_no_op_result"
 }
 
-/// The full set of live provider background tasks. Each event replaces the previous set rather than patching it, and an
+/// The full set of live harness background tasks. Each event replaces the previous set rather than patching it, and an
 /// empty list is a real event meaning nothing is running.
 public struct AgentBackgroundTasksEvent: Codable, Equatable, Sendable {
-    /// Every task the provider currently reports as live.
+    /// Every task the harness currently reports as live.
     public let tasks: [AgentBackgroundTask]
-    /// Provider-specific metadata.
+    /// Harness-specific metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a background tasks event.

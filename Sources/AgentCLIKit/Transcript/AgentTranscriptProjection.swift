@@ -1,6 +1,6 @@
 import Foundation
 
-/// Provider-neutral kind for projected transcript UI items.
+/// Harness-neutral kind for projected transcript UI items.
 public enum AgentTranscriptProjectionKind: String, Codable, Hashable, Sendable {
     /// User, assistant, system, or tool message text.
     case message
@@ -12,11 +12,11 @@ public enum AgentTranscriptProjectionKind: String, Codable, Hashable, Sendable {
     case approval
     /// Host prompt request.
     case prompt
-    /// Provider task or todo activity.
+    /// Harness task or todo activity.
     case task
-    /// Provider sub-agent activity.
+    /// Harness sub-agent activity.
     case subAgent
-    /// Provider task-list update.
+    /// Harness task-list update.
     case taskList
     /// Centered note such as lifecycle, continuity, or interruption.
     case centeredNote
@@ -61,7 +61,7 @@ public struct AgentTranscriptProjection: Codable, Equatable, Sendable, Identifia
     }
 }
 
-/// Builds provider-neutral transcript projections for host UIs.
+/// Builds harness-neutral transcript projections for host UIs.
 public struct AgentTranscriptProjector: Sendable {
     /// Creates a transcript projector.
     public init() {}

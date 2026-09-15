@@ -1,10 +1,10 @@
 import Foundation
 
-/// Stable identifier for an agent provider supported by AgentCLIKit.
-public enum AgentProviderID: String, Codable, Hashable, Sendable, CaseIterable {
-    /// Claude Code provider.
+/// Stable identifier for an agent harness supported by AgentCLIKit.
+public enum AgentHarnessID: String, Codable, Hashable, Sendable, CaseIterable {
+    /// Claude Code harness.
     case claude
-    /// Codex provider backed by Codex App Server.
+    /// Codex harness backed by Codex App Server.
     case codex
 }
 
@@ -24,17 +24,17 @@ public struct AgentConversationID: RawRepresentable, Codable, Hashable, Sendable
     }
 }
 
-/// Provider-defined identifier for a resumable CLI session.
+/// Harness-defined identifier for a resumable CLI session.
 public struct AgentSessionID: RawRepresentable, Codable, Hashable, Sendable, ExpressibleByStringLiteral {
-    /// The provider session identifier.
+    /// The harness session identifier.
     public let rawValue: String
 
-    /// Creates a provider session identifier.
+    /// Creates a harness session identifier.
     public init(rawValue: String) {
         self.rawValue = rawValue
     }
 
-    /// Creates a provider session identifier from a string literal.
+    /// Creates a harness session identifier from a string literal.
     public init(stringLiteral value: String) {
         self.init(rawValue: value)
     }

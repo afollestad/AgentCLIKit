@@ -156,7 +156,7 @@ final class AgentTaskListReducerTests: XCTestCase {
 
         let snapshot = reducer.append(envelope(
             index: 0,
-            event: .sessionMetadata(AgentSessionMetadataEvent(providerSessionId: "session", name: "Generated Name"))
+            event: .sessionMetadata(AgentSessionMetadataEvent(harnessSessionId: "session", name: "Generated Name"))
         ))
 
         XCTAssertNil(snapshot)
@@ -277,9 +277,9 @@ final class AgentTaskListReducerTests: XCTestCase {
         AgentEventEnvelope(
             generation: 1,
             index: index,
-            providerId: .claude,
+            harnessId: .claude,
             conversationId: "conversation",
-            providerSessionId: nil,
+            harnessSessionId: nil,
             source: .stdout,
             event: event,
             createdAt: Date(timeIntervalSince1970: TimeInterval(index))

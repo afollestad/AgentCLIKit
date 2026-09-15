@@ -16,7 +16,7 @@ public protocol AgentInteractionInbox: Sendable {
 public enum AgentPendingAction: Codable, Equatable, Sendable, Identifiable {
     /// Tool or plan approval awaiting a host decision.
     case approval(AgentApprovalRequest)
-    /// Provider prompt awaiting a user answer.
+    /// Harness prompt awaiting a user answer.
     case prompt(AgentPromptRequest)
 
     /// Interaction identifier.
@@ -40,13 +40,13 @@ public enum AgentPendingAction: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
-/// Maps provider-specific interaction payloads into provider-neutral pending actions.
+/// Maps harness-specific interaction payloads into harness-neutral pending actions.
 public protocol AgentInteractionMapping: Sendable {
     /// Returns a pending action for a stored interaction record, or `nil` when the record is not host actionable.
     func pendingAction(from record: AgentInteractionRecord) async -> AgentPendingAction?
 }
 
-/// Default interaction mapper for records already stored in provider-neutral form.
+/// Default interaction mapper for records already stored in harness-neutral form.
 public struct DefaultAgentInteractionMapping: AgentInteractionMapping {
     /// Creates a default mapper.
     public init() {}

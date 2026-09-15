@@ -25,7 +25,7 @@ final class DefaultAgentRuntimeHostToolTests: XCTestCase {
         await runtime.shutdown()
 
         let invalidatedTokens = await probe.invalidatedTokens
-        let terminatedTokens = await probe.providerTerminatedTokens
+        let terminatedTokens = await probe.harnessTerminatedTokens
         let shutdownCount = await probe.serverShutdownCount
         XCTAssertEqual(invalidatedTokens, registeredTokens)
         XCTAssertEqual(terminatedTokens, registeredTokens)
@@ -52,8 +52,8 @@ final class DefaultAgentRuntimeHostToolTests: XCTestCase {
         let events = await probe.events
         let registeredTokens = await probe.registeredTokens
         let invalidatedTokens = await probe.invalidatedTokens
-        let terminatedTokens = await probe.providerTerminatedTokens
-        XCTAssertEqual(events.map(\.kind), [.registered, .contextLaunch, .invalidated, .providerTerminated])
+        let terminatedTokens = await probe.harnessTerminatedTokens
+        XCTAssertEqual(events.map(\.kind), [.registered, .contextLaunch, .invalidated, .harnessTerminated])
         XCTAssertEqual(invalidatedTokens, registeredTokens)
         XCTAssertEqual(terminatedTokens, registeredTokens)
 
@@ -89,7 +89,7 @@ final class DefaultAgentRuntimeHostToolTests: XCTestCase {
         await runtime.shutdown()
     }
 
-    func testNonemptyHostToolsWithoutInjectedHandlerThrowsTypedErrorBeforeProviderLaunch() async {
+    func testNonemptyHostToolsWithoutInjectedHandlerThrowsTypedErrorBeforeHarnessLaunch() async {
         let probe = HostToolRuntimeProbe()
         let runtime = DefaultAgentRuntime(adapters: [
             ContextAwareHostToolAdapter(command: shell("sleep 5"), probe: probe)
@@ -196,7 +196,7 @@ final class DefaultAgentRuntimeHostToolTests: XCTestCase {
         await runtime.shutdown()
     }
 
-    func testProviderOutputRedactsProcessScopedHostBearer() async throws {
+    func testHarnessOutputRedactsProcessScopedHostBearer() async throws {
         let probe = HostToolRuntimeProbe()
         let hostToolServer = RecordingHostToolServer(probe: probe, bearerToken: "sensitive-test-token")
         let runtime = DefaultAgentRuntime(
@@ -217,7 +217,7 @@ final class DefaultAgentRuntimeHostToolTests: XCTestCase {
         var diagnosticMessage: String?
         for await envelope in subscription.events {
             if case let .diagnostic(diagnostic) = envelope.event,
-               diagnostic.code == .providerStderr {
+               diagnostic.code == .harnessStderr {
                 diagnosticMessage = diagnostic.message
                 break
             }
@@ -244,7 +244,7 @@ final class DefaultAgentRuntimeHostToolTests: XCTestCase {
 
         let registeredTokens = await probe.registeredTokens
         let invalidatedTokens = await probe.invalidatedTokens
-        let terminatedTokens = await probe.providerTerminatedTokens
+        let terminatedTokens = await probe.harnessTerminatedTokens
         XCTAssertEqual(registeredTokens.count, 1)
         XCTAssertEqual(invalidatedTokens, registeredTokens)
         XCTAssertEqual(terminatedTokens, registeredTokens)
@@ -256,7 +256,7 @@ final class DefaultAgentRuntimeHostToolTests: XCTestCase {
         let probe = HostToolRuntimeProbe()
         let launches = LaunchSequence([
             shell("sleep 5"),
-            AgentLaunchConfiguration(executable: "/definitely/missing/agentclikit-provider")
+            AgentLaunchConfiguration(executable: "/definitely/missing/agentclikit-harness")
         ])
         let runtime = DefaultAgentRuntime(
             adapters: [SequencedHostToolAdapter(launches: launches, probe: probe)],
@@ -287,7 +287,7 @@ final class DefaultAgentRuntimeHostToolTests: XCTestCase {
 
     private func hostToolConfig(toolName: String, initialPrompt: String? = nil) -> AgentSpawnConfig {
         AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             initialPrompt: initialPrompt,
             hostTools: [AgentHostToolDefinition(
@@ -303,7 +303,7 @@ private enum HostToolRuntimeEventKind: Equatable, Sendable {
     case registered
     case contextLaunch
     case legacyLaunch
-    case providerTerminated
+    case harnessTerminated
     case invalidated
     case serverShutdown
 }
@@ -315,14 +315,14 @@ private struct HostToolRuntimeEvent: Equatable, Sendable {
 
 private actor HostToolRuntimeProbe {
     private(set) var events: [HostToolRuntimeEvent] = []
-    private(set) var launchContexts: [AgentProviderLaunchContext] = []
+    private(set) var launchContexts: [AgentHarnessLaunchContext] = []
 
     var registeredTokens: [UUID] {
         tokens(for: .registered)
     }
 
-    var providerTerminatedTokens: [UUID] {
-        tokens(for: .providerTerminated)
+    var harnessTerminatedTokens: [UUID] {
+        tokens(for: .harnessTerminated)
     }
 
     var invalidatedTokens: [UUID] {
@@ -337,7 +337,7 @@ private actor HostToolRuntimeProbe {
         events.append(HostToolRuntimeEvent(kind: kind, processToken: processToken))
     }
 
-    func recordLaunch(_ context: AgentProviderLaunchContext) {
+    func recordLaunch(_ context: AgentHarnessLaunchContext) {
         launchContexts.append(context)
         record(.contextLaunch, processToken: context.processToken)
     }
@@ -360,7 +360,7 @@ private actor RecordingHostToolServer: AgentHostToolServing {
 
     func register(
         conversationId: AgentConversationID,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         processToken: UUID,
         server: AgentHostToolServerMetadata,
         tools: [AgentHostToolDefinition]
@@ -415,8 +415,8 @@ private actor HostToolLaunchGate {
     }
 }
 
-private struct ContextAwareHostToolAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Context-aware", executableNames: ["context-aware"])
+private struct ContextAwareHostToolAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Context-aware", executableNames: ["context-aware"])
     let command: AgentLaunchConfiguration
     let probe: HostToolRuntimeProbe
     let launchError: AgentCLIError?
@@ -442,7 +442,7 @@ private struct ContextAwareHostToolAdapter: AgentProviderAdapter {
         return command
     }
 
-    func makeLaunchConfiguration(context: AgentProviderLaunchContext) async throws -> AgentLaunchConfiguration {
+    func makeLaunchConfiguration(context: AgentHarnessLaunchContext) async throws -> AgentLaunchConfiguration {
         await probe.recordLaunch(context)
         await launchGate?.suspend()
         if let launchError {
@@ -460,14 +460,14 @@ private struct ContextAwareHostToolAdapter: AgentProviderAdapter {
     }
 
     func processDidTerminate(processToken: UUID) async {
-        await probe.record(.providerTerminated, processToken: processToken)
+        await probe.record(.harnessTerminated, processToken: processToken)
     }
 }
 
-private struct SequencedHostToolAdapter: AgentProviderAdapter {
+private struct SequencedHostToolAdapter: AgentHarnessAdapter {
     let launches: LaunchSequence
     let probe: HostToolRuntimeProbe
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Sequenced", executableNames: ["sequenced"])
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Sequenced", executableNames: ["sequenced"])
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -476,7 +476,7 @@ private struct SequencedHostToolAdapter: AgentProviderAdapter {
         await launches.next()
     }
 
-    func makeLaunchConfiguration(context: AgentProviderLaunchContext) async throws -> AgentLaunchConfiguration {
+    func makeLaunchConfiguration(context: AgentHarnessLaunchContext) async throws -> AgentLaunchConfiguration {
         await probe.recordLaunch(context)
         return await launches.next()
     }
@@ -490,6 +490,6 @@ private struct SequencedHostToolAdapter: AgentProviderAdapter {
     }
 
     func processDidTerminate(processToken: UUID) async {
-        await probe.record(.providerTerminated, processToken: processToken)
+        await probe.record(.harnessTerminated, processToken: processToken)
     }
 }

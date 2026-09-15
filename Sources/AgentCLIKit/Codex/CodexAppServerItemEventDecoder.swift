@@ -8,7 +8,7 @@ struct CodexAppServerItemEventDecoder {
     private var lastReasoningSectionByThread: [String: ReasoningSection] = [:]
 
     // swiftlint:disable:next cyclomatic_complexity
-    mutating func decode(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent]? {
+    mutating func decode(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent]? {
         switch notification.method {
         case "item/agentMessage/delta":
             decodeAgentMessageDelta(notification)
@@ -37,7 +37,7 @@ struct CodexAppServerItemEventDecoder {
         }
     }
 
-    func decodeAgentMessageDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeAgentMessageDelta(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let delta = params["delta"]?.codexStringValue,
               !delta.isEmpty,
@@ -47,11 +47,11 @@ struct CodexAppServerItemEventDecoder {
         return [runtimeEvent(.messageDelta(AgentMessageDeltaEvent(role: .assistant, text: delta, metadata: metadata)))]
     }
 
-    mutating func decodeReasoningTextDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decodeReasoningTextDelta(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         reasoningDeltaEvent(notification, indexKey: "contentIndex", kind: "content")
     }
 
-    mutating func decodeReasoningSummaryTextDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decodeReasoningSummaryTextDelta(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         reasoningDeltaEvent(notification, indexKey: "summaryIndex", kind: "summary")
     }
 
@@ -63,7 +63,7 @@ struct CodexAppServerItemEventDecoder {
         lastReasoningSectionByThread.removeValue(forKey: threadId)
     }
 
-    mutating func decodeItemStarted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decodeItemStarted(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let payload = itemPayload(notification, phase: "started") else {
             return []
         }
@@ -91,7 +91,7 @@ struct CodexAppServerItemEventDecoder {
     }
 
     // swiftlint:disable:next cyclomatic_complexity
-    mutating func decodeItemCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    mutating func decodeItemCompleted(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let payload = itemPayload(notification, phase: "completed") else {
             return []
         }
@@ -130,7 +130,7 @@ struct CodexAppServerItemEventDecoder {
         }
     }
 
-    func decodeRawResponseItemCompleted(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeRawResponseItemCompleted(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let payload = itemPayload(notification, phase: "completed") else {
             return []
         }
@@ -146,7 +146,7 @@ struct CodexAppServerItemEventDecoder {
         }
     }
 
-    func decodeTurnDiffUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeTurnDiffUpdated(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue,
@@ -171,7 +171,7 @@ struct CodexAppServerItemEventDecoder {
         )))]
     }
 
-    func decodeFileChangePatchUpdated(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeFileChangePatchUpdated(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue,
@@ -202,15 +202,15 @@ struct CodexAppServerItemEventDecoder {
         )))]
     }
 
-    func decodeCommandExecutionOutputDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeCommandExecutionOutputDelta(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         outputDeltaEvent(notification)
     }
 
-    func decodeFileChangeOutputDelta(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeFileChangeOutputDelta(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         outputDeltaEvent(notification)
     }
 
-    func decodeMCPToolCallProgress(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    func decodeMCPToolCallProgress(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let turnId = params["turnId"]?.codexStringValue,
@@ -243,7 +243,7 @@ struct CodexAppServerItemEventDecoder {
         _ notification: CodexAppServerNotification,
         indexKey: String,
         kind: String
-    ) -> [AgentProviderRuntimeEvent] {
+    ) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let threadId = params["threadId"]?.codexStringValue,
               let itemId = params["itemId"]?.codexStringValue,
@@ -260,7 +260,7 @@ struct CodexAppServerItemEventDecoder {
         // The thread's first section of a turn has nothing to separate from, so it must not emit a leading break.
         let opensNewSection = lastReasoningSectionByThread[threadId].map { $0 != section } ?? false
         lastReasoningSectionByThread[threadId] = section
-        var events: [AgentProviderRuntimeEvent] = []
+        var events: [AgentHarnessRuntimeEvent] = []
         if opensNewSection {
             events.append(runtimeEvent(.reasoning(AgentReasoningEvent(text: "\n\n", metadata: metadata))))
         }
@@ -268,7 +268,7 @@ struct CodexAppServerItemEventDecoder {
         return events
     }
 
-    private func outputDeltaEvent(_ notification: CodexAppServerNotification) -> [AgentProviderRuntimeEvent] {
+    private func outputDeltaEvent(_ notification: CodexAppServerNotification) -> [AgentHarnessRuntimeEvent] {
         guard let params = notification.params?.codexObjectValue,
               let delta = params["delta"]?.codexStringValue,
               !delta.isEmpty else {
@@ -323,15 +323,15 @@ struct CodexAppServerItemEventDecoder {
         role: AgentMessageRole,
         text: String?,
         metadata: [String: JSONValue]
-    ) -> [AgentProviderRuntimeEvent] {
+    ) -> [AgentHarnessRuntimeEvent] {
         guard let text, !text.isEmpty else {
             return []
         }
         return [runtimeEvent(.message(AgentMessageEvent(role: role, text: text, metadata: metadata)))]
     }
 
-    private func completedReasoningEvents(_ payload: ItemPayload) -> [AgentProviderRuntimeEvent] {
-        var events: [AgentProviderRuntimeEvent] = []
+    private func completedReasoningEvents(_ payload: ItemPayload) -> [AgentHarnessRuntimeEvent] {
+        var events: [AgentHarnessRuntimeEvent] = []
         let content = payload.item["content"]?.codexArrayValue?.compactMap(\.codexStringValue).filter { !$0.isEmpty } ?? []
         let summary = payload.item["summary"]?.codexArrayValue?.compactMap(\.codexStringValue).filter { !$0.isEmpty } ?? []
         if !content.isEmpty {

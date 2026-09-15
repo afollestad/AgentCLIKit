@@ -29,7 +29,7 @@ extension DefaultAgentRuntime {
         emitLifecycle(.running, conversationId: conversationId)
         emitSessionContinuity(
             prepared.launch.sessionContinuity,
-            providerSessionId: prepared.launch.providerSessionId ?? prepared.resumedSession?.providerSessionId,
+            harnessSessionId: prepared.launch.harnessSessionId ?? prepared.resumedSession?.harnessSessionId,
             conversationId: conversationId
         )
         try await sendInitialPromptOverStdinIfNeeded(prepared)
@@ -50,7 +50,7 @@ extension DefaultAgentRuntime {
             conversationId: conversationId,
             processToken: prepared.stateInput.processToken
         )
-        await startProviderRuntimeEvents(conversationId: conversationId, processToken: prepared.stateInput.processToken)
+        await startHarnessRuntimeEvents(conversationId: conversationId, processToken: prepared.stateInput.processToken)
         try await ensureStartIsCurrent(prepared, startToken: startToken)
     }
 
@@ -90,13 +90,13 @@ extension DefaultAgentRuntime {
         startToken: UUID,
         processToken: UUID
     ) async throws -> PreparedStart {
-        guard let adapter = adapters[config.providerId] else {
-            throw AgentCLIError.providerNotRegistered(config.providerId)
+        guard let adapter = adapters[config.harnessId] else {
+            throw AgentCLIError.harnessNotRegistered(config.harnessId)
         }
 
         let previous = states[conversationId]
         let generation = options.fresh ? (previous?.generation ?? 0) + 1 : max(previous?.generation ?? 0, 1)
-        let resumedSession = options.fresh ? nil : try await sessionStore.record(conversationId: conversationId, providerId: config.providerId)
+        let resumedSession = options.fresh ? nil : try await sessionStore.record(conversationId: conversationId, harnessId: config.harnessId)
         trackInFlightStart(conversationId: conversationId, adapter: adapter, processToken: processToken)
         let launchInput = BaseLaunchInput(
             conversationId: conversationId,
@@ -142,7 +142,7 @@ extension DefaultAgentRuntime {
         registerSensitiveValues(endpoint.map { [$0.bearerToken] } ?? [], processToken: input.processToken)
         let launch: AgentLaunchConfiguration
         do {
-            launch = try await input.adapter.makeLaunchConfiguration(context: AgentProviderLaunchContext(
+            launch = try await input.adapter.makeLaunchConfiguration(context: AgentHarnessLaunchContext(
                 conversationId: input.conversationId,
                 processToken: input.processToken,
                 spawnConfig: input.config,
@@ -176,14 +176,14 @@ extension DefaultAgentRuntime {
         let preparedProcess = makeProcess(launch: launch, config: input.config)
         let stateInput = StateInput(
             conversationId: input.conversationId,
-            providerId: input.config.providerId,
+            harnessId: input.config.harnessId,
             generation: generation,
             processToken: input.processToken,
             adapter: input.adapter,
             preparedProcess: preparedProcess,
             spawnConfig: input.config,
             resumedSession: input.resumedSession,
-            launchProviderSessionId: launch.providerSessionId,
+            launchHarnessSessionId: launch.harnessSessionId,
             fresh: options.fresh,
             resumingTurn: options.resumingTurn
         )
@@ -227,7 +227,7 @@ extension DefaultAgentRuntime {
     func ensureStartIsCurrent(
         conversationId: AgentConversationID,
         startToken: UUID,
-        adapter: any AgentProviderAdapter,
+        adapter: any AgentHarnessAdapter,
         processToken: UUID,
         process: Process? = nil
     ) async throws {
@@ -266,7 +266,7 @@ extension DefaultAgentRuntime {
 
     func prepareLaunch(
         _ launch: AgentLaunchConfiguration,
-        adapter: any AgentProviderAdapter,
+        adapter: any AgentHarnessAdapter,
         config: AgentSpawnConfig,
         conversationId: AgentConversationID,
         processToken: UUID
@@ -284,7 +284,7 @@ extension DefaultAgentRuntime {
                 adapter: adapter,
                 processToken: processToken
             )
-            // Launch augmentation runs before conversation state exists, so fail rather than silently drop provider-managed resources.
+            // Launch augmentation runs before conversation state exists, so fail rather than silently drop harness-managed resources.
             throw error
         }
     }
@@ -296,7 +296,7 @@ struct PreparedStart {
     let preparedProcess: PreparedProcess
     let previous: ConversationState?
     let stateInput: StateInput
-    let adapter: any AgentProviderAdapter
+    let adapter: any AgentHarnessAdapter
     let resumedSession: AgentSessionRecord?
 }
 
@@ -308,7 +308,7 @@ struct StartOptions {
 struct BaseLaunchInput {
     let conversationId: AgentConversationID
     let config: AgentSpawnConfig
-    let adapter: any AgentProviderAdapter
+    let adapter: any AgentHarnessAdapter
     let resumedSession: AgentSessionRecord?
     let processToken: UUID
     let startToken: UUID

@@ -1,15 +1,15 @@
 import Foundation
 
-/// Provider-reported rate-limit status.
+/// Harness-reported rate-limit status.
 public struct AgentRateLimitStatus: RawRepresentable, Codable, Equatable, Hashable, Sendable, ExpressibleByStringLiteral {
     /// Request is allowed.
     public static let allowed: AgentRateLimitStatus = "allowed"
-    /// Request is allowed, but the provider reports that usage is approaching a limit.
+    /// Request is allowed, but the harness reports that usage is approaching a limit.
     public static let allowedWarning: AgentRateLimitStatus = "allowed_warning"
     /// Request was rejected because a limit was reached.
     public static let rejected: AgentRateLimitStatus = "rejected"
 
-    /// Raw provider status value.
+    /// Raw harness status value.
     public let rawValue: String
 
     /// Creates a rate-limit status.
@@ -23,23 +23,23 @@ public struct AgentRateLimitStatus: RawRepresentable, Codable, Equatable, Hashab
     }
 }
 
-/// Provider-reported rate-limit state.
+/// Harness-reported rate-limit state.
 public struct AgentRateLimitEvent: Codable, Equatable, Sendable {
     /// Current rate-limit status.
     public let status: AgentRateLimitStatus
-    /// Date when the active limit resets, if reported by the provider.
+    /// Date when the active limit resets, if reported by the harness.
     public let resetDate: Date?
-    /// Provider-specific limit bucket, such as `five_hour` or `seven_day`.
+    /// Harness-specific limit bucket, such as `five_hour` or `seven_day`.
     public let limitType: String?
     /// Fraction of the limit currently used, when available.
     public let utilization: Double?
-    /// Overage status for providers that support paid overflow usage.
+    /// Overage status for harnesses that support paid overflow usage.
     public let overageStatus: AgentRateLimitStatus?
-    /// Date when the overage limit resets, if reported by the provider.
+    /// Date when the overage limit resets, if reported by the harness.
     public let overageResetDate: Date?
-    /// Provider-reported reason overage is unavailable.
+    /// Harness-reported reason overage is unavailable.
     public let overageDisabledReason: String?
-    /// Provider-specific rate-limit fields.
+    /// Harness-specific rate-limit fields.
     public let metadata: [String: JSONValue]
 
     /// Creates a rate-limit event.

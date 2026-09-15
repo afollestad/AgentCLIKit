@@ -8,8 +8,8 @@ host integration shape and use placeholders for app-owned UI or persistence.
 
 ## Sessionless One-Shot Prompt
 
-**Complete snippet.** Runs one provider prompt, returns the final assistant text, and does not create an AgentCLIKit runtime
-conversation or persisted provider session.
+**Complete snippet.** Runs one harness prompt, returns the final assistant text, and does not create an AgentCLIKit runtime
+conversation or persisted harness session.
 
 ```swift
 import AgentCLIKit
@@ -18,7 +18,7 @@ import Foundation
 func runSessionlessPrompt(projectURL: URL) async throws -> String {
     let runner = DefaultAgentOneShotPromptRunner()
     let result = try await runner.generate(AgentOneShotPromptRequest(
-        providerId: .codex,
+        harnessId: .codex,
         workingDirectory: projectURL,
         prompt: "Summarize the current Git diff in one paragraph.",
         timeout: 120
@@ -27,11 +27,11 @@ func runSessionlessPrompt(projectURL: URL) async throws -> String {
 }
 ```
 
-Use `.claude` for Claude Code. One-shot prompts are read-only and cannot answer provider approval or prompt requests.
+Use `.claude` for Claude Code. One-shot prompts are read-only and cannot answer harness approval or prompt requests.
 
 ## One-Off Runtime Conversation
 
-**Complete snippet.** Starts one provider, sends one message, prints a few common events, and acknowledges event indexes.
+**Complete snippet.** Starts one harness, sends one message, prints a few common events, and acknowledges event indexes.
 
 ```swift
 import AgentCLIKit
@@ -72,7 +72,7 @@ func runOneOffConversation(projectURL: URL) async throws {
     try await runtime.spawn(
         conversationId: conversationId,
         config: AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: projectURL
         )
     )
@@ -87,11 +87,11 @@ func runOneOffConversation(projectURL: URL) async throws {
 }
 ```
 
-Change `providerId: .claude` to `providerId: .codex` to run the same host flow through Codex App Server.
+Change `harnessId: .claude` to `harnessId: .codex` to run the same host flow through Codex App Server.
 
 ## Host-Owned Tools And Additional Roots
 
-**Complete snippet.** Exposes one read-only MCP tool to either built-in provider without changing the user's global MCP
+**Complete snippet.** Exposes one read-only MCP tool to either built-in harness without changing the user's global MCP
 configuration. Production handlers should strictly decode the advertised schema and apply product authorization before
 reading or mutating host state.
 
@@ -125,7 +125,7 @@ func makeRuntimeWithHostTools() -> (DefaultAgentRuntime, AgentSpawnConfig) {
         )
     })
     let config = AgentSpawnConfig(
-        providerId: .claude,
+        harnessId: .claude,
         workingDirectory: URL(fileURLWithPath: "/tmp/agent-workspace"),
         additionalWorkspaceRoots: [URL(fileURLWithPath: "/tmp/shared-input")],
         hostToolServer: AgentHostToolServerMetadata(
@@ -138,13 +138,13 @@ func makeRuntimeWithHostTools() -> (DefaultAgentRuntime, AgentSpawnConfig) {
 }
 ```
 
-Use the same config with `.codex`; provider-specific MCP launch details remain inside AgentCLIKit. Keep handlers
+Use the same config with `.codex`; harness-specific MCP launch details remain inside AgentCLIKit. Keep handlers
 cancellation-cooperative and return bounded text/structured output. Tool or root changes are launch-only, so
 `runtime.reconfigure` defers them with `.nextTurnRequired` during an active turn.
 
 ## Persist And Resume Sessions
 
-**Complete snippet.** Uses `JSONFileAgentSessionStore` so provider session IDs can be reused across app launches.
+**Complete snippet.** Uses `JSONFileAgentSessionStore` so harness session IDs can be reused across app launches.
 
 ```swift
 import AgentCLIKit
@@ -177,7 +177,7 @@ func sendWithPersistedSession(projectURL: URL, lastPersistedIndex: Int?) async t
     try await runtime.spawn(
         conversationId: conversationId,
         config: AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: projectURL
         )
     )
@@ -192,19 +192,19 @@ func sendWithPersistedSession(projectURL: URL, lastPersistedIndex: Int?) async t
 }
 ```
 
-`DefaultAgentRuntime` records provider session IDs and usable provider-reported names when providers report them. Hosts
+`DefaultAgentRuntime` records harness session IDs and usable harness-reported names when harnesses report them. Hosts
 should persist their latest event cursor separately, then pass it as `afterIndex` when subscribing after an app restart.
 
-## Provider Readiness, Models, And Effort
+## Harness Readiness, Models, And Effort
 
-**Complete snippet.** Builds a provider picker model from discovery status.
+**Complete snippet.** Builds a harness picker model from discovery status.
 
 ```swift
 import AgentCLIKit
 import Foundation
 
-struct ProviderChoice {
-    let providerId: AgentProviderID
+struct HarnessChoice {
+    let harnessId: AgentHarnessID
     let displayName: String
     let isReady: Bool
     let supportsSpeedMode: Bool
@@ -212,27 +212,27 @@ struct ProviderChoice {
     let defaultEffort: String?
 }
 
-func loadProviderChoices(projectURL: URL) async -> [ProviderChoice] {
-    let setups: [any AgentProviderSetup] = [
-        ClaudeProviderSetup(configStore: ClaudeConfigStore()),
-        CodexProviderSetup()
+func loadHarnessChoices(projectURL: URL) async -> [HarnessChoice] {
+    let setups: [any AgentHarnessSetup] = [
+        ClaudeHarnessSetup(configStore: ClaudeConfigStore()),
+        CodexHarnessSetup()
     ]
-    let discovery = DefaultAgentProviderDiscoveryService(
-        providerSetups: setups,
+    let discovery = DefaultAgentHarnessDiscoveryService(
+        harnessSetups: setups,
         modelOptionSource: DefaultAgentModelOptionSource(
             codexSource: CodexAppServerModelOptionSource()
         )
     )
-    let statuses = await discovery.providerStatuses(projectURL: projectURL)
-    let ordering = await discovery.stableProviderOrdering()
+    let statuses = await discovery.harnessStatuses(projectURL: projectURL)
+    let ordering = await discovery.stableHarnessOrdering()
 
-    return ordering.compactMap { providerId in
-        guard let status = statuses[providerId] else {
+    return ordering.compactMap { harnessId in
+        guard let status = statuses[harnessId] else {
             return nil
         }
-        return ProviderChoice(
-            providerId: providerId,
-            displayName: status.definition?.displayName ?? providerId.rawValue,
+        return HarnessChoice(
+            harnessId: harnessId,
+            displayName: status.definition?.displayName ?? harnessId.rawValue,
             isReady: status.isReadyInProject,
             supportsSpeedMode: status.definition?.capabilities.supportsSpeedMode ?? false,
             modelLabels: status.modelOptions.map(\.label),
@@ -262,7 +262,7 @@ func setPlanMode(
     runtime: any AgentRuntime
 ) async throws {
     let updatedConfig = AgentSpawnConfig(
-        providerId: currentConfig.providerId,
+        harnessId: currentConfig.harnessId,
         workingDirectory: currentConfig.workingDirectory,
         arguments: currentConfig.arguments,
         environment: currentConfig.environment,
@@ -289,7 +289,7 @@ func setPlanMode(
 }
 ```
 
-To enable Codex fast mode, first check the current provider status:
+To enable Codex fast mode, first check the current harness status:
 
 ```swift
 func setFastMode(
@@ -297,13 +297,13 @@ func setFastMode(
     currentConfig: AgentSpawnConfig,
     conversationId: AgentConversationID,
     runtime: any AgentRuntime,
-    providerStatus: AgentProviderStatus
+    harnessStatus: AgentHarnessStatus
 ) async throws {
-    guard providerStatus.definition?.capabilities.supportsSpeedMode == true else {
+    guard harnessStatus.definition?.capabilities.supportsSpeedMode == true else {
         return
     }
     let updatedConfig = AgentSpawnConfig(
-        providerId: currentConfig.providerId,
+        harnessId: currentConfig.harnessId,
         workingDirectory: currentConfig.workingDirectory,
         arguments: currentConfig.arguments,
         environment: currentConfig.environment,
@@ -324,32 +324,32 @@ func setFastMode(
 Codex plan/default collaboration settings require a concrete `AgentSpawnConfig.model`; pass the selected
 `AgentModelOption.model` before enabling plan mode. Keep `initialPrompt` nil for settings-only reconfigure requests so a
 replacement launch does not resend a one-shot prompt. Render plan-mode UI from `AgentRuntimeStatus.collaborationMode` or
-`AgentEvent.collaborationMode`, because providers can report collaboration changes after host actions such as
-`ExitPlanMode`. Render speed UI from host state plus `AgentProviderCapabilities.supportsSpeedMode`; providers do not emit
+`AgentEvent.collaborationMode`, because harnesses can report collaboration changes after host actions such as
+`ExitPlanMode`. Render speed UI from host state plus `AgentHarnessCapabilities.supportsSpeedMode`; harnesses do not emit
 a dedicated speed status event.
 
 ## Project Trust
 
-**Complete snippet.** Checks and updates provider-neutral project trust state.
+**Complete snippet.** Checks and updates harness-neutral project trust state.
 
 ```swift
 import AgentCLIKit
 import Foundation
 
-func trustProjectIfNeeded(providerId: AgentProviderID, projectURL: URL) async throws -> AgentProjectTrustStatus {
-    let setups: [any AgentProviderSetup] = [
-        ClaudeProviderSetup(configStore: ClaudeConfigStore()),
-        CodexProviderSetup()
+func trustProjectIfNeeded(harnessId: AgentHarnessID, projectURL: URL) async throws -> AgentProjectTrustStatus {
+    let setups: [any AgentHarnessSetup] = [
+        ClaudeHarnessSetup(configStore: ClaudeConfigStore()),
+        CodexHarnessSetup()
     ]
     let trustService = DefaultAgentProjectTrustService(setups: setups)
-    let status = await trustService.status(providerId: providerId, projectURL: projectURL)
+    let status = await trustService.status(harnessId: harnessId, projectURL: projectURL)
 
     guard status == .notTrusted else {
         return status
     }
 
-    try await trustService.trustProject(providerId: providerId, projectURL: projectURL)
-    return await trustService.status(providerId: providerId, projectURL: projectURL)
+    try await trustService.trustProject(harnessId: harnessId, projectURL: projectURL)
+    return await trustService.status(harnessId: harnessId, projectURL: projectURL)
 }
 ```
 
@@ -358,7 +358,7 @@ readiness is separate from project trust.
 
 ## Approval And Prompt Resolution
 
-When an approval requires a promptless provider restart, use
+When an approval requires a promptless harness restart, use
 `DefaultAgentRuntime.spawn(conversationId:config:resumingTurn:)` with `resumingTurn: true` to keep active-turn status accurate.
 
 **Skeleton.** Runtime interactions are surfaced as `AgentEvent.interaction`. The host renders the request, then resolves it
@@ -405,13 +405,13 @@ func handleInteraction(
 }
 ```
 
-`AgentInteractionInbox` is an optional helper for host-owned pending-action storage. Use it when your provider adapter or
+`AgentInteractionInbox` is an optional helper for host-owned pending-action storage. Use it when your harness adapter or
 hook configuration shares the same `AgentInteractionStore`; do not assume the inbox is automatically connected to every
 runtime interaction.
 
 ## Status Updates And Cancellation
 
-**Skeleton.** Status snapshots let UI distinguish an active turn, provider wait states, and whether cancellation is useful.
+**Skeleton.** Status snapshots let UI distinguish an active turn, harness wait states, and whether cancellation is useful.
 
 ```swift
 func observeStatus(
@@ -445,16 +445,16 @@ func cancelConversation(
 }
 ```
 
-`status.isTurnActive` is useful for hosts that support mid-turn steering. A provider can accept input while a tool-backed
+`status.isTurnActive` is useful for hosts that support mid-turn steering. A harness can accept input while a tool-backed
 turn is still active, so `inputAvailability` alone is not the full turn-state model.
 
-`status.liveBackgroundTaskCount` reports provider work that outlives the turn, such as Claude background agents. Those
-tasks run inside the provider process, so a host that tears processes down between turns should wait for the count to
+`status.liveBackgroundTaskCount` reports harness work that outlives the turn, such as Claude background agents. Those
+tasks run inside the harness process, so a host that tears processes down between turns should wait for the count to
 return to zero. When one finishes, the runtime emits `.activity(.active)` with a `background-task:` turn id before the
-provider's follow-up response, then `.activity(.idle)` or a terminal usage event when that response ends.
+harness's follow-up response, then `.activity(.idle)` or a terminal usage event when that response ends.
 
 ## Where To Look Next
 
-- `Sources/AgentCLIKitDemo/DemoModel.swift` shows runtime ownership, provider discovery, session persistence, and status subscriptions.
+- `Sources/AgentCLIKitDemo/DemoModel.swift` shows runtime ownership, harness discovery, session persistence, and status subscriptions.
 - `Sources/AgentCLIKitDemo/DemoModel+Events.swift` shows one event projection strategy.
 - `Sources/AgentCLIKitDemo/Interactions` shows demo prompt UI and Claude hook decision handling.

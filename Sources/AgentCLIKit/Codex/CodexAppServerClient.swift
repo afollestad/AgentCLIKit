@@ -35,10 +35,10 @@ actor CodexAppServerClient {
         var initialPromptStarted = false
         var pendingSteeringInputs: [String: PendingSteeringInput] = [:]
         var emittedSteeringInputIds: Set<String> = []
-        var continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation?
+        var continuation: AsyncStream<AgentHarnessRuntimeEvent>.Continuation?
     }
 
-    let configuration: CodexProviderAdapter.Configuration
+    let configuration: CodexHarnessAdapter.Configuration
     var transport: (any CodexAppServerTransport)?
     var transportStartOperation: TransportStartOperation?
     var initializationOperation: InitializationOperation?
@@ -58,7 +58,7 @@ actor CodexAppServerClient {
     var recoveredPlanKeysByConversation: [AgentConversationID: Set<CodexSessionTranscriptPlanRecoveryKey>] = [:]
     var transcriptPlanSessionFileURLsByThreadId: [AgentSessionID: URL] = [:]
 
-    init(configuration: CodexProviderAdapter.Configuration) {
+    init(configuration: CodexHarnessAdapter.Configuration) {
         self.configuration = configuration
         self.serverRequestMapper = CodexAppServerServerRequestMapper(
             commandApprovalNormalizationPolicy: configuration.commandApprovalNormalizationPolicy
@@ -68,8 +68,8 @@ actor CodexAppServerClient {
         )
     }
 
-    func runtimeEvents(context: AgentProviderRuntimeContext) -> AsyncStream<AgentProviderRuntimeEvent> {
-        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+    func runtimeEvents(context: AgentHarnessRuntimeContext) -> AsyncStream<AgentHarnessRuntimeEvent> {
+        let stream = AsyncStream<AgentHarnessRuntimeEvent>.makeStream()
         guard !isShutdown else {
             stream.continuation.finish()
             return stream.stream
@@ -83,15 +83,15 @@ actor CodexAppServerClient {
         return stream.stream
     }
 
-    func send(_ input: AgentInput, context: AgentProviderInputContext) async throws {
+    func send(_ input: AgentInput, context: AgentHarnessInputContext) async throws {
         switch input {
         case let .userMessage(message):
             try await send(message, context: context)
         case let .interrupt(interruptInput):
-            try await interrupt(context: AgentProviderInterruptContext(
+            try await interrupt(context: AgentHarnessInterruptContext(
                 conversationId: context.conversationId,
                 processToken: context.processToken,
-                providerSessionId: context.providerSessionId,
+                harnessSessionId: context.harnessSessionId,
                 spawnConfig: context.spawnConfig,
                 reason: interruptInput.reason
             ))
@@ -100,7 +100,7 @@ actor CodexAppServerClient {
         }
     }
 
-    func interrupt(context: AgentProviderInterruptContext) async throws {
+    func interrupt(context: AgentHarnessInterruptContext) async throws {
         guard let binding = binding(for: context.conversationId, processToken: context.processToken),
               let activeTurnId = binding.activeTurnId else {
             return
@@ -121,7 +121,7 @@ actor CodexAppServerClient {
         }
     }
 
-    func reconfigure(context: AgentProviderReconfigureContext) async throws -> AgentProviderReconfigureResult {
+    func reconfigure(context: AgentHarnessReconfigureContext) async throws -> AgentHarnessReconfigureResult {
         guard var binding = binding(for: context.conversationId, processToken: context.processToken) else {
             return .restartRequired
         }
@@ -142,10 +142,10 @@ actor CodexAppServerClient {
     }
 
     private func registerRuntimeEvents(
-        context: AgentProviderRuntimeContext,
-        continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation
+        context: AgentHarnessRuntimeContext,
+        continuation: AsyncStream<AgentHarnessRuntimeEvent>.Continuation
     ) {
-        guard let threadId = context.providerSessionId else {
+        guard let threadId = context.harnessSessionId else {
             continuation.finish()
             return
         }
@@ -176,7 +176,7 @@ actor CodexAppServerClient {
         }
     }
 
-    private func unregisterRuntimeEvents(context: AgentProviderRuntimeContext) {
+    private func unregisterRuntimeEvents(context: AgentHarnessRuntimeContext) {
         guard let binding = bindingsByConversation[context.conversationId],
               binding.processToken == context.processToken else {
             return
@@ -230,7 +230,7 @@ actor CodexAppServerClient {
         }
     }
 
-    private func send(_ message: AgentMessageInput, context: AgentProviderInputContext) async throws {
+    private func send(_ message: AgentMessageInput, context: AgentHarnessInputContext) async throws {
         guard let binding = binding(for: context.conversationId, processToken: context.processToken) else {
             throw AgentCLIError.invalidInput("Codex App Server thread is unavailable.")
         }
@@ -261,13 +261,13 @@ actor CodexAppServerClient {
             )
             guard supportsGoalMode else {
                 throw AgentCLIError.unsupportedCapability(
-                    providerId: CodexProviderAdapter.providerId,
+                    harnessId: CodexHarnessAdapter.harnessId,
                     capability: "goal mode"
                 )
             }
             if let snapshot = try await setThreadGoal(binding.threadId, objective: objective) {
                 bindingsByConversation[conversationId]?.continuation?.yield(
-                    AgentProviderRuntimeEvent(event: .goal(AgentGoalEvent(snapshot: snapshot)))
+                    AgentHarnessRuntimeEvent(event: .goal(AgentGoalEvent(snapshot: snapshot)))
                 )
             }
         }
@@ -352,7 +352,7 @@ actor CodexAppServerClient {
     }
 
     func emitDiagnostic(_ error: Error, conversationId: AgentConversationID, message: String) {
-        bindingsByConversation[conversationId]?.continuation?.yield(AgentProviderRuntimeEvent(event: .diagnostic(AgentDiagnosticEvent(
+        bindingsByConversation[conversationId]?.continuation?.yield(AgentHarnessRuntimeEvent(event: .diagnostic(AgentDiagnosticEvent(
             code: (error as? CodexAppServerError)?.diagnosticCode,
             severity: .error,
             message: "\(message) \(error.localizedDescription)",

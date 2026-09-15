@@ -3,13 +3,13 @@ import XCTest
 @testable import AgentCLIKit
 
 final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
-    func testDeferredApprovalResumeSuppressesReplayedProviderEvents() async throws {
+    func testDeferredApprovalResumeSuppressesReplayedHarnessEvents() async throws {
         let launches = LaunchSequence([
             shell("printf 'message:history\\napproval:tool-1\\ndeferred\\n'"),
             shell("printf 'message:history\\napproval:tool-1\\ndeferred\\nmessage:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -39,7 +39,7 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
             shell("printf 'approval-volatile:second\\nmessage:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -65,13 +65,13 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
         XCTAssertTrue(events.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "new")) })
     }
 
-    func testDeferredApprovalResumeSuppressesReplayedProviderSuffix() async throws {
+    func testDeferredApprovalResumeSuppressesReplayedHarnessSuffix() async throws {
         let launches = LaunchSequence([
             shell("printf 'message:intro\\ntool:glob\\nresult:glob\\ntool:grep\\nresult:grep\\napproval:tool-1\\ndeferred\\n'"),
             shell("printf 'tool:glob\\nresult:glob\\ntool:grep\\nresult:grep\\nmessage:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -108,7 +108,7 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
             shell("printf 'message:Running 4 tools in parallel now.\\ntool:glob\\nresult:glob\\nmessage:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -148,7 +148,7 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
             shell("printf 'tool-call:glob-new:Glob:**/*.html\\ntool-result:glob-new:index.html\\nmessage:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -185,7 +185,7 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
             shell("printf 'message:history\\nmessage:new\\nmessage:history\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -205,13 +205,13 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
         XCTAssertTrue(events.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "new")) })
     }
 
-    func testFreshSessionDoesNotSuppressProviderEventsAfterDeferredApprovalStop() async throws {
+    func testFreshSessionDoesNotSuppressHarnessEventsAfterDeferredApprovalStop() async throws {
         let launches = LaunchSequence([
             shell("printf 'message:history\\napproval:tool-1\\ndeferred\\n'"),
             shell("printf 'message:history\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -231,13 +231,13 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
         })
     }
 
-    func testNonDeferredResumeDoesNotSuppressMatchingProviderEvents() async throws {
+    func testNonDeferredResumeDoesNotSuppressMatchingHarnessEvents() async throws {
         let launches = LaunchSequence([
             shell("printf 'message:history\\n'"),
             shell("printf 'message:history\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -262,7 +262,7 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
             shell("printf 'approval:tool-1\\napproval:tool-2\\ndeferred\\nmessage:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredReplayProviderAdapter(launchSequence: launches)
+            DeferredReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -290,7 +290,7 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
 
     func testRuntimePreservesWaitingStateAfterDeferredApprovalProcessExits() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredToolStopProviderAdapter(command: shell("printf 'approval\\ndeferred\\n'"))
+            DeferredToolStopHarnessAdapter(command: shell("printf 'approval\\ndeferred\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -305,7 +305,7 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
 
     func testRuntimeIgnoresStdoutAfterDeferredToolStopPerConversation() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            DeferredToolStopProviderAdapter(command: shell("printf 'deferred\\nmessage:trailing\\n'"))
+            DeferredToolStopHarnessAdapter(command: shell("printf 'deferred\\nmessage:trailing\\n'"))
         ])
         let firstConversationId: AgentConversationID = "first"
         let secondConversationId: AgentConversationID = "second"
@@ -347,8 +347,8 @@ final class DefaultAgentRuntimeDeferredToolTests: XCTestCase {
 
 }
 
-private struct DeferredReplayProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+private struct DeferredReplayHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
 
     func makeLaunchConfiguration(

@@ -73,8 +73,8 @@ extension DemoModel {
             return "Streaming"
         }
         var parts = [status.state.rawValue.capitalized]
-        if let providerSessionTitle = status.providerSessionName ?? status.providerSessionPreview {
-            parts.append("session: \(providerSessionTitle)")
+        if let harnessSessionTitle = status.harnessSessionName ?? status.harnessSessionPreview {
+            parts.append("session: \(harnessSessionTitle)")
         }
         if let permissionMode = status.permissionMode {
             parts.append("permission: \(permissionMode)")
@@ -85,20 +85,20 @@ extension DemoModel {
         return parts.joined(separator: " - ")
     }
 
-    static func providerStatusSummary(_ status: AgentProviderStatus) -> String {
+    static func harnessStatusSummary(_ status: AgentHarnessStatus) -> String {
         if !status.isEnabled {
-            return "\(status.definition?.displayName ?? status.providerId.rawValue) is disabled."
+            return "\(status.definition?.displayName ?? status.harnessId.rawValue) is disabled."
         }
         if !status.isInstalled {
-            return status.diagnostics.first ?? "\(status.definition?.displayName ?? status.providerId.rawValue) is not installed."
+            return status.diagnostics.first ?? "\(status.definition?.displayName ?? status.harnessId.rawValue) is not installed."
         }
         if !status.isSetupReady {
-            return status.diagnostics.first ?? "\(status.definition?.displayName ?? status.providerId.rawValue) needs setup."
+            return status.diagnostics.first ?? "\(status.definition?.displayName ?? status.harnessId.rawValue) needs setup."
         }
-        if let projectTrust = status.projectTrust, !projectTrust.allowsProviderWork {
-            return "Project trust is required for \(status.definition?.displayName ?? status.providerId.rawValue)."
+        if let projectTrust = status.projectTrust, !projectTrust.allowsHarnessWork {
+            return "Project trust is required for \(status.definition?.displayName ?? status.harnessId.rawValue)."
         }
-        return "\(status.definition?.displayName ?? status.providerId.rawValue) ready"
+        return "\(status.definition?.displayName ?? status.harnessId.rawValue) ready"
     }
 
     static func eventSummary(_ event: AgentEvent) -> String {
@@ -164,10 +164,10 @@ extension DemoModel {
         case .sessionContinuity(let continuity):
             return "session_continuity continuity=\(continuity.continuity.rawValue)"
         case .sessionMetadata(let metadata):
-            let providerSessionId = metadata.providerSessionId?.rawValue ?? "nil"
+            let harnessSessionId = metadata.harnessSessionId?.rawValue ?? "nil"
             let name = metadata.name ?? "nil"
             let preview = metadata.preview ?? "nil"
-            return "session_metadata provider_session_id=\(providerSessionId) name=\(name) preview=\(preview)"
+            return "session_metadata provider_session_id=\(harnessSessionId) name=\(name) preview=\(preview)"
         case .lifecycle(let lifecycle):
             return "lifecycle state=\(lifecycle.state.rawValue)"
         case .diagnostic(let diagnostic):

@@ -29,7 +29,7 @@ extension DefaultAgentRuntime {
         )
 
         // The replacement is now live; delayed save completions from the old process should no longer report diagnostics.
-        markProviderSessionSavesStale(conversationId: stateInput.conversationId, processToken: previous?.processToken)
+        markHarnessSessionSavesStale(conversationId: stateInput.conversationId, processToken: previous?.processToken)
         await waitForPreviousOutputQueuesToBecomeIdle(previous)
         try await ensureStartIsCurrent(
             conversationId: stateInput.conversationId,
@@ -83,7 +83,7 @@ extension DefaultAgentRuntime {
         _ process: Process,
         launch: AgentLaunchConfiguration,
         stateInput: StateInput,
-        adapter: any AgentProviderAdapter,
+        adapter: any AgentHarnessAdapter,
         recordsFailure: Bool
     ) async throws {
         do {
@@ -98,18 +98,18 @@ extension DefaultAgentRuntime {
         guard let previous else {
             return
         }
-        previous.providerEventTasks.forEach { $0.cancel() }
+        previous.harnessEventTasks.forEach { $0.cancel() }
         await invalidateProcessResources(adapter: previous.adapter, processToken: previous.processToken)
     }
 
     func makeState(input: StateInput, previous: ConversationState?) -> ConversationState {
         // Fresh generations restart event indexes, so the persisted cursor is only reusable for continued sessions.
         let persistedIndex = input.fresh ? -1 : previous?.persistedIndex ?? -1
-        // Claude can replay transcript frames when a deferred tool approval resumes the provider session.
-        let providerResumeReplayGate = providerResumeReplayGate(input: input, previous: previous)
-        let providerSession = providerSessionSeed(input: input)
+        // Claude can replay transcript frames when a deferred tool approval resumes the harness session.
+        let harnessResumeReplayGate = harnessResumeReplayGate(input: input, previous: previous)
+        let harnessSession = harnessSessionSeed(input: input)
         return ConversationState(
-            providerId: input.providerId,
+            harnessId: input.harnessId,
             generation: input.generation,
             processToken: input.processToken,
             adapter: input.adapter,
@@ -121,20 +121,20 @@ extension DefaultAgentRuntime {
             subscribers: previous?.subscribers ?? pendingSubscribers.removeValue(forKey: input.conversationId) ?? [:],
             stderrTail: [],
             lifecycleState: .starting,
-            providerSessionId: providerSession.providerSessionId,
-            providerSessionName: providerSession.name,
-            providerSessionPreview: providerSession.preview,
-            providerSessionRecordMetadata: providerSession.metadata,
-            providerSessionCreatedAt: providerSession.createdAt,
+            harnessSessionId: harnessSession.harnessSessionId,
+            harnessSessionName: harnessSession.name,
+            harnessSessionPreview: harnessSession.preview,
+            harnessSessionRecordMetadata: harnessSession.metadata,
+            harnessSessionCreatedAt: harnessSession.createdAt,
             retiredSupersededSessionIds: previous?.retiredSupersededSessionIds ?? [],
-            staleProviderSessionSaveProcessTokens: previous?.staleProviderSessionSaveProcessTokens ?? [],
+            staleHarnessSessionSaveProcessTokens: previous?.staleHarnessSessionSaveProcessTokens ?? [],
             permissionMode: nil,
             collaborationMode: input.spawnConfig.collaborationMode,
             goal: seededInitialGoal(from: input) ?? (input.fresh ? nil : previous?.goal),
             isTurnActive: input.resumingTurn || input.spawnConfig.initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
             // Background tasks die with their process and Claude announces nothing at startup, so every spawn starts empty.
             backgroundTasks: BackgroundTaskTracking(),
-            providerInitiatedTurnId: nil,
+            harnessInitiatedTurnId: nil,
             waitingState: .idle,
             inputAvailability: .available,
             resolvedInteractions: input.fresh ? [] : previous?.resolvedInteractions ?? [],
@@ -144,7 +144,7 @@ extension DefaultAgentRuntime {
             synthesizedPlanExitProposalKeys: input.fresh ? [] : previous?.synthesizedPlanExitProposalKeys ?? [],
             persistedIndex: persistedIndex,
             hasDeferredToolStop: false,
-            providerResumeReplayGate: providerResumeReplayGate,
+            harnessResumeReplayGate: harnessResumeReplayGate,
             contextCompactionStartedIds: Self.contextCompactionStartedIds(from: previous, generation: input.generation),
             contextCompactionOpenIds: Self.contextCompactionOpenIds(from: previous, generation: input.generation),
             contextCompactionTerminalIds: Self.contextCompactionTerminalIds(from: previous, generation: input.generation),
@@ -154,48 +154,48 @@ extension DefaultAgentRuntime {
             subAgentTerminalIds: Self.subAgentTerminalIds(from: previous, generation: input.generation),
             subAgentPhaseKeys: Self.subAgentPhaseKeys(from: previous, generation: input.generation),
             outputPumps: [],
-            providerEventTasks: []
+            harnessEventTasks: []
         )
     }
 
-    /// Provider-session values seeded into a new `ConversationState` at launch.
-    struct ProviderSessionSeed {
-        let providerSessionId: AgentSessionID?
+    /// Harness-session values seeded into a new `ConversationState` at launch.
+    struct HarnessSessionSeed {
+        let harnessSessionId: AgentSessionID?
         let name: String?
         let preview: String?
         let metadata: [String: JSONValue]
         let createdAt: Date?
     }
 
-    /// Seeds provider-session state for a launch, distinguishing a plain resume from a replacement session.
+    /// Seeds harness-session state for a launch, distinguishing a plain resume from a replacement session.
     ///
-    /// A launch may hand back a provider session that is not the one it resumed — Codex forks a thread whenever a
+    /// A launch may hand back a harness session that is not the one it resumed — Codex forks a thread whenever a
     /// resumed runtime needs a fresh host-tool route. Inheriting `createdAt` there would make the replacement look
-    /// like an already-persisted session to `providerSessionStateUpdate`, so its record would never be written and
+    /// like an already-persisted session to `harnessSessionStateUpdate`, so its record would never be written and
     /// the conversation would stay bound to the session it just replaced. Name and preview still carry over: a fork
-    /// holds the same content, so the resumed labels describe it correctly until the provider reports its own.
-    private func providerSessionSeed(input: StateInput) -> ProviderSessionSeed {
+    /// holds the same content, so the resumed labels describe it correctly until the harness reports its own.
+    private func harnessSessionSeed(input: StateInput) -> HarnessSessionSeed {
         let resumedSession = input.resumedSession
         let metadata = resumedSession?.metadata ?? ["source": .string("runtime")]
-        let name = normalizedProviderSessionName(resumedSession?.providerSessionName)
-        let preview = normalizedProviderSessionPreview(resumedSession?.providerSessionPreview)
+        let name = normalizedHarnessSessionName(resumedSession?.harnessSessionName)
+        let preview = normalizedHarnessSessionPreview(resumedSession?.harnessSessionPreview)
         guard let resumedSession,
-              let launchProviderSessionId = input.launchProviderSessionId,
-              launchProviderSessionId != resumedSession.providerSessionId else {
-            return ProviderSessionSeed(
-                providerSessionId: input.launchProviderSessionId ?? resumedSession?.providerSessionId,
+              let launchHarnessSessionId = input.launchHarnessSessionId,
+              launchHarnessSessionId != resumedSession.harnessSessionId else {
+            return HarnessSessionSeed(
+                harnessSessionId: input.launchHarnessSessionId ?? resumedSession?.harnessSessionId,
                 name: name,
                 preview: preview,
                 metadata: metadata,
                 createdAt: resumedSession?.createdAt
             )
         }
-        return ProviderSessionSeed(
-            providerSessionId: launchProviderSessionId,
+        return HarnessSessionSeed(
+            harnessSessionId: launchHarnessSessionId,
             name: name,
             preview: preview,
-            metadata: AgentSessionRecord.appendingSupersededProviderSessionId(
-                resumedSession.providerSessionId,
+            metadata: AgentSessionRecord.appendingSupersededHarnessSessionId(
+                resumedSession.harnessSessionId,
                 to: metadata
             ),
             createdAt: nil
@@ -217,11 +217,11 @@ extension DefaultAgentRuntime {
         )
     }
 
-    func markProviderSessionSavesStale(conversationId: AgentConversationID, processToken: UUID?) {
+    func markHarnessSessionSavesStale(conversationId: AgentConversationID, processToken: UUID?) {
         guard let processToken else {
             return
         }
-        states[conversationId]?.staleProviderSessionSaveProcessTokens.insert(processToken)
+        states[conversationId]?.staleHarnessSessionSaveProcessTokens.insert(processToken)
     }
 
     private static func contextCompactionStartedIds(from previous: ConversationState?, generation: Int) -> Set<String> {
@@ -322,11 +322,11 @@ extension DefaultAgentRuntime {
         } ?? [])
     }
 
-    func providerResumeReplayGate(input: StateInput, previous: ConversationState?) -> ProviderResumeReplayGate? {
+    func harnessResumeReplayGate(input: StateInput, previous: ConversationState?) -> HarnessResumeReplayGate? {
         guard !input.fresh, previous?.hasDeferredToolStop == true, let previous else {
             return nil
         }
-        return ProviderResumeReplayGate(previous.events.filter { $0.generation == input.generation })
+        return HarnessResumeReplayGate(previous.events.filter { $0.generation == input.generation })
     }
 
     func emitInitialPromptPreviewIfNeeded(_ prepared: PreparedStart) {
@@ -337,7 +337,7 @@ extension DefaultAgentRuntime {
         }
         append(
             .sessionMetadata(
-                providerSessionId: prepared.launch.providerSessionId,
+                harnessSessionId: prepared.launch.harnessSessionId,
                 preview: preview,
                 metadata: ["source": .string("initial_prompt")]
             ),
@@ -387,10 +387,10 @@ extension DefaultAgentRuntime {
             return
         }
         do {
-            let context = AgentProviderInputContext(
+            let context = AgentHarnessInputContext(
                 conversationId: prepared.stateInput.conversationId,
                 processToken: prepared.stateInput.processToken,
-                providerSessionId: prepared.launch.providerSessionId ?? prepared.resumedSession?.providerSessionId,
+                harnessSessionId: prepared.launch.harnessSessionId ?? prepared.resumedSession?.harnessSessionId,
                 spawnConfig: prepared.stateInput.spawnConfig,
                 isTurnActive: true
             )
@@ -408,7 +408,7 @@ extension DefaultAgentRuntime {
             emitLifecycle(
                 .failed,
                 conversationId: prepared.stateInput.conversationId,
-                message: "Could not write initial provider input: \(error.localizedDescription)"
+                message: "Could not write initial harness input: \(error.localizedDescription)"
             )
             states[prepared.stateInput.conversationId]?.stdin = nil
             states[prepared.stateInput.conversationId]?.stdinWriter = nil

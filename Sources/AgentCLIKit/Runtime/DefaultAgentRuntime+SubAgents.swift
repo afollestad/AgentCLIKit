@@ -74,7 +74,7 @@ extension DefaultAgentRuntime {
     }
 
     func turnEndSubAgentGuardedEvents(from event: AgentEvent, conversationId: AgentConversationID) -> [AgentEvent] {
-        guard event.endsProviderTurn,
+        guard event.endsHarnessTurn,
               var state = states[conversationId],
               !state.subAgentOpenIds.isEmpty else {
             return [event]
@@ -205,9 +205,9 @@ extension DefaultAgentRuntime {
         case .cancelled:
             return "Sub-agent was interrupted by host cancellation."
         case .exited, .failed:
-            return "Sub-agent did not finish before the provider process ended."
+            return "Sub-agent did not finish before the harness process ended."
         case .starting, .running:
-            return "Sub-agent did not finish before the provider process ended."
+            return "Sub-agent did not finish before the harness process ended."
         }
     }
 
@@ -233,7 +233,7 @@ extension DefaultAgentRuntime {
 }
 
 private extension AgentEvent {
-    var endsProviderTurn: Bool {
+    var endsHarnessTurn: Bool {
         switch self {
         case let .usage(usage):
             usage.endsActiveTurn

@@ -85,7 +85,7 @@ extension CodexAppServerClient {
             let configuration = configuration
             let newTask = Task { () throws -> any CodexAppServerTransport in
                 let resolvedConfiguration = await configuration.resolvingExecutableIfNeeded(
-                    for: CodexProviderDefinition.definition
+                    for: CodexHarnessDefinition.definition
                 )
                 let transport = resolvedConfiguration.makeTransport(resolvedConfiguration)
                 try await transport.start()

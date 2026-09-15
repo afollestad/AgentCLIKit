@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reusable approval grant category understood by provider adapters.
+/// Reusable approval grant category understood by harness adapters.
 public enum AgentApprovalGrantKind: String, Codable, Hashable, Sendable {
     /// Grant applies to one pending interaction.
     case oneShot
@@ -10,7 +10,7 @@ public enum AgentApprovalGrantKind: String, Codable, Hashable, Sendable {
     case batch
 }
 
-/// Durable session approval match kinds shared by provider hook implementations.
+/// Durable session approval match kinds shared by harness hook implementations.
 public enum AgentSessionApprovalMatchKind: String, Codable, Hashable, Sendable {
     /// Exact Bash command match.
     case bashExact
@@ -28,32 +28,41 @@ public enum AgentToolApprovalSessionScope: String, Codable, Hashable, Sendable {
     case group
 }
 
-/// Durable approval grant for a provider session.
+/// Durable approval grant for a harness session.
 public struct AgentSessionApprovalGrant: Codable, Equatable, Hashable, Sendable {
-    /// Provider that owns the approval.
-    public let providerId: AgentProviderID
+    /// Harness that owns the approval.
+    public let harnessId: AgentHarnessID
     /// Host conversation identifier.
     public let conversationId: AgentConversationID
-    /// Provider session identifier.
+    /// Harness session identifier.
     public let sessionId: AgentSessionID
-    /// Match kind used by the provider hook.
+    /// Match kind used by the harness hook.
     public let matchKind: AgentSessionApprovalMatchKind
     /// Normalized value for `matchKind`.
     public let matchValue: String
 
     /// Creates a durable session approval grant.
     public init(
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         conversationId: AgentConversationID,
         sessionId: AgentSessionID,
         matchKind: AgentSessionApprovalMatchKind,
         matchValue: String
     ) {
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.conversationId = conversationId
         self.sessionId = sessionId
         self.matchKind = matchKind
         self.matchValue = matchValue
+    }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case harnessId = "providerId"
+        case conversationId
+        case sessionId
+        case matchKind
+        case matchValue
     }
 }
 
@@ -71,31 +80,31 @@ public struct AgentSessionApprovalRecordResult: Codable, Equatable, Sendable {
     }
 }
 
-/// Provider-neutral request used to derive or match durable session approvals.
+/// Harness-neutral request used to derive or match durable session approvals.
 public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
-    /// Provider that owns the approval.
-    public let providerId: AgentProviderID
+    /// Harness that owns the approval.
+    public let harnessId: AgentHarnessID
     /// Host conversation identifier.
     public let conversationId: AgentConversationID
-    /// Provider session identifier.
+    /// Harness session identifier.
     public let sessionId: AgentSessionID
-    /// Provider tool name.
+    /// Harness tool name.
     public let toolName: String
     /// JSON-compatible tool input.
     public let toolInput: JSONValue
-    /// Canonical tool input used for approval identity, when the provider can derive one.
+    /// Canonical tool input used for approval identity, when the harness can derive one.
     public let approvalIdentityToolInput: JSONValue?
 
     /// Creates a durable session approval request.
     public init(
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         conversationId: AgentConversationID,
         sessionId: AgentSessionID,
         toolName: String,
         toolInput: JSONValue,
         approvalIdentityToolInput: JSONValue? = nil
     ) {
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.conversationId = conversationId
         self.sessionId = sessionId
         self.toolName = toolName
@@ -106,7 +115,7 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
     /// Decodes a durable session approval request, defaulting additive fields for older persisted values.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.providerId = try container.decode(AgentProviderID.self, forKey: .providerId)
+        self.harnessId = try container.decode(AgentHarnessID.self, forKey: .harnessId)
         self.conversationId = try container.decode(AgentConversationID.self, forKey: .conversationId)
         self.sessionId = try container.decode(AgentSessionID.self, forKey: .sessionId)
         self.toolName = try container.decode(String.self, forKey: .toolName)
@@ -181,7 +190,7 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
 
     private func grant(matchKind: AgentSessionApprovalMatchKind, matchValue: String) -> AgentSessionApprovalGrant {
         AgentSessionApprovalGrant(
-            providerId: providerId,
+            harnessId: harnessId,
             conversationId: conversationId,
             sessionId: sessionId,
             matchKind: matchKind,
@@ -220,29 +229,39 @@ public struct AgentSessionApprovalRequest: Codable, Equatable, Sendable {
         let legacy = AgentCommandApprovalNormalizationPolicy.default.legacyRawExactCommand(for: command)
         return [trimmed.nilIfEmpty, legacy].compactMap(\.self).uniqued()
     }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case harnessId = "providerId"
+        case conversationId
+        case sessionId
+        case toolName
+        case toolInput
+        case approvalIdentityToolInput
+    }
 }
 
-/// Provider-neutral approval selection chosen by a host.
+/// Harness-neutral approval selection chosen by a host.
 public struct AgentApprovalSelection: Codable, Equatable, Sendable {
     /// Interaction being resolved.
     public let interactionId: AgentInteractionID
-    /// Provider that owns the approval when known.
-    public let providerId: AgentProviderID?
+    /// Harness that owns the approval when known.
+    public let harnessId: AgentHarnessID?
     /// Whether the operation is approved or denied.
     public let outcome: AgentInteractionOutcome
     /// Grant category for approved operations.
     public let grantKind: AgentApprovalGrantKind
-    /// Optional provider operation name to reuse for session approvals.
+    /// Optional harness operation name to reuse for session approvals.
     public let operation: String?
     /// Optional user-facing reason.
     public let reason: String?
-    /// Provider-neutral selection metadata.
+    /// Harness-neutral selection metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates an approval selection.
     public init(
         interactionId: AgentInteractionID,
-        providerId: AgentProviderID? = nil,
+        harnessId: AgentHarnessID? = nil,
         outcome: AgentInteractionOutcome,
         grantKind: AgentApprovalGrantKind = .oneShot,
         operation: String? = nil,
@@ -250,7 +269,7 @@ public struct AgentApprovalSelection: Codable, Equatable, Sendable {
         metadata: [String: JSONValue] = [:]
     ) {
         self.interactionId = interactionId
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.outcome = outcome
         self.grantKind = grantKind
         self.operation = operation
@@ -262,8 +281,8 @@ public struct AgentApprovalSelection: Codable, Equatable, Sendable {
     public func resolution() -> AgentInteractionResolution {
         var resolutionMetadata = metadata
         resolutionMetadata["approval_grant_kind"] = .string(grantKind.rawValue)
-        if let providerId {
-            resolutionMetadata["approval_provider_id"] = .string(providerId.rawValue)
+        if let harnessId {
+            resolutionMetadata["approval_provider_id"] = .string(harnessId.rawValue)
         }
         if let operation {
             resolutionMetadata["approval_operation"] = .string(operation)
@@ -275,6 +294,17 @@ public struct AgentApprovalSelection: Codable, Equatable, Sendable {
             metadata: resolutionMetadata
         )
     }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case interactionId
+        case harnessId = "providerId"
+        case outcome
+        case grantKind
+        case operation
+        case reason
+        case metadata
+    }
 }
 
 /// Durable approval policy boundary that hosts may back with app persistence.
@@ -282,7 +312,7 @@ public protocol AgentApprovalPolicyStore: Sendable {
     /// Records an approval selection for later policy checks.
     func save(_ selection: AgentApprovalSelection) async
     /// Returns whether the operation is approved for the current session.
-    func isApprovedForSession(providerId: AgentProviderID, operation: String) async -> Bool
+    func isApprovedForSession(harnessId: AgentHarnessID, operation: String) async -> Bool
     /// Returns and consumes a one-shot approval for the interaction when present.
     func consumeOneShotApproval(id: AgentInteractionID) async -> AgentApprovalSelection?
 }
@@ -295,9 +325,9 @@ public protocol AgentSessionApprovalPolicyStore: Sendable {
     func discardSessionApproval(_ grant: AgentSessionApprovalGrant) async
     /// Returns whether a request matches a stored durable approval.
     func allowsSessionApproval(_ request: AgentSessionApprovalRequest) async -> Bool
-    /// Removes durable approvals for a provider session.
+    /// Removes durable approvals for a harness session.
     func removeSessionApprovals(
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         conversationId: AgentConversationID,
         sessionId: AgentSessionID
     ) async
@@ -322,15 +352,15 @@ public actor InMemoryAgentApprovalPolicyStore: AgentApprovalPolicyStore, AgentSe
             oneShotApprovals[selection.interactionId] = selection
         case .session:
             if let operation = selection.operation {
-                sessionApprovals.insert(SessionApprovalKey(providerId: selection.providerId?.rawValue, operation: operation))
+                sessionApprovals.insert(SessionApprovalKey(harnessId: selection.harnessId?.rawValue, operation: operation))
             }
         }
     }
 
     /// Returns whether the operation is approved for the current session.
-    public func isApprovedForSession(providerId: AgentProviderID, operation: String) async -> Bool {
-        sessionApprovals.contains(SessionApprovalKey(providerId: providerId.rawValue, operation: operation))
-            || sessionApprovals.contains(SessionApprovalKey(providerId: nil, operation: operation))
+    public func isApprovedForSession(harnessId: AgentHarnessID, operation: String) async -> Bool {
+        sessionApprovals.contains(SessionApprovalKey(harnessId: harnessId.rawValue, operation: operation))
+            || sessionApprovals.contains(SessionApprovalKey(harnessId: nil, operation: operation))
     }
 
     /// Returns and consumes a one-shot approval for the interaction when present.
@@ -355,19 +385,19 @@ public actor InMemoryAgentApprovalPolicyStore: AgentApprovalPolicyStore, AgentSe
             .contains { sessionApprovalGrants.contains($0) }
     }
 
-    /// Removes durable approvals for a provider session.
+    /// Removes durable approvals for a harness session.
     public func removeSessionApprovals(
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         conversationId: AgentConversationID,
         sessionId: AgentSessionID
     ) async {
         sessionApprovalGrants = sessionApprovalGrants.filter {
-            $0.providerId != providerId || $0.conversationId != conversationId || $0.sessionId != sessionId
+            $0.harnessId != harnessId || $0.conversationId != conversationId || $0.sessionId != sessionId
         }
     }
 
     private struct SessionApprovalKey: Hashable {
-        let providerId: String?
+        let harnessId: String?
         let operation: String
     }
 }

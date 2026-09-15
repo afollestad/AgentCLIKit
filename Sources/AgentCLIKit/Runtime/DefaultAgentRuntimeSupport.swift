@@ -11,7 +11,7 @@ func defaultAgentRuntimeSleep(nanoseconds: UInt64) async {
     await DefaultAgentRuntime.defaultSleep(nanoseconds: nanoseconds)
 }
 
-func normalizedProviderSessionName(_ name: String?) -> String? {
+func normalizedHarnessSessionName(_ name: String?) -> String? {
     guard let normalized = name?.trimmingCharacters(in: .whitespacesAndNewlines),
           !normalized.isEmpty else {
         return nil
@@ -19,15 +19,15 @@ func normalizedProviderSessionName(_ name: String?) -> String? {
     return normalized
 }
 
-func normalizedProviderSessionPreview(_ preview: String?) -> String? {
-    normalizedProviderSessionName(preview)
+func normalizedHarnessSessionPreview(_ preview: String?) -> String? {
+    normalizedHarnessSessionName(preview)
 }
 
 struct ConversationState {
-    let providerId: AgentProviderID
+    let harnessId: AgentHarnessID
     let generation: Int
     let processToken: UUID
-    let adapter: any AgentProviderAdapter
+    let adapter: any AgentHarnessAdapter
     var spawnConfig: AgentSpawnConfig
     var process: Process?
     var stdin: FileHandle?
@@ -36,22 +36,22 @@ struct ConversationState {
     var subscribers: [UUID: AsyncStream<AgentEventEnvelope>.Continuation]
     var stderrTail: [String]
     var lifecycleState: AgentLifecycleState
-    var providerSessionId: AgentSessionID?
-    var providerSessionName: String?
-    var providerSessionPreview: String?
-    var providerSessionRecordMetadata: [String: JSONValue]
-    var providerSessionCreatedAt: Date?
-    /// Superseded provider sessions already retired with the provider, so repeat metadata events do not re-retire them.
+    var harnessSessionId: AgentSessionID?
+    var harnessSessionName: String?
+    var harnessSessionPreview: String?
+    var harnessSessionRecordMetadata: [String: JSONValue]
+    var harnessSessionCreatedAt: Date?
+    /// Superseded harness sessions already retired with the harness, so repeat metadata events do not re-retire them.
     var retiredSupersededSessionIds: Set<AgentSessionID>
-    var staleProviderSessionSaveProcessTokens: Set<UUID>
+    var staleHarnessSessionSaveProcessTokens: Set<UUID>
     var permissionMode: String?
     var collaborationMode: AgentCollaborationMode?
     var goal: AgentGoalSnapshot?
     var isTurnActive: Bool
     var backgroundTasks: BackgroundTaskTracking
     /// Turn id of the activity the runtime synthesized when a dequeued notification arrived while idle, until the
-    /// provider's follow-up result or a no-op result ends it.
-    var providerInitiatedTurnId: String?
+    /// harness's follow-up result or a no-op result ends it.
+    var harnessInitiatedTurnId: String?
     var waitingState: AgentRuntimeWaitingState
     var inputAvailability: AgentInputAvailability
     var resolvedInteractions: Set<AgentInteractionID>
@@ -61,7 +61,7 @@ struct ConversationState {
     var synthesizedPlanExitProposalKeys: Set<String>
     var persistedIndex: Int
     var hasDeferredToolStop: Bool
-    var providerResumeReplayGate: ProviderResumeReplayGate?
+    var harnessResumeReplayGate: HarnessResumeReplayGate?
     var contextCompactionStartedIds: Set<String>
     var contextCompactionOpenIds: Set<String>
     var contextCompactionTerminalIds: Set<String>
@@ -71,7 +71,7 @@ struct ConversationState {
     var subAgentTerminalIds: Set<String>
     var subAgentPhaseKeys: Set<String>
     var outputPumps: [OutputLinePump]
-    var providerEventTasks: [Task<Void, Never>]
+    var harnessEventTasks: [Task<Void, Never>]
 
     mutating func compactReplayBuffer(replayLimit: Int) {
         // Acknowledged events can be trimmed to a small tail; unacknowledged events stay available for host recovery.
@@ -83,13 +83,13 @@ struct ConversationState {
     func status(conversationId: AgentConversationID) -> AgentRuntimeStatus {
         AgentRuntimeStatus(
             conversationId: conversationId,
-            providerId: providerId,
+            harnessId: harnessId,
             generation: generation,
             state: lifecycleState,
             lastEventIndex: events.last?.index ?? -1,
-            providerSessionId: providerSessionId,
-            providerSessionName: providerSessionName,
-            providerSessionPreview: providerSessionPreview,
+            harnessSessionId: harnessSessionId,
+            harnessSessionName: harnessSessionName,
+            harnessSessionPreview: harnessSessionPreview,
             permissionMode: permissionMode,
             collaborationMode: collaborationMode,
             goal: goal,
@@ -126,17 +126,17 @@ extension DefaultAgentRuntime {
 
 }
 
-struct ProviderResumeReplayGate {
-    private var replayEvents: [ProviderResumeReplayFingerprint]
+struct HarnessResumeReplayGate {
+    private var replayEvents: [HarnessResumeReplayFingerprint]
     private var replayIndex = 0
     private(set) var isActive = true
 
     init?(_ envelopes: [AgentEventEnvelope]) {
-        let replayEvents = envelopes.compactMap { envelope -> ProviderResumeReplayFingerprint? in
-            guard envelope.source == .stdout, envelope.event.isProviderResumeReplayCandidate else {
+        let replayEvents = envelopes.compactMap { envelope -> HarnessResumeReplayFingerprint? in
+            guard envelope.source == .stdout, envelope.event.isHarnessResumeReplayCandidate else {
                 return nil
             }
-            return ProviderResumeReplayFingerprint(envelope.event)
+            return HarnessResumeReplayFingerprint(envelope.event)
         }
         guard !replayEvents.isEmpty else {
             return nil
@@ -145,7 +145,7 @@ struct ProviderResumeReplayGate {
     }
 
     mutating func shouldSuppress(_ event: AgentEvent) -> Bool {
-        guard isActive, let fingerprint = ProviderResumeReplayFingerprint(event) else {
+        guard isActive, let fingerprint = HarnessResumeReplayFingerprint(event) else {
             return false
         }
         guard replayIndex < replayEvents.count else {
@@ -154,7 +154,7 @@ struct ProviderResumeReplayGate {
         }
 
         // Claude resumes can replay a retained suffix rather than the entire retained
-        // provider transcript. Keep the gate active while the new stream is still
+        // harness transcript. Keep the gate active while the new stream is still
         // matching any remaining retained frame, then stop at the first unmatched frame.
         guard let matchedIndex = replayEvents[replayIndex...].firstIndex(where: { $0.matchesReplay(of: fingerprint) }) else {
             isActive = false
@@ -169,9 +169,9 @@ struct ProviderResumeReplayGate {
     }
 
     private static func expandedReplayEvents(
-        from replayEvents: [ProviderResumeReplayFingerprint]
-    ) -> [ProviderResumeReplayFingerprint] {
-        var expanded: [ProviderResumeReplayFingerprint] = []
+        from replayEvents: [HarnessResumeReplayFingerprint]
+    ) -> [HarnessResumeReplayFingerprint] {
+        var expanded: [HarnessResumeReplayFingerprint] = []
         var pendingDeltaMessage: PendingReplayDeltaMessage?
 
         for replayEvent in replayEvents {
@@ -195,7 +195,7 @@ struct ProviderResumeReplayGate {
 
     private static func appendPendingDeltaMessage(
         _ pendingDeltaMessage: inout PendingReplayDeltaMessage?,
-        to expanded: inout [ProviderResumeReplayFingerprint]
+        to expanded: inout [HarnessResumeReplayFingerprint]
     ) {
         guard let message = pendingDeltaMessage, !message.text.isEmpty else {
             return
@@ -214,15 +214,15 @@ struct ProviderResumeReplayGate {
 private struct PendingReplayDeltaMessage {
     let role: AgentMessageRole
     var text: String
-    let metadata: [ProviderResumeMetadataEntry]
+    let metadata: [HarnessResumeMetadataEntry]
 
-    func canAppend(role: AgentMessageRole, metadata: [ProviderResumeMetadataEntry]) -> Bool {
+    func canAppend(role: AgentMessageRole, metadata: [HarnessResumeMetadataEntry]) -> Bool {
         self.role == role && self.metadata == metadata
     }
 }
 
 extension AgentEvent {
-    var isProviderResumeReplayCandidate: Bool {
+    var isHarnessResumeReplayCandidate: Bool {
         switch self {
         case .message, .messageDelta, .reasoning, .toolCall, .toolResult, .usage, .rateLimit, .permissionMode,
              .collaborationMode, .task, .subAgent, .contextCompaction, .goal, .interaction, .rawOutput:
@@ -446,14 +446,14 @@ extension AgentLifecycleState {
 
 struct StateInput {
     let conversationId: AgentConversationID
-    let providerId: AgentProviderID
+    let harnessId: AgentHarnessID
     let generation: Int
     let processToken: UUID
-    let adapter: any AgentProviderAdapter
+    let adapter: any AgentHarnessAdapter
     let preparedProcess: PreparedProcess
     let spawnConfig: AgentSpawnConfig
     let resumedSession: AgentSessionRecord?
-    let launchProviderSessionId: AgentSessionID?
+    let launchHarnessSessionId: AgentSessionID?
     let fresh: Bool
     let resumingTurn: Bool
 }

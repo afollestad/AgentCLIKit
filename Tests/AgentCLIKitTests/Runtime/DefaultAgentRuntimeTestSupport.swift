@@ -10,7 +10,7 @@ extension XCTestCase {
         workingDirectory: URL = FileManager.default.temporaryDirectory,
         initialPrompt: String? = nil
     ) -> AgentSpawnConfig {
-        AgentSpawnConfig(providerId: .claude, workingDirectory: workingDirectory, initialPrompt: initialPrompt)
+        AgentSpawnConfig(harnessId: .claude, workingDirectory: workingDirectory, initialPrompt: initialPrompt)
     }
 
     func shell(_ script: String) -> AgentLaunchConfiguration {
@@ -70,8 +70,8 @@ private actor EventAccumulator {
     }
 }
 
-struct DelayedEncodingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct DelayedEncodingHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(
@@ -99,8 +99,8 @@ struct DelayedEncodingProviderAdapter: AgentProviderAdapter {
     }
 }
 
-struct DeferredToolStopProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct DeferredToolStopHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(
@@ -128,8 +128,8 @@ struct DeferredToolStopProviderAdapter: AgentProviderAdapter {
     }
 }
 
-struct SteeringFallbackProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct SteeringFallbackHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(
@@ -150,7 +150,7 @@ struct SteeringFallbackProviderAdapter: AgentProviderAdapter {
         return Data((message.text + "\n").utf8)
     }
 
-    func acceptedSteeringInputEvent(for message: AgentMessageInput, context: AgentProviderInputContext) -> AgentEvent? {
+    func acceptedSteeringInputEvent(for message: AgentMessageInput, context: AgentHarnessInputContext) -> AgentEvent? {
         guard message.metadata[AgentSteeringMetadata.inputId] != nil else {
             return nil
         }
@@ -160,8 +160,8 @@ struct SteeringFallbackProviderAdapter: AgentProviderAdapter {
     }
 }
 
-struct SequencedProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct SequencedHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
 
     func makeLaunchConfiguration(
@@ -218,8 +218,8 @@ actor DecodeGate {
     }
 }
 
-struct GatedDecodingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct GatedDecodingHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
     let gate: DecodeGate
     let gatedLine: String
@@ -246,8 +246,8 @@ struct GatedDecodingProviderAdapter: AgentProviderAdapter {
     }
 }
 
-struct FailableLaunchProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct FailableLaunchHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: FailableLaunchSequence
 
     func makeLaunchConfiguration(
@@ -269,8 +269,8 @@ struct FailableLaunchProviderAdapter: AgentProviderAdapter {
     }
 }
 
-struct SessionReportingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct SessionReportingHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
 
     func makeLaunchConfiguration(
@@ -296,7 +296,7 @@ struct SessionReportingProviderAdapter: AgentProviderAdapter {
 
     func sessionID(from event: AgentEvent) -> AgentSessionID? {
         if case let .sessionMetadata(metadata) = event {
-            return metadata.providerSessionId
+            return metadata.harnessSessionId
         }
         guard case let .diagnostic(diagnostic) = event, case let .string(sessionId)? = diagnostic.metadata["session_id"] else {
             return nil
@@ -309,8 +309,8 @@ struct SessionReportingProviderAdapter: AgentProviderAdapter {
     }
 }
 
-struct SequencedSessionReportingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct SequencedSessionReportingHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
 
     func makeLaunchConfiguration(
@@ -339,7 +339,7 @@ struct SequencedSessionReportingProviderAdapter: AgentProviderAdapter {
 
     func sessionID(from event: AgentEvent) -> AgentSessionID? {
         if case let .sessionMetadata(metadata) = event {
-            return metadata.providerSessionId
+            return metadata.harnessSessionId
         }
         guard case let .diagnostic(diagnostic) = event, case let .string(sessionId)? = diagnostic.metadata["session_id"] else {
             return nil
@@ -352,7 +352,7 @@ struct SequencedSessionReportingProviderAdapter: AgentProviderAdapter {
     }
 }
 
-actor ProviderLifecycleProbe {
+actor HarnessLifecycleProbe {
     private(set) var prepareCount = 0
     private(set) var terminatedProcessTokens: [UUID] = []
     private(set) var shutdownCount = 0
@@ -376,10 +376,10 @@ actor ProviderLifecycleProbe {
     }
 }
 
-struct LifecycleTrackingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct LifecycleTrackingHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
-    let probe: ProviderLifecycleProbe
+    let probe: HarnessLifecycleProbe
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -419,15 +419,15 @@ struct LifecycleTrackingProviderAdapter: AgentProviderAdapter {
         await probe.recordTermination(processToken: processToken)
     }
 
-    func shutdownProviderResources() async {
+    func shutdownHarnessResources() async {
         await probe.recordShutdown()
     }
 }
 
-struct FailingPrepareProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct FailingPrepareHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
-    let probe: ProviderLifecycleProbe
+    let probe: HarnessLifecycleProbe
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -523,7 +523,7 @@ actor SlowSessionStore: AgentSessionStore {
         self.saveDelay = saveDelay
     }
 
-    func record(conversationId: AgentConversationID, providerId: AgentProviderID) async throws -> AgentSessionRecord? {
+    func record(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws -> AgentSessionRecord? {
         records[conversationId]
     }
 
@@ -532,7 +532,7 @@ actor SlowSessionStore: AgentSessionStore {
         records[record.conversationId] = record
     }
 
-    func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws {
+    func remove(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws {
         records[conversationId] = nil
     }
 
@@ -548,7 +548,7 @@ actor FailingSlowSessionStore: AgentSessionStore {
         self.saveDelay = saveDelay
     }
 
-    func record(conversationId: AgentConversationID, providerId: AgentProviderID) async throws -> AgentSessionRecord? {
+    func record(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws -> AgentSessionRecord? {
         nil
     }
 
@@ -557,7 +557,7 @@ actor FailingSlowSessionStore: AgentSessionStore {
         throw AgentCLIError.invalidInput("session store rejected save")
     }
 
-    func remove(conversationId: AgentConversationID, providerId: AgentProviderID) async throws {}
+    func remove(conversationId: AgentConversationID, harnessId: AgentHarnessID) async throws {}
 
     func allRecords() async throws -> [AgentSessionRecord] {
         []
@@ -593,7 +593,7 @@ private func sessionMetadata(from line: String) -> AgentSessionMetadataEvent? {
     let name = parts.count > 1 ? String(parts[1]) : nil
     let preview = parts.count > 2 ? String(parts[2]) : nil
     return AgentSessionMetadataEvent(
-        providerSessionId: AgentSessionID(rawValue: String(sessionId)),
+        harnessSessionId: AgentSessionID(rawValue: String(sessionId)),
         name: name,
         preview: preview
     )

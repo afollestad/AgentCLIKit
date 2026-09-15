@@ -1,41 +1,41 @@
 import Foundation
 
-/// Usage information for a provider response or model invocation.
+/// Usage information for a harness response or model invocation.
 public struct AgentUsageEvent: Codable, Equatable, Sendable {
-    /// Stop reason used for provider usage updates that do not complete the active turn.
+    /// Stop reason used for harness usage updates that do not complete the active turn.
     public static let interimUsageStopReason = "usage_update"
 
-    /// Provider model name when known.
+    /// Harness model name when known.
     public let model: String?
     /// Input tokens consumed.
     public let inputTokens: Int?
     /// Output tokens produced.
     public let outputTokens: Int?
-    /// Cached input tokens included within `inputTokens`, when reported by the provider.
+    /// Cached input tokens included within `inputTokens`, when reported by the harness.
     public let cachedInputTokens: Int?
     /// Cache-read input tokens consumed.
     public let cacheReadInputTokens: Int?
     /// Cache-creation input tokens consumed.
     public let cacheCreationInputTokens: Int?
-    /// Total tokens reported by the provider.
+    /// Total tokens reported by the harness.
     public let totalTokens: Int?
-    /// Number of tool uses reported by the provider.
+    /// Number of tool uses reported by the harness.
     public let toolUses: Int?
-    /// Provider run duration in milliseconds.
+    /// Harness run duration in milliseconds.
     public let durationMs: Int?
-    /// Provider-reported cost in USD, when available.
+    /// Harness-reported cost in USD, when available.
     public let costUSD: Double?
     /// Model context window size when known.
     public let contextWindow: Int?
-    /// Provider stop reason when known.
+    /// Harness stop reason when known.
     public let stopReason: String?
     /// Whether this usage event represents a terminal result for the turn.
     public let isTerminal: Bool
-    /// Whether the provider marked this result as an error.
+    /// Whether the harness marked this result as an error.
     public let isError: Bool
-    /// Permission denials summarized by the provider.
+    /// Permission denials summarized by the harness.
     public let permissionDenials: [AgentPermissionDenialSummary]
-    /// Additional provider-specific usage values.
+    /// Additional harness-specific usage values.
     public let metadata: [String: JSONValue]
 
     /// Creates a usage event.
@@ -133,15 +133,15 @@ private extension [String: JSONValue] {
     }
 }
 
-/// Provider-reported permission denial.
+/// Harness-reported permission denial.
 public struct AgentPermissionDenialSummary: Codable, Equatable, Sendable {
-    /// Provider tool-use identifier when known.
+    /// Harness tool-use identifier when known.
     public let toolUseId: String?
     /// Tool name when known.
     public let toolName: String?
-    /// Provider denial reason.
+    /// Harness denial reason.
     public let reason: String?
-    /// Provider-specific denial metadata.
+    /// Harness-specific denial metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a permission-denial summary.
@@ -153,11 +153,11 @@ public struct AgentPermissionDenialSummary: Codable, Equatable, Sendable {
     }
 }
 
-/// Provider-reported permission mode state.
+/// Harness-reported permission mode state.
 public struct AgentPermissionModeEvent: Codable, Equatable, Sendable {
-    /// Provider-reported permission mode value.
+    /// Harness-reported permission mode value.
     public let mode: String
-    /// Provider-specific permission-mode metadata.
+    /// Harness-specific permission-mode metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a permission-mode event.
@@ -167,11 +167,11 @@ public struct AgentPermissionModeEvent: Codable, Equatable, Sendable {
     }
 }
 
-/// Provider-neutral collaboration mode state.
+/// Harness-neutral collaboration mode state.
 public struct AgentCollaborationModeEvent: Codable, Equatable, Sendable {
-    /// Current provider-neutral collaboration mode.
+    /// Current harness-neutral collaboration mode.
     public let mode: AgentCollaborationMode
-    /// Provider-specific collaboration-mode metadata.
+    /// Harness-specific collaboration-mode metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a collaboration-mode event.
@@ -181,15 +181,15 @@ public struct AgentCollaborationModeEvent: Codable, Equatable, Sendable {
     }
 }
 
-/// Provider task or sub-agent activity.
+/// Harness task or sub-agent activity.
 public struct AgentTaskEvent: Codable, Equatable, Sendable {
-    /// Provider-defined task identifier.
+    /// Harness-defined task identifier.
     public let id: String
     /// Task lifecycle phase.
     public let phase: AgentTaskPhase
     /// Human-readable task description when known.
     public let description: String?
-    /// Provider task type when known.
+    /// Harness task type when known.
     public let taskType: String?
     /// Last tool name reported by the task.
     public let lastToolName: String?
@@ -199,9 +199,9 @@ public struct AgentTaskEvent: Codable, Equatable, Sendable {
     public let totalTokens: Int?
     /// Task duration in milliseconds.
     public let durationMs: Int?
-    /// Provider status when known.
+    /// Harness status when known.
     public let status: String?
-    /// Provider-specific task metadata.
+    /// Harness-specific task metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a task event.
@@ -242,31 +242,38 @@ public enum AgentTaskPhase: String, Codable, Hashable, Sendable {
     case completed
 }
 
-/// Provider session continuity outcome for a launch.
+/// Harness session continuity outcome for a launch.
 public struct AgentSessionContinuityEvent: Codable, Equatable, Sendable {
     /// Session continuity kind.
     public let continuity: AgentSessionContinuity
-    /// Provider session identifier when known.
-    public let providerSessionId: AgentSessionID?
+    /// Harness session identifier when known.
+    public let harnessSessionId: AgentSessionID?
     /// Human-readable detail.
     public let message: String?
 
     /// Creates a session-continuity event.
-    public init(continuity: AgentSessionContinuity, providerSessionId: AgentSessionID?, message: String? = nil) {
+    public init(continuity: AgentSessionContinuity, harnessSessionId: AgentSessionID?, message: String? = nil) {
         self.continuity = continuity
-        self.providerSessionId = providerSessionId
+        self.harnessSessionId = harnessSessionId
         self.message = message
+    }
+
+    /// Retains the persisted field names used before the harness terminology update.
+    private enum CodingKeys: String, CodingKey {
+        case continuity
+        case harnessSessionId = "providerSessionId"
+        case message
     }
 }
 
-/// Provider session continuity kind.
+/// Harness session continuity kind.
 public enum AgentSessionContinuity: String, Codable, Hashable, Sendable {
-    /// A new provider session is starting.
+    /// A new harness session is starting.
     case fresh
-    /// An existing provider session is being resumed.
+    /// An existing harness session is being resumed.
     case resumed
-    /// A new provider session was forked from an existing provider session.
+    /// A new harness session was forked from an existing harness session.
     case forked
-    /// The requested provider session was unavailable and the launch restarted with that session ID.
+    /// The requested harness session was unavailable and the launch restarted with that session ID.
     case restartedFresh
 }

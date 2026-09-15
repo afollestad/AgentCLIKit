@@ -41,15 +41,15 @@ struct DemoSession: Identifiable {
     var createdAt: Date
 
     var title: String {
-        if let rawValue = record?.providerSessionId.rawValue, !rawValue.isEmpty {
-            let providerName = record?.providerId.rawValue.capitalized ?? "Provider"
-            return "\(providerName) \(rawValue.prefix(8))"
+        if let rawValue = record?.harnessSessionId.rawValue, !rawValue.isEmpty {
+            let harnessName = record?.harnessId.rawValue.capitalized ?? "Harness"
+            return "\(harnessName) \(rawValue.prefix(8))"
         }
         return "Session \(id.rawValue.prefix(8))"
     }
 
     var subtitle: String {
-        record?.providerId.rawValue ?? "New session"
+        record?.harnessId.rawValue ?? "New session"
     }
 }
 

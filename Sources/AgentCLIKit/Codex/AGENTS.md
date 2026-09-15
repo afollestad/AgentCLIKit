@@ -1,15 +1,15 @@
-## Codex Provider
+## Codex Harness
 
 - Keep Codex App Server launch details, JSON-RPC/App Server wire formats, `.codex` config behavior, permission-profile handling, model-list parsing/cache behavior, and Codex-specific policies here.
-- Keep provider-neutral runtime, session, event, interaction, transcript, MCP, usage, diagnostics, and discovery APIs outside this folder.
+- Keep harness-neutral runtime, session, event, interaction, transcript, MCP, usage, diagnostics, and discovery APIs outside this folder.
 - Use the Codex App Server protocol fixture before adding or changing request, notification, or approval behavior.
-- Do not start a Codex App Server process from provider discovery or static provider metadata.
-- Keep live Codex `model/list` usage behind explicit model option sources; default provider discovery must not launch App Server unless a host injects a live Codex source.
+- Do not start a Codex App Server process from harness discovery or static harness metadata.
+- Keep live Codex `model/list` usage behind explicit model option sources; default harness discovery must not launch App Server unless a host injects a live Codex source.
 - Codex model ids are too long to type, so `AgentModelOption.shortName` prefers a server-reported `shortName`/`short_name`/`slug` and otherwise derives the id's trailing `-` segment. Keep the derivation conservative: letters only, at least 3 characters, and never a generic size/tier qualifier, so `gpt-5.6-sol` yields `sol` while `gpt-5.4-mini` and `gpt-5.5` keep their ids. Resolve collisions after pagination in `normalized(_:)`; any alias claimed twice or shadowing another model's id reverts to the full id, because hosts match typed input against it.
-- `CodexProviderAdapter` owns one shared App Server transport per adapter instance; keep transport startup and initialization single-flight, and make provider shutdown permanently reject late or future startup.
+- `CodexHarnessAdapter` owns one shared App Server transport per adapter instance; keep transport startup and initialization single-flight, and make harness shutdown permanently reject late or future startup.
 - App Server ignores `thread/resume` config overrides for a thread that remains loaded. Use `thread/fork` when resuming with a process-scoped host-tool endpoint or explicit workspace roots, including a `cwd`-only override that revokes grants.
 - Pass process-scoped host-tool server instructions through App Server `developerInstructions`; MCP initialization alone does not guarantee those usage rules reach the model.
-- Surface Codex `Thread.name` and `Thread.preview` from bootstrap/resume and thread metadata notifications as provider-neutral `AgentEvent.sessionMetadata`.
+- Surface Codex `Thread.name` and `Thread.preview` from bootstrap/resume and thread metadata notifications as harness-neutral `AgentEvent.sessionMetadata`.
 - Keep `turn/start` and `thread/settings/update` sticky settings in one shared builder for `cwd`, `model`, `approvalPolicy`, `effort`, `collaborationMode`, and `speedMode`.
 - Probe fast-mode support with `codex features list`; do not start App Server from discovery and do not use App Server process-wide feature enablement for per-thread speed.
 - Apply collaboration-mode bootstrap settings before an initial prompt turn; `thread/start` cannot carry every sticky setting.
@@ -20,7 +20,7 @@
 - Codex command approval exact/group reuse is host-owned: derive `approval_identity_tool_input` through `AgentCommandApprovalNormalizationPolicy`, check `AgentSessionApprovalPolicyStore`, and answer scoped matches with one-shot `accept` rather than Codex's coarse `acceptForSession`.
 - Treat `thread/compact/start` as a client request only; map `thread/compacted`, `contextCompaction` items, and raw response compaction aliases to `AgentEvent.contextCompaction`.
 - Do not expose encrypted Codex compaction payloads as transcript summaries.
-- Map only observed model-visible Codex tool items or actually executed host requests to provider-neutral tool events; do not synthesize successful tool activity from final assistant text, warnings, or unsupported `item/tool/call` requests.
+- Map only observed model-visible Codex tool items or actually executed host requests to harness-neutral tool events; do not synthesize successful tool activity from final assistant text, warnings, or unsupported `item/tool/call` requests.
 - Reasoning deltas carry no separator, so derive section boundaries from `(itemId, kind, index)` transitions tracked per thread and emit a `"\n\n"` reasoning event on each one; hosts concatenate deltas and would otherwise render consecutive sections as one run-on line. Do not decode `item/reasoning/summaryPartAdded` — it cannot see a new reasoning item, whose index restarts at zero. Track per thread because one decoder serves every thread in the process; reset the thread's section on turn boundaries and non-reasoning items so a turn never opens with a leading break.
 - Map Codex `cachedInputTokens` to `AgentUsageEvent.cachedInputTokens`, not `cacheReadInputTokens`; it is a subset of `inputTokens` and must not be added again for context-window occupancy.
 - Treat `thread/archive`, `thread/unarchive`, and `thread/delete` as idempotent: a `no rollout found` error means the thread is already gone, so report success rather than a host-visible failure. Codex 0.144.0 removes the rollout before `thread/delete` fails on missing app-server state, so a host archive fallback hits this path routinely.

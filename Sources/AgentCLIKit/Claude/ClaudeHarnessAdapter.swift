@@ -1,0 +1,455 @@
+import Foundation
+
+/// Claude Code harness adapter.
+public struct ClaudeHarnessAdapter: AgentHarnessAdapter {
+    /// Claude harness identifier.
+    public static let harnessId = ClaudeHarnessDefinition.harnessId
+
+    /// Configuration used to create a Claude harness adapter.
+    public struct Configuration: Sendable {
+        /// Claude executable path, or `/usr/bin/env` to resolve `claude` through PATH.
+        public let executablePath: String
+        /// Resolver used when `executablePath` is `/usr/bin/env`.
+        public let executableResolver: any AgentHarnessExecutableResolving
+        /// Stream JSON decoder.
+        public let decoder: ClaudeStreamDecoder
+        /// Stream JSON input encoder.
+        public let inputEncoder: ClaudeInputEncoder
+        /// Home directory containing `.claude/projects`.
+        public let homeDirectory: URL
+        /// Predicate used to decide whether a saved Claude session can be resumed.
+        public let sessionFileExists: @Sendable (URL) -> Bool
+        /// Whether this adapter should manage a Claude hook listener and generated hook settings.
+        public let enableHooks: Bool
+        /// Store used for hook-originated pending interactions.
+        public let interactionStore: any AgentInteractionStore
+        /// Store used for session and transient hook approvals.
+        public let approvalPolicyStore: any ClaudeApprovalPolicyStoring
+        /// Policy used to derive Bash command approval identity.
+        public let commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy
+        /// Directory used for generated per-launch Claude hook settings files.
+        public let hookSupportDirectory: URL
+        /// Optional provider that can answer Claude hook decisions while the hook request is still live.
+        public let hookDecisionProvider: (any ClaudeHookDecisionProviding)?
+        /// Maximum live hook decision wait before Claude receives a deferred response.
+        public let hookDecisionTimeout: TimeInterval?
+
+        /// Creates a Claude adapter configuration.
+        /// - Parameters:
+        ///   - executablePath: Claude executable path, or `/usr/bin/env` to resolve `claude` through PATH.
+        ///   - decoder: Stream JSON decoder.
+        ///   - inputEncoder: Stream JSON input encoder.
+        ///   - homeDirectory: Home directory containing `.claude/projects`.
+        ///   - sessionFileExists: Predicate used to decide whether a saved Claude session can be resumed.
+        ///   - enableHooks: Whether this adapter should manage a Claude hook listener and generated hook settings.
+        ///   - interactionStore: Store used for hook-originated pending interactions.
+        ///   - approvalPolicyStore: Store used for session and transient hook approvals.
+        ///   - commandApprovalNormalizationPolicy: Policy used to derive Bash command approval identity.
+        ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
+        ///   - hookDecisionProvider: Optional provider that can answer Claude hook decisions while the hook request is still live.
+        ///   - hookDecisionTimeout: Maximum live hook decision wait before Claude receives a deferred response.
+        ///   - executableResolver: Resolver used when `executablePath` is `/usr/bin/env`.
+        public init(
+            executablePath: String = "/usr/bin/env",
+            decoder: ClaudeStreamDecoder = ClaudeStreamDecoder(),
+            inputEncoder: ClaudeInputEncoder = ClaudeInputEncoder(),
+            homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+            sessionFileExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) },
+            enableHooks: Bool = true,
+            interactionStore: any AgentInteractionStore = InMemoryAgentInteractionStore(),
+            approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
+            commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy = .default,
+            hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "AgentCLIKitClaudeHooks",
+                isDirectory: true
+            ),
+            hookDecisionProvider: (any ClaudeHookDecisionProviding)? = nil,
+            hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout,
+            executableResolver: any AgentHarnessExecutableResolving = DefaultAgentHarnessExecutableResolver()
+        ) {
+            self.executablePath = executablePath
+            self.executableResolver = executableResolver
+            self.decoder = decoder
+            self.inputEncoder = inputEncoder
+            self.homeDirectory = homeDirectory
+            self.sessionFileExists = sessionFileExists
+            self.enableHooks = enableHooks
+            self.interactionStore = interactionStore
+            self.approvalPolicyStore = approvalPolicyStore
+            self.commandApprovalNormalizationPolicy = commandApprovalNormalizationPolicy
+            self.hookSupportDirectory = hookSupportDirectory
+            self.hookDecisionProvider = hookDecisionProvider
+            self.hookDecisionTimeout = hookDecisionTimeout
+        }
+    }
+
+    /// Static Claude harness metadata.
+    public let definition = ClaudeHarnessDefinition.definition
+
+    private let executablePath: String
+    private let executableResolver: any AgentHarnessExecutableResolving
+    private let decoder: ClaudeStreamDecoder
+    let inputEncoder: ClaudeInputEncoder
+    private let homeDirectory: URL
+    private let sessionFileExists: @Sendable (URL) -> Bool
+    private let taskOutputReader = ClaudeTaskOutputReader()
+    private let compactionTracker: ClaudeContextCompactionTracker
+    private let noOpTurnTracker = ClaudeNoOpTurnTracker()
+    private let hookCoordinator: ClaudeHookCoordinator?
+
+    /// Creates a Claude harness adapter.
+    /// - Parameters:
+    ///   - executablePath: Claude executable path, or `/usr/bin/env` to resolve `claude` through PATH.
+    ///   - decoder: Stream JSON decoder.
+    ///   - inputEncoder: Stream JSON input encoder.
+    ///   - homeDirectory: Home directory containing `.claude/projects`.
+    ///   - sessionFileExists: Predicate used to decide whether a saved Claude session can be resumed.
+    ///   - enableHooks: Whether this adapter should manage a Claude hook listener and generated hook settings.
+    ///   - interactionStore: Store used for hook-originated pending interactions.
+    ///   - approvalPolicyStore: Store used for session and transient hook approvals.
+    ///   - commandApprovalNormalizationPolicy: Policy used to derive Bash command approval identity.
+    ///   - hookSupportDirectory: Directory used for generated per-launch Claude hook settings files.
+    ///   - hookDecisionProvider: Optional provider that can answer Claude hook decisions while the hook request is still live.
+    ///   - hookDecisionTimeout: Maximum live hook decision wait before Claude receives a deferred response.
+    ///   - executableResolver: Resolver used when `executablePath` is `/usr/bin/env`.
+    public init(
+        executablePath: String = "/usr/bin/env",
+        decoder: ClaudeStreamDecoder = ClaudeStreamDecoder(),
+        inputEncoder: ClaudeInputEncoder = ClaudeInputEncoder(),
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
+        sessionFileExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) },
+        enableHooks: Bool = true,
+        interactionStore: any AgentInteractionStore = InMemoryAgentInteractionStore(),
+        approvalPolicyStore: any ClaudeApprovalPolicyStoring = ClaudeApprovalPolicyStore(),
+        commandApprovalNormalizationPolicy: AgentCommandApprovalNormalizationPolicy = .default,
+        hookSupportDirectory: URL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "AgentCLIKitClaudeHooks",
+            isDirectory: true
+        ),
+        hookDecisionProvider: (any ClaudeHookDecisionProviding)? = nil,
+        hookDecisionTimeout: TimeInterval? = ClaudeHookPolicy.defaultDecisionTimeout,
+        executableResolver: any AgentHarnessExecutableResolving = DefaultAgentHarnessExecutableResolver()
+    ) {
+        self.init(configuration: Configuration(
+            executablePath: executablePath,
+            decoder: decoder,
+            inputEncoder: inputEncoder,
+            homeDirectory: homeDirectory,
+            sessionFileExists: sessionFileExists,
+            enableHooks: enableHooks,
+            interactionStore: interactionStore,
+            approvalPolicyStore: approvalPolicyStore,
+            commandApprovalNormalizationPolicy: commandApprovalNormalizationPolicy,
+            hookSupportDirectory: hookSupportDirectory,
+            hookDecisionProvider: hookDecisionProvider,
+            hookDecisionTimeout: hookDecisionTimeout,
+            executableResolver: executableResolver
+        ))
+    }
+
+    /// Creates a Claude harness adapter with a reusable configuration value.
+    public init(configuration: Configuration) {
+        self.executablePath = configuration.executablePath
+        self.executableResolver = configuration.executableResolver
+        self.decoder = configuration.decoder
+        self.inputEncoder = configuration.inputEncoder
+        self.homeDirectory = configuration.homeDirectory
+        self.sessionFileExists = configuration.sessionFileExists
+        self.compactionTracker = ClaudeContextCompactionTracker()
+        if configuration.enableHooks {
+            let tokenStore = AgentHookTokenStore()
+            let hookServer = ClaudeHookServer(
+                tokenStore: tokenStore,
+                interactionStore: configuration.interactionStore,
+                approvalPolicyStore: configuration.approvalPolicyStore,
+                commandApprovalNormalizationPolicy: configuration.commandApprovalNormalizationPolicy,
+                decisionProvider: configuration.hookDecisionProvider,
+                decisionTimeout: configuration.hookDecisionTimeout,
+                compactionTracker: compactionTracker
+            )
+            self.hookCoordinator = ClaudeHookCoordinator(
+                tokenStore: tokenStore,
+                server: hookServer,
+                supportDirectory: configuration.hookSupportDirectory
+            )
+        } else {
+            self.hookCoordinator = nil
+        }
+    }
+
+    /// Builds the Claude launch configuration for stream JSON mode.
+    public func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?
+    ) async throws -> AgentLaunchConfiguration {
+        guard spawnConfig.hostTools.isEmpty else {
+            throw AgentCLIError.hostToolsUnavailable(reason: "Context-aware launch is required for host tools.")
+        }
+        return try await makeLaunchConfiguration(
+            spawnConfig: spawnConfig,
+            resumedSession: resumedSession,
+            hostToolEndpoint: nil
+        )
+    }
+
+    /// Builds a Claude launch with process-scoped host tools and workspace roots.
+    public func makeLaunchConfiguration(context: AgentHarnessLaunchContext) async throws -> AgentLaunchConfiguration {
+        let endpoint = try context.validatedHostToolEndpoint()
+        return try await makeLaunchConfiguration(
+            spawnConfig: context.spawnConfig,
+            resumedSession: context.resumedSession,
+            hostToolEndpoint: endpoint
+        )
+    }
+
+    private func makeLaunchConfiguration(
+        spawnConfig: AgentSpawnConfig,
+        resumedSession: AgentSessionRecord?,
+        hostToolEndpoint: AgentHostToolEndpoint?
+    ) async throws -> AgentLaunchConfiguration {
+        try spawnConfig.validateAdditionalWorkspaceRoots()
+        if spawnConfig.speedMode == .fast {
+            // Claude's fast-like `--bare` mode disables hooks, so reject Fast instead of mapping it to launch flags.
+            throw AgentCLIError.unsupportedCapability(harnessId: Self.harnessId, capability: "fast mode")
+        }
+        let launchExecutable = await resolvedLaunchExecutable()
+        var (arguments, launchEnvironment) = try baseLaunchArguments(
+            executableArguments: launchExecutable.arguments,
+            spawnConfig: spawnConfig,
+            hostToolEndpoint: hostToolEndpoint
+        )
+        let forkRequest = spawnConfig.sessionFork
+        var sessionContinuity: AgentSessionContinuity = resumedSession == nil && forkRequest == nil ? .fresh : .resumed
+        if let sessionId = forkRequest?.sourceSessionId ?? resumedSession?.harnessSessionId {
+            let sessionLookupDirectory = forkRequest?.sourceWorkingDirectory ?? spawnConfig.workingDirectory
+            let sessionFileURL = ClaudePathEncoder.sessionFileURL(
+                sessionId: sessionId,
+                workingDirectory: sessionLookupDirectory,
+                homeDirectory: homeDirectory
+            )
+            let canResume = sessionFileExists(sessionFileURL)
+            if forkRequest != nil, !canResume {
+                throw AgentCLIError.invalidInput("Cannot fork Claude session because the source session artifact was not found.")
+            }
+            sessionContinuity = canResume ? (spawnConfig.forkSession ? .forked : .resumed) : .restartedFresh
+            var sessionArguments = canResume ? ["--resume", sessionId.rawValue] : ["--session-id", sessionId.rawValue]
+            if canResume, spawnConfig.forkSession {
+                sessionArguments.append("--fork-session")
+            }
+            arguments.append(contentsOf: sessionArguments)
+        }
+        arguments.append(contentsOf: spawnConfig.arguments)
+        return AgentLaunchConfiguration(
+            executable: launchExecutable.executable,
+            arguments: arguments,
+            environment: launchEnvironment,
+            workingDirectory: spawnConfig.workingDirectory,
+            sessionContinuity: sessionContinuity,
+            includesSpawnArguments: true,
+            sendsInitialPromptOverStdin: true
+        )
+    }
+
+    private func baseLaunchArguments(
+        executableArguments: [String],
+        spawnConfig: AgentSpawnConfig,
+        hostToolEndpoint: AgentHostToolEndpoint?
+    ) throws -> (arguments: [String], environment: [String: String]) {
+        var arguments = executableArguments + [
+            "-p",
+            "--output-format",
+            "stream-json",
+            "--input-format",
+            "stream-json",
+            "--verbose",
+            "--include-partial-messages"
+        ]
+        if let permissionMode = effectivePermissionMode(for: spawnConfig) {
+            if ClaudePermissionModes.requiresDangerousModeUnlock(permissionMode) {
+                arguments.append("--allow-dangerously-skip-permissions")
+            }
+            arguments.append(contentsOf: ["--permission-mode", permissionMode])
+        }
+        var environment = spawnConfig.environment
+        try ClaudeHostToolLaunch.augment(
+            arguments: &arguments,
+            environment: &environment,
+            spawnConfig: spawnConfig,
+            endpoint: hostToolEndpoint
+        )
+        arguments.append(contentsOf: ["--model", ClaudeModelAliases.normalizedModel(spawnConfig.model)])
+        if let effort = ClaudeModelAliases.normalizedEffort(spawnConfig.effort, model: spawnConfig.model) {
+            arguments.append(contentsOf: ["--effort", effort])
+        }
+        return (arguments, environment)
+    }
+
+    /// Defers active-turn changes and otherwise requests process replacement.
+    public func reconfigure(context: AgentHarnessReconfigureContext) async throws -> AgentHarnessReconfigureResult {
+        context.isTurnActive ? .nextTurnRequired : .restartRequired
+    }
+
+    func resolvedLaunchExecutable() async -> (executable: String, arguments: [String]) {
+        guard executablePath == "/usr/bin/env" else {
+            return (executablePath, [])
+        }
+        if let resolvedPath = await executableResolver.resolvedExecutablePath(for: definition) {
+            return (resolvedPath, [])
+        }
+        return (executablePath, ["claude"])
+    }
+
+    /// Decodes one Claude stream JSON stdout line.
+    public func decodeStdoutLine(_ line: String) async throws -> [AgentEvent] {
+        try decoder.decodeLine(line).map(enrichCompletedTaskOutput)
+    }
+
+    /// Decodes one Claude stream JSON stdout line with process context.
+    public func decodeStdoutLine(_ line: String, context: AgentHarnessOutputContext) async throws -> [AgentEvent] {
+        let events = try decoder.decodeLine(line).map(enrichCompletedTaskOutput)
+        let normalized = await compactionTracker.normalize(events, context: context)
+        return await noOpTurnTracker.normalize(normalized, context: context)
+    }
+
+    /// Extracts Claude's resumable session identifier from harness events.
+    public func sessionID(from event: AgentEvent) -> AgentSessionID? {
+        switch event {
+        case let .diagnostic(diagnostic):
+            guard case let .string(sessionId)? = diagnostic.metadata["session_id"],
+                  !sessionId.isEmpty else {
+                return nil
+            }
+            return AgentSessionID(rawValue: sessionId)
+        case let .contextCompaction(compaction):
+            guard let sessionId = compaction.metadata.stringValue("session_id") ?? compaction.metadata.stringValue("sessionId"),
+                  !sessionId.isEmpty else {
+                return nil
+            }
+            return AgentSessionID(rawValue: sessionId)
+        default:
+            return nil
+        }
+    }
+
+    private func enrichCompletedTaskOutput(_ event: AgentEvent) -> AgentEvent {
+        guard case let .subAgent(subAgent) = event,
+              subAgent.phase == .terminal,
+              subAgent.result == nil,
+              let outputFile = subAgent.metadata.stringValue("output_file"),
+              let result = taskOutputReader.resultText(from: URL(fileURLWithPath: outputFile))?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !result.isEmpty else {
+            return event
+        }
+
+        var metadata = subAgent.metadata
+        metadata["result"] = .string(result)
+        return .subAgent(AgentSubAgentEvent(
+            id: subAgent.id,
+            phase: subAgent.phase,
+            description: subAgent.description,
+            prompt: subAgent.prompt,
+            agentType: subAgent.agentType,
+            input: subAgent.input,
+            lastToolName: subAgent.lastToolName,
+            status: subAgent.status,
+            result: result,
+            toolUses: subAgent.toolUses,
+            totalTokens: subAgent.totalTokens,
+            durationMs: subAgent.durationMs,
+            parentToolUseId: subAgent.parentToolUseId,
+            callerAgent: subAgent.callerAgent,
+            parentSessionId: subAgent.parentSessionId,
+            childSessionIds: subAgent.childSessionIds,
+            metadata: metadata
+        ))
+    }
+
+    /// Encodes host input as Claude stream JSON stdin.
+    public func runtimeEvents(context: AgentHarnessRuntimeContext) async -> AsyncStream<AgentHarnessRuntimeEvent> {
+        guard let hookCoordinator else {
+            return AsyncStream { continuation in
+                continuation.finish()
+            }
+        }
+        return await hookCoordinator.runtimeEvents(context: context)
+    }
+
+    /// Adds generated Claude hook settings and bearer token environment for this launch when hook setup succeeds.
+    public func prepareLaunchConfiguration(
+        _ launch: AgentLaunchConfiguration,
+        spawnConfig: AgentSpawnConfig,
+        conversationId: AgentConversationID,
+        processToken: UUID
+    ) async throws -> AgentLaunchConfiguration {
+        guard let hookCoordinator else {
+            return launch
+        }
+        do {
+            let hooks = try await hookCoordinator.prepareLaunch(
+                conversationId: conversationId,
+                processToken: processToken,
+                permissionMode: effectivePermissionMode(for: spawnConfig),
+                workingDirectory: launch.workingDirectory ?? spawnConfig.workingDirectory,
+                homeDirectory: homeDirectory
+            )
+            var arguments = launch.arguments
+            arguments.append(contentsOf: hooks.arguments)
+            return AgentLaunchConfiguration(
+                executable: launch.executable,
+                arguments: arguments,
+                environment: launch.environment.merging(hooks.environment) { _, new in new },
+                workingDirectory: launch.workingDirectory,
+                sessionContinuity: launch.sessionContinuity,
+                includesSpawnArguments: launch.includesSpawnArguments,
+                sendsInitialPromptOverStdin: launch.sendsInitialPromptOverStdin
+            )
+        } catch {
+            await hookCoordinator.invalidate(processToken: processToken)
+            return launch
+        }
+    }
+
+    /// Invalidates the hook token associated with a finished or superseded Claude process.
+    public func processDidTerminate(processToken: UUID) async {
+        await hookCoordinator?.invalidate(processToken: processToken)
+        await compactionTracker.reset(processToken: processToken)
+        await noOpTurnTracker.reset(processToken: processToken)
+    }
+
+    /// Updates harness-owned hook state from streamed permission-mode status.
+    public func permissionModeDidChange(_ mode: String?, conversationId: AgentConversationID) async {
+        await hookCoordinator?.updatePermissionMode(mode.map(ClaudePermissionModes.canonicalHostMode), for: conversationId)
+    }
+
+    /// Stops the shared Claude hook listener and invalidates active launch tokens.
+    public func shutdownHarnessResources() async {
+        await hookCoordinator?.shutdown()
+    }
+
+    private func effectivePermissionMode(for spawnConfig: AgentSpawnConfig) -> String? {
+        guard spawnConfig.collaborationMode != .plan else {
+            return ClaudePermissionModes.plan
+        }
+        return spawnConfig.permissionMode.map(ClaudePermissionModes.canonicalHostMode)
+    }
+
+    static func goalCommand(_ objective: String) -> String {
+        "/goal \(objective.trimmingCharacters(in: .whitespacesAndNewlines))"
+    }
+}
+
+private extension [String: JSONValue] {
+    func stringValue(_ key: String) -> String? {
+        guard case let .string(value)? = self[key] else {
+            return nil
+        }
+        return value
+    }
+
+    func nonEmptyStringValue(_ key: String) -> String? {
+        guard let value = stringValue(key), !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+}

@@ -41,16 +41,16 @@ extension CodexAppServerClient {
         guard let threadId = response.threadResponseId else {
             throw CodexAppServerError.missingThreadID(method: request.method)
         }
-        let providerThreadId = AgentSessionID(rawValue: threadId)
+        let harnessThreadId = AgentSessionID(rawValue: threadId)
         let goal = try await bootstrapGoalRedacting(
-            threadId: providerThreadId,
+            threadId: harnessThreadId,
             spawnConfig: spawnConfig,
             supportsGoalMode: supportsGoalMode,
             shouldHydrateExistingGoal: shouldHydrateExistingGoal,
             sensitiveValues: sensitiveValues
         )
         return CodexThreadBootstrap(
-            threadId: providerThreadId,
+            threadId: harnessThreadId,
             name: response.threadResponseName,
             preview: response.threadResponsePreview,
             forkedFromId: response.threadResponseForkedFromId.map(AgentSessionID.init(rawValue:)),
@@ -68,12 +68,12 @@ extension CodexAppServerClient {
             return explicitSource
         }
         if spawnConfig.forkSession {
-            return resumedSession?.providerSessionId
+            return resumedSession?.harnessSessionId
         }
         // A loaded thread ignores resume overrides. Fork to apply explicit roots even without host tools; otherwise
         // resuming after suspension can retain revoked grants. An empty root list deliberately preserves native roots.
         let requiresLaunchOverrides = hostToolEndpoint != nil || !spawnConfig.additionalWorkspaceRoots.isEmpty
-        return requiresLaunchOverrides ? resumedSession?.providerSessionId : nil
+        return requiresLaunchOverrides ? resumedSession?.harnessSessionId : nil
     }
 
     func archiveThread(_ threadId: AgentSessionID) async throws {
@@ -134,46 +134,46 @@ extension CodexAppServerClient {
         return cleared
     }
 
-    func startGoal(_ objective: String, context: AgentProviderGoalStartContext) async throws {
+    func startGoal(_ objective: String, context: AgentHarnessGoalStartContext) async throws {
         guard await configuration.featureSupportChecker.supportsGoalMode(configuration: configuration, availability: nil) else {
-            throw AgentCLIError.unsupportedCapability(providerId: CodexProviderAdapter.providerId, capability: "goal mode")
+            throw AgentCLIError.unsupportedCapability(harnessId: CodexHarnessAdapter.harnessId, capability: "goal mode")
         }
         guard let binding = bindingsByConversation[context.conversationId],
               binding.processToken == context.processToken else {
-            throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex App Server thread is unavailable.")
+            throw AgentCLIError.goalUnavailable(harnessId: CodexHarnessAdapter.harnessId, reason: "Codex App Server thread is unavailable.")
         }
         guard let snapshot = try await setThreadGoal(binding.threadId, objective: objective) else {
-            throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex did not return an active goal.")
+            throw AgentCLIError.goalUnavailable(harnessId: CodexHarnessAdapter.harnessId, reason: "Codex did not return an active goal.")
         }
         yieldGoal(snapshot, conversationId: context.conversationId)
     }
 
-    func performGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws {
+    func performGoalAction(_ action: AgentGoalAction, context: AgentHarnessGoalActionContext) async throws {
         guard await configuration.featureSupportChecker.supportsGoalMode(configuration: configuration, availability: nil) else {
-            throw AgentCLIError.unsupportedCapability(providerId: CodexProviderAdapter.providerId, capability: "goal mode")
+            throw AgentCLIError.unsupportedCapability(harnessId: CodexHarnessAdapter.harnessId, capability: "goal mode")
         }
         guard let binding = bindingsByConversation[context.conversationId],
               binding.processToken == context.processToken else {
-            throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex App Server thread is unavailable.")
+            throw AgentCLIError.goalUnavailable(harnessId: CodexHarnessAdapter.harnessId, reason: "Codex App Server thread is unavailable.")
         }
         switch action {
         case .pause:
             guard let snapshot = try await updateThreadGoalStatus(binding.threadId, status: "paused") else {
-                throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex did not return a paused goal.")
+                throw AgentCLIError.goalUnavailable(harnessId: CodexHarnessAdapter.harnessId, reason: "Codex did not return a paused goal.")
             }
             yieldGoal(snapshot, conversationId: context.conversationId)
         case .resume:
             guard let snapshot = try await updateThreadGoalStatus(binding.threadId, status: "active") else {
-                throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex did not return an active goal.")
+                throw AgentCLIError.goalUnavailable(harnessId: CodexHarnessAdapter.harnessId, reason: "Codex did not return an active goal.")
             }
             yieldGoal(snapshot, conversationId: context.conversationId)
         case .delete:
             let cleared = try await clearThreadGoal(binding.threadId)
             guard cleared else {
-                throw AgentCLIError.goalUnavailable(providerId: CodexProviderAdapter.providerId, reason: "Codex reported no goal to clear.")
+                throw AgentCLIError.goalUnavailable(harnessId: CodexHarnessAdapter.harnessId, reason: "Codex reported no goal to clear.")
             }
             bindingsByConversation[context.conversationId]?.continuation?.yield(
-                AgentProviderRuntimeEvent(event: .goal(.cleared(objective: context.goal?.objective)))
+                AgentHarnessRuntimeEvent(event: .goal(.cleared(objective: context.goal?.objective)))
             )
         }
     }
@@ -192,7 +192,7 @@ extension CodexAppServerClient {
             params["threadId"] = .string(forkSourceSessionId.rawValue)
             params["ephemeral"] = .bool(false)
         } else if let resumedSession {
-            params["threadId"] = .string(resumedSession.providerSessionId.rawValue)
+            params["threadId"] = .string(resumedSession.harnessSessionId.rawValue)
         } else {
             params["ephemeral"] = .bool(false)
         }
@@ -333,7 +333,7 @@ extension CodexAppServerClient {
 
     private static func unsupportedWorkspaceRootsError() -> AgentCLIError {
         AgentCLIError.unsupportedCapability(
-            providerId: CodexProviderAdapter.providerId,
+            harnessId: CodexHarnessAdapter.harnessId,
             capability: "runtime workspace roots (requires Codex 0.144.0 or newer with experimental APIs enabled)"
         )
     }
@@ -362,7 +362,7 @@ extension CodexAppServerClient {
         if let initialGoal = spawnConfig.initialGoal?.trimmingCharacters(in: .whitespacesAndNewlines),
            !initialGoal.isEmpty {
             guard supportsGoalMode else {
-                throw AgentCLIError.unsupportedCapability(providerId: CodexProviderAdapter.providerId, capability: "goal mode")
+                throw AgentCLIError.unsupportedCapability(harnessId: CodexHarnessAdapter.harnessId, capability: "goal mode")
             }
             return try await setThreadGoal(threadId, objective: initialGoal)
         }
@@ -374,7 +374,7 @@ extension CodexAppServerClient {
 
     private func yieldGoal(_ snapshot: AgentGoalSnapshot, conversationId: AgentConversationID) {
         bindingsByConversation[conversationId]?.continuation?.yield(
-            AgentProviderRuntimeEvent(event: .goal(AgentGoalEvent(snapshot: snapshot)))
+            AgentHarnessRuntimeEvent(event: .goal(AgentGoalEvent(snapshot: snapshot)))
         )
     }
 }
@@ -392,9 +392,9 @@ func codexGoalSnapshot(fromGoalObject goal: [String: JSONValue]) -> AgentGoalSna
           !objective.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         return nil
     }
-    let providerStatus = goal.stringValue("status") ?? "active"
-    let status = AgentGoalStatus(codexStatus: providerStatus)
-    let metadata = codexGoalMetadata(goal: goal, providerStatus: providerStatus)
+    let harnessStatus = goal.stringValue("status") ?? "active"
+    let status = AgentGoalStatus(codexStatus: harnessStatus)
+    let metadata = codexGoalMetadata(goal: goal, harnessStatus: harnessStatus)
     return AgentGoalSnapshot(
         objective: objective,
         status: status,
@@ -407,9 +407,9 @@ func codexGoalSnapshot(fromGoalObject goal: [String: JSONValue]) -> AgentGoalSna
     )
 }
 
-private func codexGoalMetadata(goal: [String: JSONValue], providerStatus: String) -> [String: JSONValue] {
+private func codexGoalMetadata(goal: [String: JSONValue], harnessStatus: String) -> [String: JSONValue] {
     var metadata: [String: JSONValue] = [
-        "codex_goal_status": .string(providerStatus),
+        "codex_goal_status": .string(harnessStatus),
         "codex_goal": .object(goal)
     ]
     if let threadId = goal.stringValue("threadId", "thread_id") {

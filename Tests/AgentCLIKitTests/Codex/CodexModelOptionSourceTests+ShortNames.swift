@@ -59,7 +59,7 @@ final class CodexModelOptionSourceShortNameTests: XCTestCase {
             modelListResponses: [.object(["data": .array(fixtures)])]
         )
         let source = CodexAppServerModelOptionSource(
-            configuration: CodexProviderAdapter.Configuration(
+            configuration: CodexHarnessAdapter.Configuration(
                 executablePath: "/usr/bin/env",
                 makeTransport: { _ in transport },
                 executableResolver: RecordingExecutableResolver(path: nil)

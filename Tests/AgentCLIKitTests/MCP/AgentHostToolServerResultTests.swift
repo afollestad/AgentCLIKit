@@ -20,7 +20,7 @@ extension AgentHostToolServerTests {
         addTeardownBlock { await server.shutdown() }
         let endpoint = try await server.register(
             conversationId: "conversation",
-            providerId: .claude,
+            harnessId: .claude,
             processToken: UUID(),
             server: AgentHostToolServerMetadata(),
             tools: [Self.simpleTool(named: "slow_tool"), Self.simpleTool(named: "large_tool")]

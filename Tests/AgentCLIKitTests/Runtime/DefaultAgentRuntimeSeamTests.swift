@@ -4,11 +4,11 @@ import XCTest
 @testable import AgentCLIKit
 
 final class DefaultAgentRuntimeSeamTests: XCTestCase {
-    func testRuntimeUsesInjectedClockForProviderSessionRecords() async throws {
+    func testRuntimeUsesInjectedClockForHarnessSessionRecords() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let fixedDate = Date(timeIntervalSince1970: 1_234)
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("printf 'session:provider-session\\n'"))],
+            adapters: [SessionReportingHarnessAdapter(command: shell("printf 'session:harness-session\\n'"))],
             sessionStore: sessionStore,
             now: { fixedDate }
         )
@@ -16,7 +16,7 @@ final class DefaultAgentRuntimeSeamTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         _ = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
         XCTAssertEqual(persisted?.createdAt, fixedDate)
         XCTAssertEqual(persisted?.updatedAt, fixedDate)
@@ -25,7 +25,7 @@ final class DefaultAgentRuntimeSeamTests: XCTestCase {
     func testRuntimeUsesInjectedProcessFactory() async throws {
         let probe = ProcessFactoryProbe()
         let runtime = DefaultAgentRuntime(
-            adapters: [FakeProviderAdapter(command: shell("printf 'message:factory\\n'"))],
+            adapters: [FakeHarnessAdapter(command: shell("printf 'message:factory\\n'"))],
             processFactory: { launch, config in
                 probe.record(launch: launch, config: config)
                 return DefaultAgentRuntime.defaultProcessFactory(launch: launch, config: config)

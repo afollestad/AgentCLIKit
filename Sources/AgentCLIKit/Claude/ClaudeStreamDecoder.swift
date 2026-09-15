@@ -1,6 +1,6 @@
 import Foundation
 
-/// Decodes Claude Code stream JSON stdout into provider-neutral events.
+/// Decodes Claude Code stream JSON stdout into harness-neutral events.
 public struct ClaudeStreamDecoder: Sendable {
     /// Creates a Claude stream decoder.
     public init() {}
@@ -127,7 +127,7 @@ public struct ClaudeStreamDecoder: Sendable {
         guard !Self.isGoalCommandStatusText(text) else {
             return []
         }
-        // Claude reports local command output as user text; hosts render it as provider output, not as a user-authored prompt.
+        // Claude reports local command output as user text; hosts render it as harness output, not as a user-authored prompt.
         let eventRole: AgentMessageRole = role == .user ? .assistant : role
         return [.message(AgentMessageEvent(role: eventRole, text: text, metadata: metadata))]
     }
@@ -238,7 +238,7 @@ public struct ClaudeStreamDecoder: Sendable {
     /// and why text is the only signal available here.
     private static func resultErrorDiagnostic(message: String) -> AgentDiagnosticEvent {
         AgentDiagnosticEvent(
-            code: ClaudeAuthFailureText.isAuthenticationFailure(message) ? .providerAuthenticationRequired : nil,
+            code: ClaudeAuthFailureText.isAuthenticationFailure(message) ? .harnessAuthenticationRequired : nil,
             severity: .error,
             message: message
         )
@@ -337,7 +337,7 @@ public struct ClaudeStreamDecoder: Sendable {
         var metadata = metadata
         if phase == .terminal {
             // A system task_notification is Claude consuming the notification now, like a dequeued
-            // `<task-notification>` message; the runtime uses this to start a provider-initiated turn.
+            // `<task-notification>` message; the runtime uses this to start a harness-initiated turn.
             metadata[AgentBackgroundTaskMetadata.delivery] = .string(AgentBackgroundTaskMetadata.dequeuedDelivery)
         }
         return .subAgent(AgentSubAgentEvent(

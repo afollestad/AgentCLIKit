@@ -6,8 +6,8 @@ import XCTest
 extension CodexAppServerInteractionRequestTests {
     func testToolRequestUserInputPromptReturnsAnswers() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -47,8 +47,8 @@ extension CodexAppServerInteractionRequestTests {
 
     func testToolRequestUserInputPromptReturnsAnswersFromUpdatedInput() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -82,8 +82,8 @@ extension CodexAppServerInteractionRequestTests {
 
     func testToolRequestUserInputPromptPreservesExplicitCodexAnswers() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -126,8 +126,8 @@ extension CodexAppServerInteractionRequestTests {
 
     func testToolRequestUserInputPromptNormalizesAnswerKeysAndShapes() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -169,8 +169,8 @@ extension CodexAppServerInteractionRequestTests {
 
     func testExitPlanModeToolCallRequestsPlanModeExitInteractionAndApproves() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
@@ -204,8 +204,8 @@ extension CodexAppServerInteractionRequestTests {
 
     func testExitPlanModeToolCallDenialReturnsFailureResult() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
-        let spawnConfig = AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
 
         _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
         let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))

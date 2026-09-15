@@ -36,7 +36,7 @@ extension ClaudeHookTests {
         let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
         let token = await tokenStore.issue(validFor: 60)
         let processToken = UUID()
-        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+        let stream = AsyncStream<AgentHarnessRuntimeEvent>.makeStream()
         let accumulator = RuntimeEventAccumulator()
         let collector = Task {
             for await event in stream.stream {
@@ -123,7 +123,7 @@ extension ClaudeHookTests {
         let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: interactionStore)
         let token = await tokenStore.issue(validFor: 60)
         let processToken = UUID()
-        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+        let stream = AsyncStream<AgentHarnessRuntimeEvent>.makeStream()
         let accumulator = RuntimeEventAccumulator()
         let collector = Task {
             for await event in stream.stream {
@@ -142,7 +142,7 @@ extension ClaudeHookTests {
                 "trigger": .string("manual"),
                 "session_id": .string("session-123"),
                 "compact_result": .string("failed"),
-                "compact_error": .string("Provider reported a compact failure."),
+                "compact_error": .string("Harness reported a compact failure."),
                 "compactMetadata": .object([
                     "preTokens": .number(100_000)
                 ])
@@ -160,7 +160,7 @@ extension ClaudeHookTests {
                 id: "claude-context-compaction-session-123-1",
                 phase: .failed,
                 trigger: "manual",
-                errorMessage: "Provider reported a compact failure.",
+                errorMessage: "Harness reported a compact failure.",
                 preTokens: 100_000,
                 metadata: [
                     "conversation_id": .string("conversation"),
@@ -169,7 +169,7 @@ extension ClaudeHookTests {
                     "session_id": .string("session-123"),
                     "trigger": .string("manual"),
                     "compact_result": .string("failed"),
-                    "compact_error": .string("Provider reported a compact failure."),
+                    "compact_error": .string("Harness reported a compact failure."),
                     "pre_tokens": .number(100_000)
                 ]
             ))
@@ -178,13 +178,13 @@ extension ClaudeHookTests {
 }
 
 private actor RuntimeEventAccumulator {
-    private(set) var events: [AgentProviderRuntimeEvent] = []
+    private(set) var events: [AgentHarnessRuntimeEvent] = []
 
     var count: Int {
         events.count
     }
 
-    func append(_ event: AgentProviderRuntimeEvent) {
+    func append(_ event: AgentHarnessRuntimeEvent) {
         events.append(event)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Codex App Server transport family used by `CodexProviderAdapter`.
+/// Codex App Server transport family used by `CodexHarnessAdapter`.
 public enum CodexAppServerTransportKind: String, Codable, Hashable, Sendable {
     /// Newline-delimited JSON-RPC over the App Server process standard input and output.
     case stdio
@@ -26,10 +26,10 @@ public protocol CodexAppServerTransport: Sendable {
     /// Sends an error response to a server-originated JSON-RPC request.
     func sendErrorResponse(id: JSONValue, code: Int, message: String, data: JSONValue?) async throws
 
-    /// Registers process-scoped values that must be redacted from provider diagnostics and echoed protocol payloads.
+    /// Registers process-scoped values that must be redacted from harness diagnostics and echoed protocol payloads.
     func registerSensitiveValues(_ values: [String], processToken: UUID) async
 
-    /// Retires process-scoped values while retaining a small bounded window for late provider frames.
+    /// Retires process-scoped values while retaining a small bounded window for late harness frames.
     func unregisterSensitiveValues(processToken: UUID) async
 
     /// Shuts down the underlying transport and releases resources.
@@ -137,7 +137,7 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
         let timeoutTask: Task<Void, Never>
     }
 
-    private let configuration: CodexProviderAdapter.Configuration
+    private let configuration: CodexHarnessAdapter.Configuration
     private var process: Process?
     private var stdin: FileHandle?
     private var stdoutReadHandle: FileHandle?
@@ -154,7 +154,7 @@ public actor CodexStdioAppServerTransport: CodexAppServerTransport {
     private var isShutdown = false
 
     /// Creates a stdio App Server transport.
-    public init(configuration: CodexProviderAdapter.Configuration) {
+    public init(configuration: CodexHarnessAdapter.Configuration) {
         self.configuration = configuration
     }
 

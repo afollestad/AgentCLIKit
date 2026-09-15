@@ -5,7 +5,7 @@ import XCTest
 final class DefaultAgentRuntimeSubAgentTests: XCTestCase {
     func testSubAgentEventsDeduplicateExactReplayAndAllowDistinctProgress() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell([
+            FakeHarnessAdapter(command: shell([
                 "subagent:started",
                 "subagent:started",
                 "subagent:progress",
@@ -35,7 +35,7 @@ final class DefaultAgentRuntimeSubAgentTests: XCTestCase {
 
     func testCancelSynthesizesFailedTerminalForOpenSubAgent() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'subagent:started\\n'; sleep 5"))
+            FakeHarnessAdapter(command: shell("printf 'subagent:started\\n'; sleep 5"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let startSubscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
@@ -65,7 +65,7 @@ final class DefaultAgentRuntimeSubAgentTests: XCTestCase {
 
     func testProcessExitSynthesizesFailedTerminalForOpenSubAgent() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'subagent:started\\n'"))
+            FakeHarnessAdapter(command: shell("printf 'subagent:started\\n'"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
@@ -80,14 +80,14 @@ final class DefaultAgentRuntimeSubAgentTests: XCTestCase {
 
         XCTAssertEqual(subAgents.map(\.phase), [.started, .terminal])
         XCTAssertEqual(subAgents.last?.status, "failed")
-        XCTAssertEqual(subAgents.last?.result, "Sub-agent did not finish before the provider process ended.")
+        XCTAssertEqual(subAgents.last?.result, "Sub-agent did not finish before the harness process ended.")
         XCTAssertEqual(subAgents.last?.metadata["synthetic"], .bool(true))
         XCTAssertEqual(subAgents.last?.metadata["terminal_reason"], .string("exited"))
     }
 
     func testTerminalUsageCompletesOpenCodexSpawnAgent() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'subagent:codex-spawn-started\\nusage:end_turn\\n'; sleep 1"))
+            FakeHarnessAdapter(command: shell("printf 'subagent:codex-spawn-started\\nusage:end_turn\\n'; sleep 1"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
@@ -112,7 +112,7 @@ final class DefaultAgentRuntimeSubAgentTests: XCTestCase {
 
     func testCodexTurnCompletedCompletesOpenCodexSpawnAgent() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'subagent:codex-spawn-started\\nactivity:codex-turn-completed\\n'; sleep 1"))
+            FakeHarnessAdapter(command: shell("printf 'subagent:codex-spawn-started\\nactivity:codex-turn-completed\\n'; sleep 1"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
@@ -137,7 +137,7 @@ final class DefaultAgentRuntimeSubAgentTests: XCTestCase {
 
     func testTerminalUsageDoesNotCompleteGenericOpenSubAgent() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'subagent:started\\nusage:end_turn\\n'; sleep 1"))
+            FakeHarnessAdapter(command: shell("printf 'subagent:started\\nusage:end_turn\\n'; sleep 1"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
@@ -160,7 +160,7 @@ final class DefaultAgentRuntimeSubAgentTests: XCTestCase {
 
     func testCodexTurnCompletedDoesNotCompleteGenericOpenSubAgent() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("printf 'subagent:started\\nactivity:codex-turn-completed\\n'; sleep 1"))
+            FakeHarnessAdapter(command: shell("printf 'subagent:started\\nactivity:codex-turn-completed\\n'; sleep 1"))
         ])
         let conversationId: AgentConversationID = "conversation"
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)

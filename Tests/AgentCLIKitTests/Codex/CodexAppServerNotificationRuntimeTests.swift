@@ -133,7 +133,7 @@ final class CodexAppServerNotificationRuntimeTests: XCTestCase {
         ])
     }
 
-    func testThreadCompactStartIsNotAProviderCompactionEvent() {
+    func testThreadCompactStartIsNotAHarnessCompactionEvent() {
         let events = decoder.decode(notification(
             method: "thread/compact/start",
             params: [

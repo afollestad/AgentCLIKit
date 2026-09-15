@@ -88,26 +88,26 @@ struct DemoShellView: View {
                 session: session,
                 rows: model.currentRows,
                 turnState: model.currentTurnState,
-                providerId: model.providerId(for: session.id),
+                harnessId: model.harnessId(for: session.id),
                 selectedModelOptionID: model.selectedModelOptionID(for: session.id),
                 effortOptions: model.effortOptions(for: session.id),
                 selectedEffortOptionValue: model.selectedEffortOptionValue(for: session.id),
                 selectedSpeedMode: model.selectedSpeedMode(for: session.id),
-                providerStatuses: model.providerStatuses,
-                providerOrdering: model.providerOrdering,
-                canEditProviderSelection: model.canEditProviderSelection(for: session.id),
+                harnessStatuses: model.harnessStatuses,
+                harnessOrdering: model.harnessOrdering,
+                canEditHarnessSelection: model.canEditHarnessSelection(for: session.id),
                 draft: $draft,
                 onSend: { model.sendCurrentMessage($0) },
                 onCancel: { model.cancelCurrentSession() },
                 onSubmitPrompt: { model.submitPromptAnswers(promptID: $0, answers: $1) },
-                onProviderChange: { model.setProvider($0, for: session.id) },
+                onHarnessChange: { model.setHarness($0, for: session.id) },
                 onModelChange: { model.setModelOptionID($0, for: session.id) },
                 onEffortChange: { model.setEffortOptionValue($0, for: session.id) },
                 onSpeedChange: { model.setSpeedMode($0, for: session.id) },
                 onTrustProject: { model.trustProject(for: session.id) },
-                onRefreshProviders: {
+                onRefreshHarnesses: {
                     Task {
-                        await model.refreshProviderStatuses()
+                        await model.refreshHarnessStatuses()
                     }
                 }
             )
@@ -122,24 +122,24 @@ private struct ChatDetailView: View {
     let session: DemoSession
     let rows: [DemoChatRow]
     let turnState: DemoTurnState
-    let providerId: AgentProviderID
+    let harnessId: AgentHarnessID
     let selectedModelOptionID: String
-    let effortOptions: [AgentProviderOption]
+    let effortOptions: [AgentHarnessOption]
     let selectedEffortOptionValue: String
     let selectedSpeedMode: AgentSpeedMode
-    let providerStatuses: [AgentProviderID: AgentProviderStatus]
-    let providerOrdering: [AgentProviderID]
-    let canEditProviderSelection: Bool
+    let harnessStatuses: [AgentHarnessID: AgentHarnessStatus]
+    let harnessOrdering: [AgentHarnessID]
+    let canEditHarnessSelection: Bool
     @Binding var draft: String
     var onSend: (String) -> Void
     var onCancel: () -> Void
     var onSubmitPrompt: (AgentInteractionID, [DemoPromptAnswer]) -> Void
-    var onProviderChange: (AgentProviderID) -> Void
+    var onHarnessChange: (AgentHarnessID) -> Void
     var onModelChange: (String) -> Void
     var onEffortChange: (String) -> Void
     var onSpeedChange: (AgentSpeedMode) -> Void
     var onTrustProject: () -> Void
-    var onRefreshProviders: () -> Void
+    var onRefreshHarnesses: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -173,21 +173,21 @@ private struct ChatDetailView: View {
                 }
             }
             Divider()
-            ProviderComposerControls(
-                providerId: providerId,
+            HarnessComposerControls(
+                harnessId: harnessId,
                 selectedModelOptionID: selectedModelOptionID,
                 effortOptions: effortOptions,
                 selectedEffortOptionValue: selectedEffortOptionValue,
                 selectedSpeedMode: selectedSpeedMode,
-                providerStatuses: providerStatuses,
-                providerOrdering: providerOrdering,
-                canEditProviderSelection: canEditProviderSelection,
-                onProviderChange: onProviderChange,
+                harnessStatuses: harnessStatuses,
+                harnessOrdering: harnessOrdering,
+                canEditHarnessSelection: canEditHarnessSelection,
+                onHarnessChange: onHarnessChange,
                 onModelChange: onModelChange,
                 onEffortChange: onEffortChange,
                 onSpeedChange: onSpeedChange,
                 onTrustProject: onTrustProject,
-                onRefreshProviders: onRefreshProviders
+                onRefreshHarnesses: onRefreshHarnesses
             )
             .padding(.horizontal, 12)
             .padding(.top, 10)
@@ -224,7 +224,7 @@ private struct ChatDetailView: View {
                         .labelStyle(.iconOnly)
                 }
                 .buttonStyle(.borderless)
-                .help("Cancel provider process")
+                .help("Cancel harness process")
             }
         }
         .padding(.leading, 20)

@@ -30,15 +30,15 @@ public struct ClaudeAuthReadiness: Codable, Equatable, Sendable {
     public let authMethod: String?
     /// Account email the CLI reported.
     public let accountEmail: String?
-    /// Host-facing diagnostics that can be surfaced by provider setup UI.
+    /// Host-facing diagnostics that can be surfaced by harness setup UI.
     public let diagnostics: [String]
 
-    /// Whether provider work may start.
+    /// Whether harness work may start.
     ///
     /// `unknown` counts as permitted on purpose: the probe spawns a subprocess, and a machine where
     /// that spawn fails for an unrelated reason must not be locked out of a CLI that works. Only a
     /// verdict the CLI actually gave us — `signedOut` — blocks work.
-    public var allowsProviderWork: Bool {
+    public var allowsHarnessWork: Bool {
         state != .signedOut
     }
 
@@ -83,15 +83,15 @@ public struct ClaudeAuthProbe: Sendable {
     ///   - environment: Environment consulted for API-key credentials and merged into the spawn. A
     ///     host launched from Finder must pass an augmented `PATH` here, or a bare-name lookup fails.
     ///   - timeout: Bound on the spawn.
-    ///   - executablePath: Resolves the `claude` executable. Injected because `AgentProviderSetup`
+    ///   - executablePath: Resolves the `claude` executable. Injected because `AgentHarnessSetup`
     ///     takes no arguments and so cannot receive the path discovery already resolved.
     public init(
         shellRunner: any ShellRunning = ProcessShellRunner(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
         timeout: Duration = Self.defaultTimeout,
         executablePath: @escaping @Sendable () async -> String? = {
-            await DefaultAgentProviderExecutableResolver()
-                .resolvedExecutablePath(for: ClaudeProviderDefinition.definition)
+            await DefaultAgentHarnessExecutableResolver()
+                .resolvedExecutablePath(for: ClaudeHarnessDefinition.definition)
         }
     ) {
         self.shellRunner = shellRunner
@@ -132,7 +132,7 @@ public struct ClaudeAuthProbe: Sendable {
 
 private extension ClaudeAuthProbe {
     /// An API key or auth token bypasses OAuth entirely, so it answers without a spawn. Hosts forward
-    /// both variables into provider launches, so a machine using one is genuinely ready.
+    /// both variables into harness launches, so a machine using one is genuinely ready.
     func environmentCredentialReadiness() -> ClaudeAuthReadiness? {
         if environment["ANTHROPIC_API_KEY"]?.isEmpty == false {
             return ClaudeAuthReadiness(state: .ready, credentialSource: .environmentAPIKey)
@@ -221,11 +221,11 @@ struct ClaudeAuthStatusPayload: Decodable {
     let email: String?
 }
 
-/// Recognizes provider result-error text that means the user must re-authenticate.
+/// Recognizes harness result-error text that means the user must re-authenticate.
 ///
 /// Claude reports this as a plain `result` error string with no machine-readable code, so matching the
 /// text is the only way to tell "sign in again" apart from an ordinary turn failure. It lives here,
-/// beside the provider that produces the text, so hosts never have to match on it themselves.
+/// beside the harness that produces the text, so hosts never have to match on it themselves.
 enum ClaudeAuthFailureText {
     /// Whether a Claude result-error message means the credential must be renewed.
     ///

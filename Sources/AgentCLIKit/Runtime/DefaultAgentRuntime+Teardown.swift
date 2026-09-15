@@ -1,9 +1,9 @@
 import Foundation
 
-/// Cancellation, kill, destroy, and shutdown paths: everything that tears a provider process down.
+/// Cancellation, kill, destroy, and shutdown paths: everything that tears a harness process down.
 extension DefaultAgentRuntime {
 
-    /// Sends an interrupt request and terminates the provider process.
+    /// Sends an interrupt request and terminates the harness process.
     public func cancel(conversationId: AgentConversationID) async {
         guard shouldAcceptCancellation(conversationId: conversationId) else {
             return
@@ -23,10 +23,10 @@ extension DefaultAgentRuntime {
         states[conversationId]?.stdin = nil
         states[conversationId]?.stdinWriter = nil
         if let state {
-            let context = AgentProviderInterruptContext(
+            let context = AgentHarnessInterruptContext(
                 conversationId: conversationId,
                 processToken: state.processToken,
-                providerSessionId: state.providerSessionId,
+                harnessSessionId: state.harnessSessionId,
                 spawnConfig: state.spawnConfig,
                 reason: "Cancelled by host."
             )
@@ -35,7 +35,7 @@ extension DefaultAgentRuntime {
             } catch {
                 emitDiagnostic(
                     severity: .warning,
-                    message: "Provider interrupt failed: \(error.localizedDescription)",
+                    message: "Harness interrupt failed: \(error.localizedDescription)",
                     metadata: ["interrupt_error": .string(error.localizedDescription)],
                     source: .runtime,
                     conversationId: conversationId
@@ -45,7 +45,7 @@ extension DefaultAgentRuntime {
         states[conversationId]?.process?.terminate()
     }
 
-    /// Immediately kills the provider process.
+    /// Immediately kills the harness process.
     public func kill(conversationId: AgentConversationID) async {
         guard shouldAcceptKill(conversationId: conversationId) else {
             return
@@ -66,7 +66,7 @@ extension DefaultAgentRuntime {
         removedPendingSubscribers?.values.forEach { $0.finish() }
         statusSubscribers.removeValue(forKey: conversationId)?.values.forEach { $0.finish() }
         removedState?.outputPumps.forEach { $0.cancel() }
-        removedState?.providerEventTasks.forEach { $0.cancel() }
+        removedState?.harnessEventTasks.forEach { $0.cancel() }
         // Remove visible state before teardown awaits so input and status cannot race with destruction.
         forceKill(removedState?.process)
         if let inFlight {
@@ -104,7 +104,7 @@ extension DefaultAgentRuntime {
         statusSubscribers.removeAll()
         for state in activeStates {
             state.outputPumps.forEach { $0.cancel() }
-            state.providerEventTasks.forEach { $0.cancel() }
+            state.harnessEventTasks.forEach { $0.cancel() }
             state.subscribers.values.forEach { $0.finish() }
             forceKill(state.process)
         }
@@ -116,7 +116,7 @@ extension DefaultAgentRuntime {
             await invalidateProcessResources(adapter: state.adapter, processToken: state.processToken)
         }
         for adapter in adapters.values {
-            await adapter.shutdownProviderResources()
+            await adapter.shutdownHarnessResources()
         }
         await hostToolServer?.shutdown()
         sensitiveValuesByProcessToken.removeAll()
@@ -148,11 +148,11 @@ extension DefaultAgentRuntime {
         }
         process.interrupt()
         process.terminate()
-        // SIGINT/SIGTERM are advisory; SIGKILL makes `kill` reliable for providers that trap softer signals.
+        // SIGINT/SIGTERM are advisory; SIGKILL makes `kill` reliable for harnesses that trap softer signals.
         Darwin.kill(process.processIdentifier, SIGKILL)
     }
 
-    func invalidateProcessResources(adapter: any AgentProviderAdapter, processToken: UUID) async {
+    func invalidateProcessResources(adapter: any AgentHarnessAdapter, processToken: UUID) async {
         await hostToolServer?.invalidate(processToken: processToken)
         await adapter.processDidTerminate(processToken: processToken)
         sensitiveValuesByProcessToken[processToken] = nil

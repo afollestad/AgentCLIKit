@@ -1,6 +1,6 @@
 import Foundation
 
-/// Provider-neutral lifecycle phase for a spawned sub-agent.
+/// Harness-neutral lifecycle phase for a spawned sub-agent.
 public enum AgentSubAgentPhase: String, Codable, Hashable, Sendable {
     /// Sub-agent work started.
     case started
@@ -10,9 +10,9 @@ public enum AgentSubAgentPhase: String, Codable, Hashable, Sendable {
     case terminal
 }
 
-/// Provider-neutral sub-agent lifecycle event.
+/// Harness-neutral sub-agent lifecycle event.
 public struct AgentSubAgentEvent: Codable, Equatable, Sendable {
-    /// Provider-defined sub-agent or spawning tool identifier.
+    /// Harness-defined sub-agent or spawning tool identifier.
     public let id: String
     /// Sub-agent lifecycle phase.
     public let phase: AgentSubAgentPhase
@@ -20,13 +20,13 @@ public struct AgentSubAgentEvent: Codable, Equatable, Sendable {
     public let description: String?
     /// Prompt given to the sub-agent when known.
     public let prompt: String?
-    /// Provider-defined sub-agent type when known.
+    /// Harness-defined sub-agent type when known.
     public let agentType: String?
-    /// Original provider input used to spawn or describe the sub-agent.
+    /// Original harness input used to spawn or describe the sub-agent.
     public let input: JSONValue?
-    /// Last tool name reported by the provider for this sub-agent.
+    /// Last tool name reported by the harness for this sub-agent.
     public let lastToolName: String?
-    /// Provider status when known.
+    /// Harness status when known.
     public let status: String?
     /// Terminal result text when known.
     public let result: String?
@@ -36,15 +36,15 @@ public struct AgentSubAgentEvent: Codable, Equatable, Sendable {
     public let totalTokens: Int?
     /// Sub-agent duration in milliseconds.
     public let durationMs: Int?
-    /// Parent provider tool-use identifier when known.
+    /// Parent harness tool-use identifier when known.
     public let parentToolUseId: String?
-    /// Caller agent identifier when reported by the provider.
+    /// Caller agent identifier when reported by the harness.
     public let callerAgent: String?
-    /// Parent provider session identifier when known.
+    /// Parent harness session identifier when known.
     public let parentSessionId: String?
-    /// Child provider session identifiers when known.
+    /// Child harness session identifiers when known.
     public let childSessionIds: [String]
-    /// Provider-specific sub-agent metadata.
+    /// Harness-specific sub-agent metadata.
     public let metadata: [String: JSONValue]
 
     /// Creates a sub-agent lifecycle event.

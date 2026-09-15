@@ -5,7 +5,7 @@ import XCTest
 final class AgentOneShotPromptRunnerTests: XCTestCase {
     func testCodexOneShotUsesEphemeralReadOnlyExec() async throws {
         let request = AgentOneShotPromptRequest(
-            providerId: .codex,
+            harnessId: .codex,
             workingDirectory: Self.workingDirectory,
             prompt: "Say CODEX-OK",
             environment: ["AGENT_TEST": "1"],
@@ -41,7 +41,7 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
 
     func testClaudeOneShotUsesSafeModeNoPersistenceAndReadOnlyTools() async throws {
         let request = AgentOneShotPromptRequest(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: Self.workingDirectory,
             prompt: "Say CLAUDE-OK",
             arguments: ["--append-system-prompt", "Use terse output"],
@@ -74,7 +74,7 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
 
     func testClaudeOneShotNormalizesUnavailableModelFailure() async throws {
         let request = AgentOneShotPromptRequest(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: Self.workingDirectory,
             prompt: "Say hello",
             model: "fable"
@@ -92,8 +92,8 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
         do {
             _ = try await runner.generate(request)
             XCTFail("Expected unavailable model error")
-        } catch AgentOneShotPromptError.unavailableModel(let providerId, let message) {
-            XCTAssertEqual(providerId, .claude)
+        } catch AgentOneShotPromptError.unavailableModel(let harnessId, let message) {
+            XCTAssertEqual(harnessId, .claude)
             XCTAssertTrue(message.contains("currently unavailable"))
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -102,7 +102,7 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
 
     func testOneShotRejectsApprovalRequests() async throws {
         let request = AgentOneShotPromptRequest(
-            providerId: .codex,
+            harnessId: .codex,
             workingDirectory: Self.workingDirectory,
             prompt: "Edit a file"
         )
@@ -115,8 +115,8 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
         do {
             _ = try await runner.generate(request)
             XCTFail("Expected approval error")
-        } catch AgentOneShotPromptError.approvalRequired(let providerId, let message) {
-            XCTAssertEqual(providerId, .codex)
+        } catch AgentOneShotPromptError.approvalRequired(let harnessId, let message) {
+            XCTAssertEqual(harnessId, .codex)
             XCTAssertTrue(message.contains("approval required"))
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -125,7 +125,7 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
 
     func testOneShotRejectsMalformedSuccessfulStdout() async throws {
         let request = AgentOneShotPromptRequest(
-            providerId: .codex,
+            harnessId: .codex,
             workingDirectory: Self.workingDirectory,
             prompt: "Say hello"
         )
@@ -138,8 +138,8 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
         do {
             _ = try await runner.generate(request)
             XCTFail("Expected malformed output error")
-        } catch AgentOneShotPromptError.malformedOutput(let providerId, _, let stdout, _) {
-            XCTAssertEqual(providerId, .codex)
+        } catch AgentOneShotPromptError.malformedOutput(let harnessId, _, let stdout, _) {
+            XCTAssertEqual(harnessId, .codex)
             XCTAssertEqual(stdout, "not-json\n")
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -149,7 +149,7 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
     func testOneShotTimeoutCancelsShellCommand() async throws {
         let runner = Self.runner(shellRunner: SuspendedShellRunner(), executablePath: "/opt/codex")
         let request = AgentOneShotPromptRequest(
-            providerId: .codex,
+            harnessId: .codex,
             workingDirectory: Self.workingDirectory,
             prompt: "Say hello",
             timeout: 0.001
@@ -158,8 +158,8 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
         do {
             _ = try await runner.generate(request)
             XCTFail("Expected timeout")
-        } catch AgentOneShotPromptError.timedOut(let providerId, _) {
-            XCTAssertEqual(providerId, .codex)
+        } catch AgentOneShotPromptError.timedOut(let harnessId, _) {
+            XCTAssertEqual(harnessId, .codex)
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -168,7 +168,7 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
     func testOneShotNormalizesCancellation() async throws {
         let runner = Self.runner(shellRunner: CancellingShellRunner(), executablePath: "/opt/codex")
         let request = AgentOneShotPromptRequest(
-            providerId: .codex,
+            harnessId: .codex,
             workingDirectory: Self.workingDirectory,
             prompt: "Say hello"
         )
@@ -176,8 +176,8 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
         do {
             _ = try await runner.generate(request)
             XCTFail("Expected cancellation")
-        } catch AgentOneShotPromptError.cancelled(let providerId) {
-            XCTAssertEqual(providerId, .codex)
+        } catch AgentOneShotPromptError.cancelled(let harnessId) {
+            XCTAssertEqual(harnessId, .codex)
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
@@ -231,11 +231,11 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
         let resolver = RecordingExecutableResolver(path: executablePath)
         return DefaultAgentOneShotPromptRunner(
             adapters: [
-                ClaudeProviderAdapter(configuration: ClaudeProviderAdapter.Configuration(
+                ClaudeHarnessAdapter(configuration: ClaudeHarnessAdapter.Configuration(
                     enableHooks: false,
                     executableResolver: resolver
                 )),
-                CodexProviderAdapter(configuration: CodexProviderAdapter.Configuration(
+                CodexHarnessAdapter(configuration: CodexHarnessAdapter.Configuration(
                     executableResolver: resolver
                 ))
             ],

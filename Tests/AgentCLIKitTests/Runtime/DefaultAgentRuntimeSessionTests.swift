@@ -3,102 +3,102 @@ import XCTest
 @testable import AgentCLIKit
 
 final class DefaultAgentRuntimeSessionTests: XCTestCase {
-    func testRuntimePersistsProviderSessionDiscoveredFromEvents() async throws {
+    func testRuntimePersistsHarnessSessionDiscoveredFromEvents() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let workingDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("printf 'session:provider-session\\n'"))],
+            adapters: [SessionReportingHarnessAdapter(command: shell("printf 'session:harness-session\\n'"))],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig(workingDirectory: workingDirectory))
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "provider-session")
-        XCTAssertEqual(persisted?.providerSessionId, "provider-session")
+        XCTAssertEqual(status?.harnessSessionId, "harness-session")
+        XCTAssertEqual(persisted?.harnessSessionId, "harness-session")
         XCTAssertEqual(persisted?.workingDirectory?.path, AgentPathHelpers.canonicalPath(workingDirectory))
         XCTAssertEqual(persisted?.generation, status?.generation)
     }
 
-    func testRuntimePersistsProviderSessionNameDiscoveredFromMetadataEvents() async throws {
+    func testRuntimePersistsHarnessSessionNameDiscoveredFromMetadataEvents() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("printf 'metadata:provider-session:Generated Name\\n'"))],
+            adapters: [SessionReportingHarnessAdapter(command: shell("printf 'metadata:harness-session:Generated Name\\n'"))],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "provider-session")
-        XCTAssertEqual(status?.providerSessionName, "Generated Name")
-        XCTAssertEqual(persisted?.providerSessionId, "provider-session")
-        XCTAssertEqual(persisted?.providerSessionName, "Generated Name")
+        XCTAssertEqual(status?.harnessSessionId, "harness-session")
+        XCTAssertEqual(status?.harnessSessionName, "Generated Name")
+        XCTAssertEqual(persisted?.harnessSessionId, "harness-session")
+        XCTAssertEqual(persisted?.harnessSessionName, "Generated Name")
         XCTAssertEqual(persisted?.metadata, ["source": .string("runtime")])
     }
 
-    func testRuntimePersistsProviderSessionPreviewDiscoveredFromMetadataEvents() async throws {
+    func testRuntimePersistsHarnessSessionPreviewDiscoveredFromMetadataEvents() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("printf 'metadata:provider-session::Generated Preview\\n'"))],
+            adapters: [SessionReportingHarnessAdapter(command: shell("printf 'metadata:harness-session::Generated Preview\\n'"))],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "provider-session")
-        XCTAssertNil(status?.providerSessionName)
-        XCTAssertEqual(status?.providerSessionPreview, "Generated Preview")
-        XCTAssertEqual(persisted?.providerSessionId, "provider-session")
-        XCTAssertNil(persisted?.providerSessionName)
-        XCTAssertEqual(persisted?.providerSessionPreview, "Generated Preview")
+        XCTAssertEqual(status?.harnessSessionId, "harness-session")
+        XCTAssertNil(status?.harnessSessionName)
+        XCTAssertEqual(status?.harnessSessionPreview, "Generated Preview")
+        XCTAssertEqual(persisted?.harnessSessionId, "harness-session")
+        XCTAssertNil(persisted?.harnessSessionName)
+        XCTAssertEqual(persisted?.harnessSessionPreview, "Generated Preview")
         XCTAssertEqual(persisted?.metadata, ["source": .string("runtime")])
     }
 
-    func testRuntimeUsesInitialPromptPreviewAndPersistsWhenProviderSessionIdIsDiscovered() async throws {
+    func testRuntimeUsesInitialPromptPreviewAndPersistsWhenHarnessSessionIdIsDiscovered() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("printf 'session:provider-session\\n'"))],
+            adapters: [SessionReportingHarnessAdapter(command: shell("printf 'session:harness-session\\n'"))],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
 
         try await runtime.spawn(
             conversationId: conversationId,
-            config: spawnConfig(initialPrompt: "Implement the provider session preview bridge")
+            config: spawnConfig(initialPrompt: "Implement the harness session preview bridge")
         )
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
         let events = await Self.collect(subscription.events, limit: (status?.lastEventIndex ?? -1) + 1)
         let metadata = events.compactMap(\.event.runtimeSessionMetadataEvent)
 
-        XCTAssertEqual(metadata.first?.providerSessionId, nil)
-        XCTAssertEqual(metadata.first?.preview, "Implement the provider session preview bridge")
-        XCTAssertEqual(metadata.last?.providerSessionId, "provider-session")
-        XCTAssertEqual(metadata.last?.preview, "Implement the provider session preview bridge")
-        XCTAssertEqual(status?.providerSessionId, "provider-session")
-        XCTAssertEqual(status?.providerSessionPreview, "Implement the provider session preview bridge")
-        XCTAssertEqual(persisted?.providerSessionId, "provider-session")
-        XCTAssertEqual(persisted?.providerSessionPreview, "Implement the provider session preview bridge")
+        XCTAssertEqual(metadata.first?.harnessSessionId, nil)
+        XCTAssertEqual(metadata.first?.preview, "Implement the harness session preview bridge")
+        XCTAssertEqual(metadata.last?.harnessSessionId, "harness-session")
+        XCTAssertEqual(metadata.last?.preview, "Implement the harness session preview bridge")
+        XCTAssertEqual(status?.harnessSessionId, "harness-session")
+        XCTAssertEqual(status?.harnessSessionPreview, "Implement the harness session preview bridge")
+        XCTAssertEqual(persisted?.harnessSessionId, "harness-session")
+        XCTAssertEqual(persisted?.harnessSessionPreview, "Implement the harness session preview bridge")
     }
 
     func testRuntimeSessionMetadataSnapshotsKeepNameAuthoritativeOverPreview() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("""
-            printf 'metadata:provider-session::Generated Preview\\n'
-            printf 'metadata:provider-session:Generated Name:\\n'
-            printf 'metadata:provider-session::Updated Preview\\n'
+            adapters: [SessionReportingHarnessAdapter(command: shell("""
+            printf 'metadata:harness-session::Generated Preview\\n'
+            printf 'metadata:harness-session:Generated Name:\\n'
+            printf 'metadata:harness-session::Updated Preview\\n'
             """))],
             sessionStore: sessionStore
         )
@@ -106,26 +106,26 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
         let metadata = await Self.collect(subscription.events, limit: (status?.lastEventIndex ?? -1) + 1)
             .compactMap(\.event.runtimeSessionMetadataEvent)
 
         XCTAssertEqual(metadata.map(\.name), [nil, "Generated Name", "Generated Name"])
         XCTAssertEqual(metadata.map(\.preview), ["Generated Preview", "Generated Preview", "Updated Preview"])
-        XCTAssertEqual(status?.providerSessionName, "Generated Name")
-        XCTAssertEqual(status?.providerSessionPreview, "Updated Preview")
-        XCTAssertEqual(persisted?.providerSessionName, "Generated Name")
-        XCTAssertEqual(persisted?.providerSessionPreview, "Updated Preview")
+        XCTAssertEqual(status?.harnessSessionName, "Generated Name")
+        XCTAssertEqual(status?.harnessSessionPreview, "Updated Preview")
+        XCTAssertEqual(persisted?.harnessSessionName, "Generated Name")
+        XCTAssertEqual(persisted?.harnessSessionPreview, "Updated Preview")
     }
 
-    func testRuntimeDoesNotClearProviderSessionNameFromNilMetadata() async throws {
+    func testRuntimeDoesNotClearHarnessSessionNameFromNilMetadata() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("""
-            printf 'metadata:provider-session:Generated Name\\n'
-            printf 'metadata:provider-session:\\n'
-            printf 'metadata:provider-session:   \\n'
+            adapters: [SessionReportingHarnessAdapter(command: shell("""
+            printf 'metadata:harness-session:Generated Name\\n'
+            printf 'metadata:harness-session:\\n'
+            printf 'metadata:harness-session:   \\n'
             """))],
             sessionStore: sessionStore
         )
@@ -133,19 +133,19 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionName, "Generated Name")
-        XCTAssertEqual(persisted?.providerSessionName, "Generated Name")
+        XCTAssertEqual(status?.harnessSessionName, "Generated Name")
+        XCTAssertEqual(persisted?.harnessSessionName, "Generated Name")
     }
 
-    func testRuntimeDoesNotClearProviderSessionPreviewFromNilMetadata() async throws {
+    func testRuntimeDoesNotClearHarnessSessionPreviewFromNilMetadata() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("""
-            printf 'metadata:provider-session::Generated Preview\\n'
-            printf 'metadata:provider-session:\\n'
-            printf 'metadata:provider-session:   :   \\n'
+            adapters: [SessionReportingHarnessAdapter(command: shell("""
+            printf 'metadata:harness-session::Generated Preview\\n'
+            printf 'metadata:harness-session:\\n'
+            printf 'metadata:harness-session:   :   \\n'
             """))],
             sessionStore: sessionStore
         )
@@ -153,61 +153,61 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionPreview, "Generated Preview")
-        XCTAssertEqual(persisted?.providerSessionPreview, "Generated Preview")
+        XCTAssertEqual(status?.harnessSessionPreview, "Generated Preview")
+        XCTAssertEqual(persisted?.harnessSessionPreview, "Generated Preview")
     }
 
-    func testRuntimeDoesNotCarryProviderSessionNameAcrossSessionChangeWithoutName() async throws {
+    func testRuntimeDoesNotCarryHarnessSessionNameAcrossSessionChangeWithoutName() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("printf 'metadata:first-session:Old Name\\nmetadata:second-session:\\n'"))],
+            adapters: [SessionReportingHarnessAdapter(command: shell("printf 'metadata:first-session:Old Name\\nmetadata:second-session:\\n'"))],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "second-session")
-        XCTAssertNil(status?.providerSessionName)
-        XCTAssertEqual(persisted?.providerSessionId, "second-session")
-        XCTAssertNil(persisted?.providerSessionName)
+        XCTAssertEqual(status?.harnessSessionId, "second-session")
+        XCTAssertNil(status?.harnessSessionName)
+        XCTAssertEqual(persisted?.harnessSessionId, "second-session")
+        XCTAssertNil(persisted?.harnessSessionName)
     }
 
-    func testRuntimeDoesNotCarryProviderSessionPreviewAcrossConcreteSessionChangeWithoutPreview() async throws {
+    func testRuntimeDoesNotCarryHarnessSessionPreviewAcrossConcreteSessionChangeWithoutPreview() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SessionReportingProviderAdapter(command: shell("printf 'metadata:first-session::Old Preview\\nmetadata:second-session:\\n'"))],
+            adapters: [SessionReportingHarnessAdapter(command: shell("printf 'metadata:first-session::Old Preview\\nmetadata:second-session:\\n'"))],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "second-session")
-        XCTAssertNil(status?.providerSessionPreview)
-        XCTAssertEqual(persisted?.providerSessionId, "second-session")
-        XCTAssertNil(persisted?.providerSessionPreview)
+        XCTAssertEqual(status?.harnessSessionId, "second-session")
+        XCTAssertNil(status?.harnessSessionPreview)
+        XCTAssertEqual(persisted?.harnessSessionId, "second-session")
+        XCTAssertNil(persisted?.harnessSessionPreview)
     }
 
-    func testRuntimeSeedsProviderSessionNameFromResumedRecord() async throws {
+    func testRuntimeSeedsHarnessSessionNameFromResumedRecord() async throws {
         let conversationId: AgentConversationID = "conversation"
         let sessionStore = InMemoryAgentSessionStore(records: [
             AgentSessionRecord(
                 conversationId: conversationId,
-                providerId: .claude,
-                providerSessionId: "provider-session",
-                providerSessionName: "Saved Name",
+                harnessId: .claude,
+                harnessSessionId: "harness-session",
+                harnessSessionName: "Saved Name",
                 generation: 1
             )
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedProviderAdapter(launchSequence: LaunchSequence([
+            adapters: [SequencedHarnessAdapter(launchSequence: LaunchSequence([
                 shell("printf 'message:ready\\n'")
             ]))],
             sessionStore: sessionStore
@@ -215,26 +215,26 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "provider-session")
-        XCTAssertEqual(status?.providerSessionName, "Saved Name")
-        XCTAssertEqual(persisted?.providerSessionName, "Saved Name")
+        XCTAssertEqual(status?.harnessSessionId, "harness-session")
+        XCTAssertEqual(status?.harnessSessionName, "Saved Name")
+        XCTAssertEqual(persisted?.harnessSessionName, "Saved Name")
     }
 
-    func testRuntimeSeedsProviderSessionPreviewFromResumedRecord() async throws {
+    func testRuntimeSeedsHarnessSessionPreviewFromResumedRecord() async throws {
         let conversationId: AgentConversationID = "conversation"
         let sessionStore = InMemoryAgentSessionStore(records: [
             AgentSessionRecord(
                 conversationId: conversationId,
-                providerId: .claude,
-                providerSessionId: "provider-session",
-                providerSessionPreview: "Saved Preview",
+                harnessId: .claude,
+                harnessSessionId: "harness-session",
+                harnessSessionPreview: "Saved Preview",
                 generation: 1
             )
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedProviderAdapter(launchSequence: LaunchSequence([
+            adapters: [SequencedHarnessAdapter(launchSequence: LaunchSequence([
                 shell("printf 'message:ready\\n'")
             ]))],
             sessionStore: sessionStore
@@ -242,21 +242,21 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "provider-session")
-        XCTAssertEqual(status?.providerSessionPreview, "Saved Preview")
-        XCTAssertEqual(persisted?.providerSessionPreview, "Saved Preview")
+        XCTAssertEqual(status?.harnessSessionId, "harness-session")
+        XCTAssertEqual(status?.harnessSessionPreview, "Saved Preview")
+        XCTAssertEqual(persisted?.harnessSessionPreview, "Saved Preview")
     }
 
-    func testRuntimePersistsLaunchSeededProviderSessionOnFirstEvent() async throws {
+    func testRuntimePersistsLaunchSeededHarnessSessionOnFirstEvent() async throws {
         let sessionStore = InMemoryAgentSessionStore()
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedProviderAdapter(launchSequence: LaunchSequence([
+            adapters: [SequencedHarnessAdapter(launchSequence: LaunchSequence([
                 AgentLaunchConfiguration(
                     executable: "/bin/sh",
                     arguments: ["-c", "printf 'message:ready\\n'"],
-                    providerSessionId: "seeded-session"
+                    harnessSessionId: "seeded-session"
                 )
             ]))],
             sessionStore: sessionStore
@@ -265,10 +265,10 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
 
         try await runtime.spawn(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "seeded-session")
-        XCTAssertEqual(persisted?.providerSessionId, "seeded-session")
+        XCTAssertEqual(status?.harnessSessionId, "seeded-session")
+        XCTAssertEqual(persisted?.harnessSessionId, "seeded-session")
         XCTAssertEqual(persisted?.metadata, ["source": .string("runtime")])
     }
 
@@ -279,7 +279,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             shell("printf 'message:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedSessionReportingProviderAdapter(launchSequence: launchSequence)],
+            adapters: [SequencedSessionReportingHarnessAdapter(launchSequence: launchSequence)],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
@@ -303,7 +303,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             shell("printf 'message:new\\n'")
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedSessionReportingProviderAdapter(launchSequence: launchSequence)],
+            adapters: [SequencedSessionReportingHarnessAdapter(launchSequence: launchSequence)],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
@@ -323,12 +323,12 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             }
             return diagnostic
         }
-        XCTAssertFalse(diagnostics.contains { $0.message.contains("Could not persist provider session") })
+        XCTAssertFalse(diagnostics.contains { $0.message.contains("Could not persist harness session") })
         XCTAssertFalse(diagnostics.contains { $0.code == .sessionStoreSaveFailed })
         XCTAssertTrue(events.contains { $0.event == .message(AgentMessageEvent(role: .assistant, text: "new")) })
     }
 
-    func testReconfigurePreservesCurrentProviderSessionWhenOlderSaveFinishesLast() async throws {
+    func testReconfigurePreservesCurrentHarnessSessionWhenOlderSaveFinishesLast() async throws {
         let sessionStore = OutOfOrderSessionStore(delays: [
             "old-session": 250_000_000,
             "new-session": 20_000_000
@@ -338,7 +338,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             shell("printf 'session:new-session\\n'")
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedSessionReportingProviderAdapter(launchSequence: launchSequence)],
+            adapters: [SequencedSessionReportingHarnessAdapter(launchSequence: launchSequence)],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
@@ -348,13 +348,13 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
         try await runtime.reconfigure(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
         try await Task.sleep(nanoseconds: 350_000_000)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "new-session")
-        XCTAssertEqual(persisted?.providerSessionId, "new-session")
+        XCTAssertEqual(status?.harnessSessionId, "new-session")
+        XCTAssertEqual(persisted?.harnessSessionId, "new-session")
     }
 
-    func testRuntimePreservesCurrentProviderSessionNameWhenOlderSaveFinishesLast() async throws {
+    func testRuntimePreservesCurrentHarnessSessionNameWhenOlderSaveFinishesLast() async throws {
         let sessionStore = OutOfOrderSessionStore(delays: [
             "Old Name": 250_000_000,
             "New Name": 20_000_000
@@ -364,7 +364,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             shell("printf 'metadata:same-session:New Name\\n'")
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedSessionReportingProviderAdapter(launchSequence: launchSequence)],
+            adapters: [SequencedSessionReportingHarnessAdapter(launchSequence: launchSequence)],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
@@ -374,15 +374,15 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
         try await runtime.reconfigure(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
         try await Task.sleep(nanoseconds: 350_000_000)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "same-session")
-        XCTAssertEqual(status?.providerSessionName, "New Name")
-        XCTAssertEqual(persisted?.providerSessionId, "same-session")
-        XCTAssertEqual(persisted?.providerSessionName, "New Name")
+        XCTAssertEqual(status?.harnessSessionId, "same-session")
+        XCTAssertEqual(status?.harnessSessionName, "New Name")
+        XCTAssertEqual(persisted?.harnessSessionId, "same-session")
+        XCTAssertEqual(persisted?.harnessSessionName, "New Name")
     }
 
-    func testRuntimePreservesCurrentProviderSessionPreviewWhenOlderSaveFinishesLast() async throws {
+    func testRuntimePreservesCurrentHarnessSessionPreviewWhenOlderSaveFinishesLast() async throws {
         let sessionStore = OutOfOrderSessionStore(delays: [
             "Old Preview": 250_000_000,
             "New Preview": 20_000_000
@@ -392,7 +392,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             shell("printf 'metadata:same-session::New Preview\\n'")
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedSessionReportingProviderAdapter(launchSequence: launchSequence)],
+            adapters: [SequencedSessionReportingHarnessAdapter(launchSequence: launchSequence)],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
@@ -402,15 +402,15 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
         try await runtime.reconfigure(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
         try await Task.sleep(nanoseconds: 350_000_000)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
 
-        XCTAssertEqual(status?.providerSessionId, "same-session")
-        XCTAssertEqual(status?.providerSessionPreview, "New Preview")
-        XCTAssertEqual(persisted?.providerSessionId, "same-session")
-        XCTAssertEqual(persisted?.providerSessionPreview, "New Preview")
+        XCTAssertEqual(status?.harnessSessionId, "same-session")
+        XCTAssertEqual(status?.harnessSessionPreview, "New Preview")
+        XCTAssertEqual(persisted?.harnessSessionId, "same-session")
+        XCTAssertEqual(persisted?.harnessSessionPreview, "New Preview")
     }
 
-    func testRuntimeIgnoresStaleProviderSessionNamePersistenceFailureAfterNewNameSucceeds() async throws {
+    func testRuntimeIgnoresStaleHarnessSessionNamePersistenceFailureAfterNewNameSucceeds() async throws {
         let sessionStore = SelectiveFailureOutOfOrderSessionStore(
             delays: [
                 "Old Name": 250_000_000,
@@ -423,7 +423,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             shell("printf 'metadata:same-session:New Name\\n'")
         ])
         let runtime = DefaultAgentRuntime(
-            adapters: [SequencedSessionReportingProviderAdapter(launchSequence: launchSequence)],
+            adapters: [SequencedSessionReportingHarnessAdapter(launchSequence: launchSequence)],
             sessionStore: sessionStore
         )
         let conversationId: AgentConversationID = "conversation"
@@ -433,7 +433,7 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
         try await runtime.reconfigure(conversationId: conversationId, config: spawnConfig())
         let status = await waitForExit(runtime: runtime, conversationId: conversationId)
         try await Task.sleep(nanoseconds: 350_000_000)
-        let persisted = try await sessionStore.record(conversationId: conversationId, providerId: .claude)
+        let persisted = try await sessionStore.record(conversationId: conversationId, harnessId: .claude)
         let subscription = await runtime.subscribe(conversationId: conversationId, afterIndex: nil)
         let events = await Self.collect(subscription.events, limit: (status?.lastEventIndex ?? -1) + 1)
         let diagnostics = events.compactMap { envelope -> AgentDiagnosticEvent? in
@@ -443,10 +443,10 @@ final class DefaultAgentRuntimeSessionTests: XCTestCase {
             return diagnostic
         }
 
-        XCTAssertEqual(status?.providerSessionId, "same-session")
-        XCTAssertEqual(status?.providerSessionName, "New Name")
-        XCTAssertEqual(persisted?.providerSessionId, "same-session")
-        XCTAssertEqual(persisted?.providerSessionName, "New Name")
+        XCTAssertEqual(status?.harnessSessionId, "same-session")
+        XCTAssertEqual(status?.harnessSessionName, "New Name")
+        XCTAssertEqual(persisted?.harnessSessionId, "same-session")
+        XCTAssertEqual(persisted?.harnessSessionName, "New Name")
         XCTAssertFalse(diagnostics.contains { $0.code == .sessionStoreSaveFailed })
     }
 }

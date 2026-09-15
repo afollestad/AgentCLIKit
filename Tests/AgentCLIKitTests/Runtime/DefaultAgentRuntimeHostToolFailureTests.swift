@@ -199,7 +199,7 @@ final class DefaultAgentRuntimeHostToolFailureTests: XCTestCase {
     }
 
     private static let hostToolConfig = AgentSpawnConfig(
-        providerId: .claude,
+        harnessId: .claude,
         workingDirectory: FileManager.default.temporaryDirectory,
         hostTools: [AgentHostToolDefinition(
             name: "list_tasks",
@@ -215,7 +215,7 @@ private actor DiagnosticHostToolServer: AgentHostToolServing {
 
     func register(
         conversationId: AgentConversationID,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         processToken: UUID,
         server: AgentHostToolServerMetadata,
         tools: [AgentHostToolDefinition]
@@ -253,10 +253,10 @@ private actor DiagnosticHostToolServer: AgentHostToolServing {
     }
 }
 
-private struct DiagnosticHostToolAdapter: AgentProviderAdapter {
+private struct DiagnosticHostToolAdapter: AgentHarnessAdapter {
     let command: AgentLaunchConfiguration
     let launchGate: DiagnosticHostToolLaunchGate?
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Diagnostic", executableNames: ["diagnostic"])
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Diagnostic", executableNames: ["diagnostic"])
 
     init(
         command: AgentLaunchConfiguration,
@@ -273,7 +273,7 @@ private struct DiagnosticHostToolAdapter: AgentProviderAdapter {
         command
     }
 
-    func makeLaunchConfiguration(context: AgentProviderLaunchContext) async throws -> AgentLaunchConfiguration {
+    func makeLaunchConfiguration(context: AgentHarnessLaunchContext) async throws -> AgentLaunchConfiguration {
         await launchGate?.suspend()
         return command
     }

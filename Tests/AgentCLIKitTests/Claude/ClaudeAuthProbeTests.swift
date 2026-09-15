@@ -59,7 +59,7 @@ final class ClaudeAuthProbeTests: XCTestCase {
         let readiness = await probe.readiness()
 
         XCTAssertEqual(readiness.state, .signedOut)
-        XCTAssertFalse(readiness.allowsProviderWork)
+        XCTAssertFalse(readiness.allowsHarnessWork)
         XCTAssertEqual(readiness.diagnostics.count, 1)
         XCTAssertTrue(readiness.diagnostics[0].contains("claude auth login"))
     }
@@ -71,7 +71,7 @@ final class ClaudeAuthProbeTests: XCTestCase {
         let readiness = await probe.readiness()
 
         XCTAssertEqual(readiness.state, .unknown)
-        XCTAssertTrue(readiness.allowsProviderWork)
+        XCTAssertTrue(readiness.allowsHarnessWork)
         XCTAssertEqual(readiness.diagnostics, ["Checking the Claude sign-in state failed: boom"])
     }
 
@@ -81,7 +81,7 @@ final class ClaudeAuthProbeTests: XCTestCase {
         let readiness = await probe.readiness()
 
         XCTAssertEqual(readiness.state, .unknown)
-        XCTAssertTrue(readiness.allowsProviderWork)
+        XCTAssertTrue(readiness.allowsHarnessWork)
     }
 
     func testAbsentLoggedInKeyReportsUnknownRatherThanSignedOut() async {
@@ -91,7 +91,7 @@ final class ClaudeAuthProbeTests: XCTestCase {
         let readiness = await probe.readiness()
 
         XCTAssertEqual(readiness.state, .unknown)
-        XCTAssertTrue(readiness.allowsProviderWork)
+        XCTAssertTrue(readiness.allowsHarnessWork)
     }
 
     func testUndecodableOutputReportsUnknown() async {
@@ -123,7 +123,7 @@ final class ClaudeAuthProbeTests: XCTestCase {
         let readiness = await probe.readiness()
 
         XCTAssertEqual(readiness.state, .unknown)
-        XCTAssertTrue(readiness.allowsProviderWork)
+        XCTAssertTrue(readiness.allowsHarnessWork)
     }
 
     func testProbeTimesOutIntoUnknown() async {
@@ -137,7 +137,7 @@ final class ClaudeAuthProbeTests: XCTestCase {
         let readiness = await probe.readiness()
 
         XCTAssertEqual(readiness.state, .unknown)
-        XCTAssertTrue(readiness.allowsProviderWork)
+        XCTAssertTrue(readiness.allowsHarnessWork)
     }
 }
 

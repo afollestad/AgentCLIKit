@@ -144,8 +144,8 @@ public actor ClaudeHookCoordinator {
     }
 
     /// Returns compact hook runtime events for one launch.
-    public func runtimeEvents(context: AgentProviderRuntimeContext) -> AsyncStream<AgentProviderRuntimeEvent> {
-        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+    public func runtimeEvents(context: AgentHarnessRuntimeContext) -> AsyncStream<AgentHarnessRuntimeEvent> {
+        let stream = AsyncStream<AgentHarnessRuntimeEvent>.makeStream()
         Task {
             await server.registerCompactRuntimeEvents(processToken: context.processToken, continuation: stream.continuation)
         }
@@ -181,7 +181,7 @@ public actor ClaudeHookCoordinator {
         for token in tokens {
             await server.invalidateToken(token)
         }
-        // Generated hook settings are scoped to one provider launch and should not survive process teardown.
+        // Generated hook settings are scoped to one harness launch and should not survive process teardown.
         settingsURLs.forEach { removeSettingsFile(at: $0) }
         if let pendingListenerStart {
             await pendingListenerStart.listener.stop()

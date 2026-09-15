@@ -44,7 +44,7 @@ extension CodexAppServerClient {
         _ request: CodexAppServerRequest,
         threadId: String,
         conversationId: AgentConversationID,
-        continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation
+        continuation: AsyncStream<AgentHarnessRuntimeEvent>.Continuation
     ) async {
         await sendServerErrorResponse(
             request,
@@ -52,7 +52,7 @@ extension CodexAppServerClient {
             message: "Codex App Server request '\(request.method)' is not supported by AgentCLIKit.",
             conversationId: conversationId
         )
-        continuation.yield(AgentProviderRuntimeEvent(event: .diagnostic(AgentDiagnosticEvent(
+        continuation.yield(AgentHarnessRuntimeEvent(event: .diagnostic(AgentDiagnosticEvent(
             code: .codexAppServerResponseFailure,
             severity: .warning,
             message: "Codex App Server request '\(request.method)' is not supported by AgentCLIKit.",
@@ -63,7 +63,7 @@ extension CodexAppServerClient {
         ))))
     }
 
-    func resolveInteraction(_ resolution: AgentInteractionResolution, context: AgentProviderInputContext) async throws {
+    func resolveInteraction(_ resolution: AgentInteractionResolution, context: AgentHarnessInputContext) async throws {
         guard let pending = pendingServerRequests.removeValue(forKey: resolution.id) else {
             return
         }
@@ -121,7 +121,7 @@ extension CodexAppServerClient {
         }
         let toolInput = JSONValue.object(mapped.pending.params)
         let request = AgentSessionApprovalRequest(
-            providerId: CodexProviderAdapter.providerId,
+            harnessId: CodexHarnessAdapter.harnessId,
             conversationId: mapped.pending.conversationId,
             sessionId: mapped.pending.threadId,
             toolName: "Bash",

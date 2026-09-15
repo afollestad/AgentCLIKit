@@ -20,7 +20,7 @@ actor ClaudeContextCompactionTracker {
 
     private var states: [UUID: State] = [:]
 
-    func normalize(_ events: [AgentEvent], context: AgentProviderOutputContext) -> [AgentEvent] {
+    func normalize(_ events: [AgentEvent], context: AgentHarnessOutputContext) -> [AgentEvent] {
         events.flatMap { event -> [AgentEvent] in
             guard case let .contextCompaction(compaction) = event else {
                 return [event]
@@ -34,7 +34,7 @@ actor ClaudeContextCompactionTracker {
         conversationId: AgentConversationID,
         processToken: UUID,
         payload: JSONValue
-    ) -> [AgentProviderRuntimeEvent] {
+    ) -> [AgentHarnessRuntimeEvent] {
         guard let phase = AgentContextCompactionPhase(claudeHookName: hookName, payload: payload) else {
             return []
         }
@@ -68,7 +68,7 @@ actor ClaudeContextCompactionTracker {
             )
         )
         return normalize(compaction, processToken: processToken).map {
-            AgentProviderRuntimeEvent(event: .contextCompaction($0), source: .hook)
+            AgentHarnessRuntimeEvent(event: .contextCompaction($0), source: .hook)
         }
     }
 

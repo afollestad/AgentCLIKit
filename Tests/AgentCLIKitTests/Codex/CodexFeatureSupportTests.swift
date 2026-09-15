@@ -50,7 +50,7 @@ final class CodexFeatureSupportTests: XCTestCase {
             ))
         ])
         let checker = DefaultCodexFeatureSupportChecker(shellRunner: shellRunner)
-        let configuration = CodexProviderAdapter.Configuration(
+        let configuration = CodexHarnessAdapter.Configuration(
             codexHomeDirectory: codexHome,
             environment: ["CODEX_TEST": "1"],
             featureSupportChecker: checker,
@@ -59,15 +59,15 @@ final class CodexFeatureSupportTests: XCTestCase {
 
         let supportsFastMode = await checker.supportsFastMode(
             configuration: configuration,
-            availability: AgentProviderAvailability(
-                providerId: .codex,
+            availability: AgentHarnessAvailability(
+                harnessId: .codex,
                 executablePath: "/opt/homebrew/bin/codex"
             )
         )
         let supportsGoalMode = await checker.supportsGoalMode(
             configuration: configuration,
-            availability: AgentProviderAvailability(
-                providerId: .codex,
+            availability: AgentHarnessAvailability(
+                harnessId: .codex,
                 executablePath: "/opt/homebrew/bin/codex"
             )
         )
@@ -86,7 +86,7 @@ final class CodexFeatureSupportTests: XCTestCase {
             featuresCommand: .success(ShellCommandResult(exitCode: 0, stdout: "fast_mode stable true\ngoals stable true\n", stderr: ""))
         ])
         let checker = DefaultCodexFeatureSupportChecker(shellRunner: shellRunner, cacheTimeToLive: 60)
-        let configuration = CodexProviderAdapter.Configuration(
+        let configuration = CodexHarnessAdapter.Configuration(
             executablePath: "/opt/homebrew/bin/codex",
             featureSupportChecker: checker
         )
@@ -112,11 +112,11 @@ final class CodexFeatureSupportTests: XCTestCase {
             secondFeaturesCommand: .success(ShellCommandResult(exitCode: 0, stdout: "fast_mode stable true\n", stderr: ""))
         ])
         let checker = DefaultCodexFeatureSupportChecker(shellRunner: shellRunner, cacheTimeToLive: 60)
-        let firstConfiguration = CodexProviderAdapter.Configuration(
+        let firstConfiguration = CodexHarnessAdapter.Configuration(
             executablePath: "/opt/codex-a",
             featureSupportChecker: checker
         )
-        let secondConfiguration = CodexProviderAdapter.Configuration(
+        let secondConfiguration = CodexHarnessAdapter.Configuration(
             executablePath: "/opt/codex-b",
             featureSupportChecker: checker
         )
@@ -145,7 +145,7 @@ final class CodexFeatureSupportTests: XCTestCase {
             ShellCommandResult(exitCode: 0, stdout: "fast_mode stable true\n", stderr: "")
         ])
         let checker = DefaultCodexFeatureSupportChecker(shellRunner: shellRunner, cacheTimeToLive: 60)
-        let configuration = CodexProviderAdapter.Configuration(
+        let configuration = CodexHarnessAdapter.Configuration(
             executablePath: "/opt/homebrew/bin/codex",
             featureSupportChecker: checker
         )
@@ -169,7 +169,7 @@ final class CodexFeatureSupportTests: XCTestCase {
             shellRunner: SlowShellRunner(),
             cacheTimeToLive: 60
         )
-        let configuration = CodexProviderAdapter.Configuration(
+        let configuration = CodexHarnessAdapter.Configuration(
             executablePath: "/opt/homebrew/bin/codex",
             probeTimeout: 0.001,
             featureSupportChecker: checker
@@ -180,18 +180,18 @@ final class CodexFeatureSupportTests: XCTestCase {
         XCTAssertFalse(supportsFastMode)
     }
 
-    func testCodexProviderCapabilitySourceOverlaysSpeedSupportOnlyForCodex() async {
+    func testCodexHarnessCapabilitySourceOverlaysSpeedSupportOnlyForCodex() async {
         let checker = FixedCodexFeatureSupportChecker(supportsFastMode: true, supportsGoalMode: true)
-        let configuration = CodexProviderAdapter.Configuration(featureSupportChecker: checker)
-        let source = CodexProviderCapabilitySource(configuration: configuration)
+        let configuration = CodexHarnessAdapter.Configuration(featureSupportChecker: checker)
+        let source = CodexHarnessCapabilitySource(configuration: configuration)
 
         let codexCapabilities = await source.capabilities(
-            for: CodexProviderDefinition.definition,
-            availability: AgentProviderAvailability(providerId: .codex, executablePath: "/usr/bin/codex")
+            for: CodexHarnessDefinition.definition,
+            availability: AgentHarnessAvailability(harnessId: .codex, executablePath: "/usr/bin/codex")
         )
         let claudeCapabilities = await source.capabilities(
-            for: ClaudeProviderDefinition.definition,
-            availability: AgentProviderAvailability(providerId: .claude, executablePath: "/usr/bin/claude")
+            for: ClaudeHarnessDefinition.definition,
+            availability: AgentHarnessAvailability(harnessId: .claude, executablePath: "/usr/bin/claude")
         )
 
         XCTAssertTrue(codexCapabilities.supportsSpeedMode)
@@ -201,14 +201,14 @@ final class CodexFeatureSupportTests: XCTestCase {
         XCTAssertFalse(claudeCapabilities.supportsSpeedMode)
     }
 
-    func testCodexProviderCapabilitySourceDisablesGoalModeWhenFeatureProbeDoesNotSupportIt() async {
+    func testCodexHarnessCapabilitySourceDisablesGoalModeWhenFeatureProbeDoesNotSupportIt() async {
         let checker = FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: false)
-        let configuration = CodexProviderAdapter.Configuration(featureSupportChecker: checker)
-        let source = CodexProviderCapabilitySource(configuration: configuration)
+        let configuration = CodexHarnessAdapter.Configuration(featureSupportChecker: checker)
+        let source = CodexHarnessCapabilitySource(configuration: configuration)
 
         let capabilities = await source.capabilities(
-            for: CodexProviderDefinition.definition,
-            availability: AgentProviderAvailability(providerId: .codex, executablePath: "/usr/bin/codex")
+            for: CodexHarnessDefinition.definition,
+            availability: AgentHarnessAvailability(harnessId: .codex, executablePath: "/usr/bin/codex")
         )
 
         XCTAssertFalse(capabilities.supportsGoalMode)

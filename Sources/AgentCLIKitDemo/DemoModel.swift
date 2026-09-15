@@ -7,16 +7,16 @@ final class DemoModel: ObservableObject {
     @Published var selectedSessionID: AgentConversationID?
     @Published var rowsBySession: [AgentConversationID: [DemoChatRow]] = [:]
     @Published var turnStates: [AgentConversationID: DemoTurnState] = [:]
-    @Published var providerStatuses: [AgentProviderID: AgentProviderStatus] = [:]
-    @Published var providerOrdering: [AgentProviderID] = AgentProviderID.allCases
-    @Published var providerSelectionBySession: [AgentConversationID: AgentProviderID] = [:]
+    @Published var harnessStatuses: [AgentHarnessID: AgentHarnessStatus] = [:]
+    @Published var harnessOrdering: [AgentHarnessID] = AgentHarnessID.allCases
+    @Published var harnessSelectionBySession: [AgentConversationID: AgentHarnessID] = [:]
     @Published var modelSelectionBySession: [AgentConversationID: String] = [:]
     @Published var effortSelectionBySession: [AgentConversationID: String] = [:]
     @Published var speedSelectionBySession: [AgentConversationID: AgentSpeedMode] = [:]
 
     private let sessionStore: JSONFileAgentSessionStore
     private let runtime: DefaultAgentRuntime
-    private let providerDiscovery: DefaultAgentProviderDiscoveryService
+    private let harnessDiscovery: DefaultAgentHarnessDiscoveryService
     private let projectTrustService: DefaultAgentProjectTrustService
     let hookDecisionProvider: DemoHookDecisionProvider
     private let workingDirectory: URL
@@ -28,28 +28,28 @@ final class DemoModel: ObservableObject {
     init() {
         let store = JSONFileAgentSessionStore(fileURL: Self.sessionStoreURL())
         let hookDecisionProvider = DemoHookDecisionProvider()
-        let providerSetups: [any AgentProviderSetup] = [
-            ClaudeProviderSetup(configStore: ClaudeConfigStore()),
-            CodexProviderSetup()
+        let harnessSetups: [any AgentHarnessSetup] = [
+            ClaudeHarnessSetup(configStore: ClaudeConfigStore()),
+            CodexHarnessSetup()
         ]
         let codexFeatureSupportChecker = DefaultCodexFeatureSupportChecker()
-        let codexConfiguration = CodexProviderAdapter.Configuration(featureSupportChecker: codexFeatureSupportChecker)
-        let projectTrustService = DefaultAgentProjectTrustService(setups: providerSetups)
+        let codexConfiguration = CodexHarnessAdapter.Configuration(featureSupportChecker: codexFeatureSupportChecker)
+        let projectTrustService = DefaultAgentProjectTrustService(setups: harnessSetups)
         self.sessionStore = store
         self.hookDecisionProvider = hookDecisionProvider
         self.projectTrustService = projectTrustService
-        self.providerDiscovery = DefaultAgentProviderDiscoveryService(
+        self.harnessDiscovery = DefaultAgentHarnessDiscoveryService(
             projectTrustService: projectTrustService,
-            providerSetups: providerSetups,
+            harnessSetups: harnessSetups,
             modelOptionSource: DefaultAgentModelOptionSource(
                 codexSource: CodexAppServerModelOptionSource(configuration: codexConfiguration)
             ),
-            capabilitySource: DefaultAgentProviderCapabilitySource(
-                codexSource: CodexProviderCapabilitySource(configuration: codexConfiguration)
+            capabilitySource: DefaultAgentHarnessCapabilitySource(
+                codexSource: CodexHarnessCapabilitySource(configuration: codexConfiguration)
             )
         )
-        let adapterSet = AgentProviderAdapterSet.default(
-            claude: ClaudeProviderAdapter.Configuration(
+        let adapterSet = AgentHarnessAdapterSet.default(
+            claude: ClaudeHarnessAdapter.Configuration(
                 hookDecisionProvider: hookDecisionProvider,
                 hookDecisionTimeout: 595
             ),
@@ -63,7 +63,7 @@ final class DemoModel: ObservableObject {
         hookDecisionProvider.bind(model: self)
         Task {
             await loadSessions()
-            await refreshProviderStatuses()
+            await refreshHarnessStatuses()
         }
     }
 
@@ -95,7 +95,7 @@ final class DemoModel: ObservableObject {
                 DemoSession(id: record.conversationId, record: record, createdAt: record.createdAt)
             }
             for record in records {
-                providerSelectionBySession[record.conversationId] = record.providerId
+                harnessSelectionBySession[record.conversationId] = record.harnessId
             }
             if sessions.isEmpty {
                 addSession()
@@ -118,96 +118,96 @@ final class DemoModel: ObservableObject {
         sessions.append(session)
         rowsBySession[id] = []
         turnStates[id] = DemoTurnState()
-        let providerId = defaultProviderId()
-        let modelOptionID = defaultModelOptionID(providerId: providerId)
-        providerSelectionBySession[id] = providerId
+        let harnessId = defaultHarnessId()
+        let modelOptionID = defaultModelOptionID(harnessId: harnessId)
+        harnessSelectionBySession[id] = harnessId
         modelSelectionBySession[id] = modelOptionID
-        effortSelectionBySession[id] = defaultEffortOptionValue(providerId: providerId, modelOptionID: modelOptionID)
+        effortSelectionBySession[id] = defaultEffortOptionValue(harnessId: harnessId, modelOptionID: modelOptionID)
         speedSelectionBySession[id] = .standard
         selectedSessionID = id
     }
 
-    func refreshProviderStatuses() async {
-        let statuses = await providerDiscovery.providerStatuses(projectURL: workingDirectory)
-        providerStatuses = statuses
-        providerOrdering = await providerDiscovery.stableProviderOrdering()
-        let fallbackProviderId = defaultProviderId()
+    func refreshHarnessStatuses() async {
+        let statuses = await harnessDiscovery.harnessStatuses(projectURL: workingDirectory)
+        harnessStatuses = statuses
+        harnessOrdering = await harnessDiscovery.stableHarnessOrdering()
+        let fallbackHarnessId = defaultHarnessId()
         for session in sessions where session.record == nil && !spawnedSessionIDs.contains(session.id) {
             let hasRows = rowsBySession[session.id]?.isEmpty == false
             guard !hasRows else {
                 continue
             }
-            let selectedProviderId = providerSelectionBySession[session.id]
-            if selectedProviderId == nil || providerStatuses[selectedProviderId ?? fallbackProviderId]?.isReadyInProject != true {
-                providerSelectionBySession[session.id] = fallbackProviderId
-                let modelOptionID = defaultModelOptionID(providerId: fallbackProviderId)
+            let selectedHarnessId = harnessSelectionBySession[session.id]
+            if selectedHarnessId == nil || harnessStatuses[selectedHarnessId ?? fallbackHarnessId]?.isReadyInProject != true {
+                harnessSelectionBySession[session.id] = fallbackHarnessId
+                let modelOptionID = defaultModelOptionID(harnessId: fallbackHarnessId)
                 modelSelectionBySession[session.id] = modelOptionID
-                effortSelectionBySession[session.id] = defaultEffortOptionValue(providerId: fallbackProviderId, modelOptionID: modelOptionID)
+                effortSelectionBySession[session.id] = defaultEffortOptionValue(harnessId: fallbackHarnessId, modelOptionID: modelOptionID)
                 speedSelectionBySession[session.id] = .standard
             } else {
-                normalizeModelAndEffortSelection(for: session.id, providerId: selectedProviderId ?? fallbackProviderId)
+                normalizeModelAndEffortSelection(for: session.id, harnessId: selectedHarnessId ?? fallbackHarnessId)
             }
         }
     }
 
-    func providerId(for sessionID: AgentConversationID) -> AgentProviderID {
+    func harnessId(for sessionID: AgentConversationID) -> AgentHarnessID {
         if let record = sessions.first(where: { $0.id == sessionID })?.record {
-            return record.providerId
+            return record.harnessId
         }
-        return providerSelectionBySession[sessionID] ?? defaultProviderId()
+        return harnessSelectionBySession[sessionID] ?? defaultHarnessId()
     }
 
     func selectedModelOptionID(for sessionID: AgentConversationID) -> String {
-        let providerId = providerId(for: sessionID)
-        let options = modelOptions(for: providerId)
+        let harnessId = harnessId(for: sessionID)
+        let options = modelOptions(for: harnessId)
         if let selected = modelSelectionBySession[sessionID],
            options.contains(where: { $0.id == selected }) {
             return selected
         }
-        return defaultModelOptionID(providerId: providerId)
+        return defaultModelOptionID(harnessId: harnessId)
     }
 
-    func effortOptions(for sessionID: AgentConversationID) -> [AgentProviderOption] {
-        let providerId = providerId(for: sessionID)
-        return selectedModelOption(for: sessionID, providerId: providerId)?.supportedEffortOptions ?? []
+    func effortOptions(for sessionID: AgentConversationID) -> [AgentHarnessOption] {
+        let harnessId = harnessId(for: sessionID)
+        return selectedModelOption(for: sessionID, harnessId: harnessId)?.supportedEffortOptions ?? []
     }
 
     func selectedEffortOptionValue(for sessionID: AgentConversationID) -> String {
-        let providerId = providerId(for: sessionID)
+        let harnessId = harnessId(for: sessionID)
         let current = effortSelectionBySession[sessionID]
         return normalizedEffortOptionValue(
-            providerId: providerId,
+            harnessId: harnessId,
             modelOptionID: selectedModelOptionID(for: sessionID),
             current: current
         ) ?? ""
     }
 
-    func setProvider(_ providerId: AgentProviderID, for sessionID: AgentConversationID) {
-        guard canEditProviderSelection(for: sessionID) else {
+    func setHarness(_ harnessId: AgentHarnessID, for sessionID: AgentConversationID) {
+        guard canEditHarnessSelection(for: sessionID) else {
             return
         }
-        let modelOptionID = defaultModelOptionID(providerId: providerId)
-        providerSelectionBySession[sessionID] = providerId
+        let modelOptionID = defaultModelOptionID(harnessId: harnessId)
+        harnessSelectionBySession[sessionID] = harnessId
         modelSelectionBySession[sessionID] = modelOptionID
-        effortSelectionBySession[sessionID] = defaultEffortOptionValue(providerId: providerId, modelOptionID: modelOptionID)
+        effortSelectionBySession[sessionID] = defaultEffortOptionValue(harnessId: harnessId, modelOptionID: modelOptionID)
         speedSelectionBySession[sessionID] = .standard
     }
 
     func setModelOptionID(_ modelOptionID: String, for sessionID: AgentConversationID) {
-        guard canEditProviderSelection(for: sessionID) else {
+        guard canEditHarnessSelection(for: sessionID) else {
             return
         }
-        let providerId = providerId(for: sessionID)
+        let harnessId = harnessId(for: sessionID)
         modelSelectionBySession[sessionID] = modelOptionID
         effortSelectionBySession[sessionID] = normalizedEffortOptionValue(
-            providerId: providerId,
+            harnessId: harnessId,
             modelOptionID: modelOptionID,
             current: effortSelectionBySession[sessionID]
         )
     }
 
     func setEffortOptionValue(_ effortOptionValue: String, for sessionID: AgentConversationID) {
-        guard canEditProviderSelection(for: sessionID),
+        guard canEditHarnessSelection(for: sessionID),
               effortOptions(for: sessionID).contains(where: { $0.value == effortOptionValue }) else {
             return
         }
@@ -218,23 +218,23 @@ final class DemoModel: ObservableObject {
         guard hasSession(sessionID) else {
             return
         }
-        let providerId = providerId(for: sessionID)
-        let providerName = providerStatuses[providerId]?.definition?.displayName ?? providerId.rawValue.capitalized
+        let harnessId = harnessId(for: sessionID)
+        let harnessName = harnessStatuses[harnessId]?.definition?.displayName ?? harnessId.rawValue.capitalized
         Task { [weak self] in
             guard let self else {
                 return
             }
             do {
-                try await projectTrustService.trustProject(providerId: providerId, projectURL: workingDirectory)
-                await refreshProviderStatuses()
-                appendDiagnostic("Trusted \(workingDirectory.path) for \(providerName).", severity: .info, to: sessionID)
+                try await projectTrustService.trustProject(harnessId: harnessId, projectURL: workingDirectory)
+                await refreshHarnessStatuses()
+                appendDiagnostic("Trusted \(workingDirectory.path) for \(harnessName).", severity: .info, to: sessionID)
             } catch {
-                appendStatus("Could not trust project for \(providerName): \(error.localizedDescription)", to: sessionID)
+                appendStatus("Could not trust project for \(harnessName): \(error.localizedDescription)", to: sessionID)
             }
         }
     }
 
-    func canEditProviderSelection(for sessionID: AgentConversationID) -> Bool {
+    func canEditHarnessSelection(for sessionID: AgentConversationID) -> Bool {
         guard let session = sessions.first(where: { $0.id == sessionID }) else {
             return false
         }
@@ -303,7 +303,7 @@ final class DemoModel: ObservableObject {
                 guard hasSession(sessionID) else {
                     return
                 }
-                await refreshProviderStatuses()
+                await refreshHarnessStatuses()
                 try await ensureRuntime(for: sessionID)
                 guard hasSession(sessionID) else {
                     // Deletion can happen while spawn awaits the runtime actor; tear down any process before it receives input.
@@ -333,14 +333,14 @@ final class DemoModel: ObservableObject {
         guard !spawnedSessionIDs.contains(sessionID) else {
             return
         }
-        let providerId = providerId(for: sessionID)
-        try validateProviderReadiness(providerId, sessionID: sessionID)
+        let harnessId = harnessId(for: sessionID)
+        try validateHarnessReadiness(harnessId, sessionID: sessionID)
         try await runtime.spawn(
             conversationId: sessionID,
             config: AgentSpawnConfig(
-                providerId: providerId,
+                harnessId: harnessId,
                 workingDirectory: workingDirectory,
-                model: selectedModelOption(for: sessionID, providerId: providerId)?.model,
+                model: selectedModelOption(for: sessionID, harnessId: harnessId)?.model,
                 effort: selectedEffortOptionValueForSpawn(for: sessionID),
                 speedMode: selectedSpeedMode(for: sessionID)
             )
@@ -441,12 +441,12 @@ extension DemoModel {
             return
         }
         let session = sessions[index]
-        let providerId = session.record?.providerId ?? providerSelectionBySession[sessionID] ?? ClaudeProviderAdapter.providerId
+        let harnessId = session.record?.harnessId ?? harnessSelectionBySession[sessionID] ?? ClaudeHarnessAdapter.harnessId
         subscriptionTasks.removeValue(forKey: sessionID)?.cancel()
         statusTasks.removeValue(forKey: sessionID)?.cancel()
         subscribedSessionIDs.remove(sessionID)
         spawnedSessionIDs.remove(sessionID)
-        providerSelectionBySession[sessionID] = nil
+        harnessSelectionBySession[sessionID] = nil
         modelSelectionBySession[sessionID] = nil
         effortSelectionBySession[sessionID] = nil
         speedSelectionBySession[sessionID] = nil
@@ -457,7 +457,7 @@ extension DemoModel {
         Task {
             do {
                 await runtime.destroy(conversationId: sessionID)
-                try await sessionStore.remove(conversationId: sessionID, providerId: providerId)
+                try await sessionStore.remove(conversationId: sessionID, harnessId: harnessId)
             } catch {
                 appendStatus("Could not delete session: \(error.localizedDescription)", to: selectedSessionID)
             }

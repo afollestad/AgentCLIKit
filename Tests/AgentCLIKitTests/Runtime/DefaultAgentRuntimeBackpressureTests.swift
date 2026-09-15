@@ -6,7 +6,7 @@ final class DefaultAgentRuntimeBackpressureTests: XCTestCase {
     func testSlowSubscriberUsesBoundedBufferAndReplayKeepsEvents() async throws {
         let runtime = DefaultAgentRuntime(
             adapters: [
-                FakeProviderAdapter(command: shell("""
+                FakeHarnessAdapter(command: shell("""
                 i=1
                 while [ "$i" -le 20 ]; do
                   printf "message:line-$i\\n"
@@ -41,7 +41,7 @@ final class DefaultAgentRuntimeBackpressureTests: XCTestCase {
 
     func testRuntimeDrainsLargeStdoutAndStderrStreams() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            FakeProviderAdapter(command: shell("""
+            FakeHarnessAdapter(command: shell("""
             i=1
             while [ "$i" -le 250 ]; do
               printf "message:line-$i\\n"
@@ -77,7 +77,7 @@ final class DefaultAgentRuntimeBackpressureTests: XCTestCase {
         XCTAssertEqual(messages.first, "line-1")
         XCTAssertEqual(messages.last, "line-250")
         XCTAssertEqual(diagnostics.count, 50)
-        XCTAssertEqual(Set(diagnostics.map(\.code)), [.providerStderr])
+        XCTAssertEqual(Set(diagnostics.map(\.code)), [.harnessStderr])
         XCTAssertTrue(diagnostics.contains { $0.message == "err-1" })
         XCTAssertTrue(diagnostics.contains { $0.message == "err-50" })
     }

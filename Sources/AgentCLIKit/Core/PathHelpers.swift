@@ -1,6 +1,6 @@
 import Foundation
 
-/// File-system helpers shared by provider-neutral services.
+/// File-system helpers shared by harness-neutral services.
 public enum AgentPathHelpers {
     /// Returns `path` with a leading tilde expanded against the supplied home directory.
     public static func expandingTilde(in path: String, homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {

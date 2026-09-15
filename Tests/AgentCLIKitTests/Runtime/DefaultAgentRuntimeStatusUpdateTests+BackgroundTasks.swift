@@ -2,10 +2,10 @@ import XCTest
 
 @testable import AgentCLIKit
 
-/// Live background task counting and the provider-initiated turn a dequeued notification starts.
+/// Live background task counting and the harness-initiated turn a dequeued notification starts.
 extension DefaultAgentRuntimeStatusUpdateTests {
     func testStatusCountsNonAmbientBackgroundTasksUntilTheirNotificationsArrive() async throws {
-        let runtime = DefaultAgentRuntime(adapters: [StatusReportingProviderAdapter(command: echoingShell())])
+        let runtime = DefaultAgentRuntime(adapters: [StatusReportingHarnessAdapter(command: echoingShell())])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
         try await runtime.send(.userMessage(AgentMessageInput(text: "tasks:a,b,monitor!")), conversationId: "conversation")
@@ -30,7 +30,7 @@ extension DefaultAgentRuntimeStatusUpdateTests {
     }
 
     func testNotificationBeforeLiveSetShrinkDoesNotLeaveTaskAwaiting() async throws {
-        let runtime = DefaultAgentRuntime(adapters: [StatusReportingProviderAdapter(command: echoingShell())])
+        let runtime = DefaultAgentRuntime(adapters: [StatusReportingHarnessAdapter(command: echoingShell())])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
         try await runtime.send(.userMessage(AgentMessageInput(text: "tasks:a")), conversationId: "conversation")
@@ -43,10 +43,10 @@ extension DefaultAgentRuntimeStatusUpdateTests {
         await runtime.shutdown()
     }
 
-    func testDequeuedNotificationForAnnouncedTaskStartsProviderInitiatedTurn() async throws {
-        // No host input is sent: the provider announces a task, reports it done, then answers with a no-op result.
+    func testDequeuedNotificationForAnnouncedTaskStartsHarnessInitiatedTurn() async throws {
+        // No host input is sent: the harness announces a task, reports it done, then answers with a no-op result.
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: providerScript("tasks:a", "task-done:a", "usage:no-op"))
+            StatusReportingHarnessAdapter(command: harnessScript("tasks:a", "task-done:a", "usage:no-op"))
         ])
         let collector = await collectActivities(runtime: runtime)
 
@@ -68,7 +68,7 @@ extension DefaultAgentRuntimeStatusUpdateTests {
 
     func testDequeuedNotificationForUnknownTaskDoesNotStartTurn() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: providerScript("task-done:orphan"))
+            StatusReportingHarnessAdapter(command: harnessScript("task-done:orphan"))
         ])
         let collector = await collectActivities(runtime: runtime)
 
@@ -83,7 +83,7 @@ extension DefaultAgentRuntimeStatusUpdateTests {
 
     func testEnqueuedNotificationForAnnouncedTaskDoesNotStartTurn() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: providerScript("tasks:a", "task-enqueued:a"))
+            StatusReportingHarnessAdapter(command: harnessScript("tasks:a", "task-enqueued:a"))
         ])
         let collector = await collectActivities(runtime: runtime)
 
@@ -98,9 +98,9 @@ extension DefaultAgentRuntimeStatusUpdateTests {
         await runtime.shutdown()
     }
 
-    func testTerminalUsageEndsProviderInitiatedTurn() async throws {
+    func testTerminalUsageEndsHarnessInitiatedTurn() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: providerScript("tasks:a", "task-done:a", "usage:end_turn"))
+            StatusReportingHarnessAdapter(command: harnessScript("tasks:a", "task-done:a", "usage:end_turn"))
         ])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
@@ -115,7 +115,7 @@ extension DefaultAgentRuntimeStatusUpdateTests {
 
     func testProcessExitClearsLiveBackgroundTasks() async throws {
         let runtime = DefaultAgentRuntime(adapters: [
-            StatusReportingProviderAdapter(command: shell("printf 'tasks:a,b\\n'; sleep 0.2"))
+            StatusReportingHarnessAdapter(command: shell("printf 'tasks:a,b\\n'; sleep 0.2"))
         ])
 
         try await runtime.spawn(conversationId: "conversation", config: spawnConfig())
@@ -128,13 +128,13 @@ extension DefaultAgentRuntimeStatusUpdateTests {
         await runtime.shutdown()
     }
 
-    /// A provider that echoes each stdin line back as a stdout sentinel line for `StatusReportingProviderAdapter`.
+    /// A harness that echoes each stdin line back as a stdout sentinel line for `StatusReportingHarnessAdapter`.
     private func echoingShell() -> AgentLaunchConfiguration {
         shell("while IFS= read -r line; do printf '%s\\n' \"$line\"; done")
     }
 
-    /// A provider that emits the given sentinel lines on its own, spaced apart, then exits without any host input.
-    private func providerScript(_ lines: String...) -> AgentLaunchConfiguration {
+    /// A harness that emits the given sentinel lines on its own, spaced apart, then exits without any host input.
+    private func harnessScript(_ lines: String...) -> AgentLaunchConfiguration {
         shell(lines.map { "printf '\($0)\\n'; sleep 0.1" }.joined(separator: "; ") + "; sleep 0.5")
     }
 

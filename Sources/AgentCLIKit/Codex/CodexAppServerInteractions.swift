@@ -2,7 +2,7 @@ import Foundation
 
 struct CodexMappedServerRequest: Sendable {
     let pending: CodexPendingServerRequest
-    let event: AgentProviderRuntimeEvent
+    let event: AgentHarnessRuntimeEvent
 }
 
 struct CodexPendingServerRequest: Sendable {
@@ -72,9 +72,9 @@ struct CodexAppServerServerRequestMapper {
         }
     }
 
-    func unsupportedToolCallEvent(_ request: CodexAppServerRequest, threadId: AgentSessionID) -> AgentProviderRuntimeEvent {
+    func unsupportedToolCallEvent(_ request: CodexAppServerRequest, threadId: AgentSessionID) -> AgentHarnessRuntimeEvent {
         let params = request.params?.codexObjectValue ?? [:]
-        return AgentProviderRuntimeEvent(event: .diagnostic(AgentDiagnosticEvent(
+        return AgentHarnessRuntimeEvent(event: .diagnostic(AgentDiagnosticEvent(
             code: .codexAppServerResponseFailure,
             severity: .warning,
             message: "Codex host-defined tool '\(params["tool"]?.codexStringValue ?? "unknown")' is not supported.",
@@ -133,7 +133,7 @@ struct CodexAppServerServerRequestMapper {
         metadata["session_id"] = .string(context.threadId.rawValue)
         metadata["tool_name"] = .string(operation)
         metadata["tool_input"] = request.params ?? .object(params)
-        metadata["approval_provider_id"] = .string(AgentProviderID.codex.rawValue)
+        metadata["approval_provider_id"] = .string(AgentHarnessID.codex.rawValue)
         metadata["approval_operation"] = .string(operation)
         if let permissionMode = context.permissionMode {
             metadata["permission_mode"] = .string(permissionMode)
@@ -157,7 +157,7 @@ struct CodexAppServerServerRequestMapper {
         values: [String: JSONValue?]
     ) -> [String: JSONValue] {
         var metadata = compacted(values)
-        metadata["provider_id"] = .string(AgentProviderID.codex.rawValue)
+        metadata["provider_id"] = .string(AgentHarnessID.codex.rawValue)
         metadata["codex_method"] = .string(request.method)
         metadata["codex_request_id"] = .string(request.id.codexStableRequestID)
         metadata["codex_thread_id"] = .string(context.threadId.rawValue)

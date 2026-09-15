@@ -9,7 +9,7 @@ public struct ClaudeInputEncoder: Sendable {
     ///
     /// Interaction resolutions encode as empty data: the Claude CLI has no stdin message type for them.
     /// Claude interactions resolve through hook decisions and deferred-tool resume instead, so the runtime's
-    /// resolution bookkeeping proceeds without writing anything to the provider process.
+    /// resolution bookkeeping proceeds without writing anything to the harness process.
     public func encode(_ input: AgentInput) throws -> Data {
         let payload: ClaudeInputPayload
         switch input {
@@ -31,7 +31,7 @@ public struct ClaudeInputEncoder: Sendable {
             return
         }
         throw AgentCLIError.unsupportedInputAttachment(
-            providerId: ClaudeProviderAdapter.providerId,
+            harnessId: ClaudeHarnessAdapter.harnessId,
             attachmentId: attachment.id,
             type: attachment.type,
             reason: "Claude input transport is text-only."

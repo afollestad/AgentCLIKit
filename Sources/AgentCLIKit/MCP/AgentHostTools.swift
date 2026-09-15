@@ -1,6 +1,6 @@
 import Foundation
 
-/// Provider-neutral definition of a host-owned MCP tool exposed for one agent process.
+/// Harness-neutral definition of a host-owned MCP tool exposed for one agent process.
 public struct AgentHostToolDefinition: Codable, Equatable, Sendable {
     /// Tool name exposed through MCP.
     public let name: String
@@ -33,7 +33,7 @@ public struct AgentHostToolDefinition: Codable, Equatable, Sendable {
     }
 }
 
-/// Provider-neutral MCP tool annotations.
+/// Harness-neutral MCP tool annotations.
 public struct AgentHostToolAnnotations: Codable, Equatable, Sendable {
     /// Whether the tool only reads host state.
     public let readOnlyHint: Bool?
@@ -60,7 +60,7 @@ public struct AgentHostToolAnnotations: Codable, Equatable, Sendable {
 
 /// Host-provided MCP server identity and instructions for one process launch.
 public struct AgentHostToolServerMetadata: Codable, Equatable, Sendable {
-    /// Provider-facing MCP server identifier.
+    /// Harness-facing MCP server identifier.
     public let name: String
     /// Optional human-readable server title.
     public let title: String?
@@ -80,7 +80,7 @@ public struct AgentHostToolServerMetadata: Codable, Equatable, Sendable {
 }
 
 extension AgentHostToolServerMetadata {
-    var hasValidProviderName: Bool {
+    var hasValidHarnessName: Bool {
         !name.isEmpty && name.utf8.count <= 128 && name.unicodeScalars.allSatisfy {
             switch $0.value {
             case 48...57, 65...90, 97...122, 45, 95:
@@ -93,7 +93,7 @@ extension AgentHostToolServerMetadata {
 }
 
 extension AgentHostToolDefinition {
-    var hasValidProviderName: Bool {
+    var hasValidHarnessName: Bool {
         !name.isEmpty && name.utf8.count <= 128 && name.unicodeScalars.allSatisfy {
             switch $0.value {
             case 48...57, 65...90, 97...122, 45, 46, 95:
@@ -123,22 +123,22 @@ extension AgentHostToolDefinition {
 public struct AgentHostToolCallContext: Sendable {
     /// Host conversation identifier for the process that invoked the tool.
     public let conversationId: AgentConversationID
-    /// Provider that invoked the tool.
-    public let providerId: AgentProviderID
+    /// Harness that invoked the tool.
+    public let harnessId: AgentHarnessID
     /// Runtime process generation token.
     public let processToken: UUID
-    /// Provider JSON-RPC request identifier when available.
+    /// Harness JSON-RPC request identifier when available.
     public let requestId: String?
 
     /// Creates host tool call context.
     public init(
         conversationId: AgentConversationID,
-        providerId: AgentProviderID,
+        harnessId: AgentHarnessID,
         processToken: UUID,
         requestId: String? = nil
     ) {
         self.conversationId = conversationId
-        self.providerId = providerId
+        self.harnessId = harnessId
         self.processToken = processToken
         self.requestId = requestId
     }
@@ -148,7 +148,7 @@ public struct AgentHostToolCallContext: Sendable {
 public struct AgentHostToolCall: Equatable, Sendable {
     /// Tool name.
     public let name: String
-    /// JSON-compatible arguments supplied by the provider.
+    /// JSON-compatible arguments supplied by the harness.
     public let arguments: [String: JSONValue]
 
     /// Creates a host tool call.
@@ -158,7 +158,7 @@ public struct AgentHostToolCall: Equatable, Sendable {
     }
 }
 
-/// Provider-neutral result returned by a host-owned tool.
+/// Harness-neutral result returned by a host-owned tool.
 public struct AgentHostToolResult: Equatable, Sendable {
     /// Text fallback shown by clients that do not consume structured content.
     public let text: String
@@ -196,9 +196,9 @@ public struct AgentHostToolHandling: Sendable {
     }
 }
 
-/// Authenticated loopback endpoint registered for one provider process.
+/// Authenticated loopback endpoint registered for one harness process.
 public struct AgentHostToolEndpoint: Equatable, Sendable {
-    /// Provider-facing MCP server name.
+    /// Harness-facing MCP server name.
     public let serverName: String
     /// Streamable HTTP endpoint URL.
     public let url: URL

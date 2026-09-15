@@ -39,7 +39,7 @@ final class CodexSensitiveRedactionTests: XCTestCase {
     }
 
     func testRetiredTransportBearerWindowIsBounded() async {
-        let transport = CodexStdioAppServerTransport(configuration: CodexProviderAdapter.Configuration())
+        let transport = CodexStdioAppServerTransport(configuration: CodexHarnessAdapter.Configuration())
 
         for index in 0..<100 {
             let processToken = UUID()
@@ -52,7 +52,7 @@ final class CodexSensitiveRedactionTests: XCTestCase {
     }
 
     func testTransportShutdownClearsActiveAndRetiredBearers() async {
-        let transport = CodexStdioAppServerTransport(configuration: CodexProviderAdapter.Configuration())
+        let transport = CodexStdioAppServerTransport(configuration: CodexHarnessAdapter.Configuration())
         let activeToken = UUID()
         let retiredToken = UUID()
         await transport.registerSensitiveValues(["active-secret"], processToken: activeToken)
@@ -70,7 +70,7 @@ final class CodexSensitiveRedactionTests: XCTestCase {
     }
 
     func testIncomingStreamCreatedAfterShutdownFinishesImmediately() async {
-        let transport = CodexStdioAppServerTransport(configuration: CodexProviderAdapter.Configuration())
+        let transport = CodexStdioAppServerTransport(configuration: CodexHarnessAdapter.Configuration())
         await transport.shutdown()
 
         let stream = transport.incomingMessages()

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Maps each Codex server-request kind to its provider-neutral interaction event.
+/// Maps each Codex server-request kind to its harness-neutral interaction event.
 extension CodexAppServerServerRequestMapper {
     func commandApproval(
         _ request: CodexAppServerRequest,
@@ -45,7 +45,7 @@ extension CodexAppServerServerRequestMapper {
             context: context
         )
         let event = AgentInteractionEvent(id: interactionId, kind: .approval, prompt: "Bash", metadata: metadata)
-        return CodexMappedServerRequest(pending: pending, event: AgentProviderRuntimeEvent(event: .interaction(event)))
+        return CodexMappedServerRequest(pending: pending, event: AgentHarnessRuntimeEvent(event: .interaction(event)))
     }
 
     func fileChangeApproval(
@@ -80,7 +80,7 @@ extension CodexAppServerServerRequestMapper {
             context: context
         )
         let event = AgentInteractionEvent(id: interactionId, kind: .approval, prompt: "FileChange", metadata: metadata)
-        return CodexMappedServerRequest(pending: pending, event: AgentProviderRuntimeEvent(event: .interaction(event)))
+        return CodexMappedServerRequest(pending: pending, event: AgentHarnessRuntimeEvent(event: .interaction(event)))
     }
 
     func permissionProfileApproval(
@@ -115,7 +115,7 @@ extension CodexAppServerServerRequestMapper {
             context: context
         )
         let event = AgentInteractionEvent(id: interactionId, kind: .approval, prompt: "Permissions", metadata: metadata)
-        return CodexMappedServerRequest(pending: pending, event: AgentProviderRuntimeEvent(event: .interaction(event)))
+        return CodexMappedServerRequest(pending: pending, event: AgentHarnessRuntimeEvent(event: .interaction(event)))
     }
 
     func mcpElicitation(
@@ -153,7 +153,7 @@ extension CodexAppServerServerRequestMapper {
             prompt: params["message"]?.codexStringValue ?? "Codex requested MCP input.",
             metadata: metadata
         )
-        return CodexMappedServerRequest(pending: pending, event: AgentProviderRuntimeEvent(event: .interaction(event)))
+        return CodexMappedServerRequest(pending: pending, event: AgentHarnessRuntimeEvent(event: .interaction(event)))
     }
 
     func toolUserInput(
@@ -196,7 +196,7 @@ extension CodexAppServerServerRequestMapper {
             promptOptions: promptOptions(from: firstQuestion),
             metadata: metadata
         )
-        return CodexMappedServerRequest(pending: pending, event: AgentProviderRuntimeEvent(event: .interaction(event)))
+        return CodexMappedServerRequest(pending: pending, event: AgentHarnessRuntimeEvent(event: .interaction(event)))
     }
 
     func dynamicToolCall(
@@ -247,7 +247,7 @@ extension CodexAppServerServerRequestMapper {
             prompt: "ExitPlanMode",
             metadata: metadata
         )
-        return CodexMappedServerRequest(pending: pending, event: AgentProviderRuntimeEvent(event: .interaction(event)))
+        return CodexMappedServerRequest(pending: pending, event: AgentHarnessRuntimeEvent(event: .interaction(event)))
     }
 
     func promptOptions(from question: [String: JSONValue]?) -> [AgentPromptOption] {

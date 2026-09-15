@@ -6,11 +6,11 @@ extension RuntimeInteractionResolutionTests {
     func testSameProposalIdWithDifferentPlanMarkdownSynthesizesReplacementPlanModeExit() async throws {
         let recorder = PlanProposalRecorder()
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanProposalProviderAdapter(recorder: recorder, emitsPlanRevisionAfterResolution: true)
+            PlanProposalHarnessAdapter(recorder: recorder, emitsPlanRevisionAfterResolution: true)
         ])
         let conversationId: AgentConversationID = "conversation"
         let config = AgentSpawnConfig(
-            providerId: .claude,
+            harnessId: .claude,
             workingDirectory: FileManager.default.temporaryDirectory,
             collaborationMode: .plan
         )
@@ -30,8 +30,8 @@ extension RuntimeInteractionResolutionTests {
 
         XCTAssertEqual(firstInteraction.id, "runtime-plan-exit-plan-1")
         XCTAssertNotEqual(secondInteraction.id, firstInteraction.id)
-        XCTAssertEqual(firstInteraction.metadata["plan"], .string(PlanProposalProviderAdapter.planMarkdown))
-        XCTAssertEqual(secondInteraction.metadata["plan"], .string(PlanProposalProviderAdapter.revisedPlanMarkdown))
+        XCTAssertEqual(firstInteraction.metadata["plan"], .string(PlanProposalHarnessAdapter.planMarkdown))
+        XCTAssertEqual(secondInteraction.metadata["plan"], .string(PlanProposalHarnessAdapter.revisedPlanMarkdown))
         XCTAssertEqual(secondInteraction.metadata[AgentPlanProposalMetadata.proposalId], .string("plan-1"))
         XCTAssertEqual(status?.waitingState, .planModeExit)
     }

@@ -1,7 +1,7 @@
 import Foundation
 
 public extension DefaultAgentRuntime {
-    /// Starts a provider-native goal in an already-running session.
+    /// Starts a harness-native goal in an already-running session.
     func startGoal(_ objective: String, conversationId: AgentConversationID) async throws {
         let objective = objective.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !objective.isEmpty else {
@@ -36,19 +36,19 @@ public extension DefaultAgentRuntime {
         }
     }
 
-    /// Performs a provider-native goal action.
+    /// Performs a harness-native goal action.
     func performGoalAction(_ action: AgentGoalAction, conversationId: AgentConversationID) async throws {
         guard let state = states[conversationId] else {
             throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
         }
         guard let goal = state.goal else {
-            throw AgentCLIError.goalUnavailable(providerId: state.providerId, reason: "No active goal is available.")
+            throw AgentCLIError.goalUnavailable(harnessId: state.harnessId, reason: "No active goal is available.")
         }
-        try Self.validateGoalActionIsAvailable(action, in: goal.availableActions, providerId: state.providerId)
-        let context = AgentProviderGoalActionContext(
+        try Self.validateGoalActionIsAvailable(action, in: goal.availableActions, harnessId: state.harnessId)
+        let context = AgentHarnessGoalActionContext(
             conversationId: conversationId,
             processToken: state.processToken,
-            providerSessionId: state.providerSessionId,
+            harnessSessionId: state.harnessSessionId,
             spawnConfig: state.spawnConfig,
             goal: goal,
             isTurnActive: state.isTurnActive,
@@ -57,7 +57,7 @@ public extension DefaultAgentRuntime {
         try Self.validateGoalActionIsAvailable(
             action,
             in: state.adapter.availableGoalActions(for: goal, context: context),
-            providerId: state.providerId
+            harnessId: state.harnessId
         )
         let adapter = state.adapter
         let processToken = state.processToken
@@ -82,42 +82,42 @@ public extension DefaultAgentRuntime {
 }
 
 private extension DefaultAgentRuntime {
-    /// Rejects a goal start the session cannot honor, before any provider I/O is attempted.
+    /// Rejects a goal start the session cannot honor, before any harness I/O is attempted.
     func validateGoalStartPreconditions(state: ConversationState) throws {
         guard state.adapter.definition.capabilities.supportsExistingSessionGoalStart else {
             throw AgentCLIError.unsupportedCapability(
-                providerId: state.providerId,
+                harnessId: state.harnessId,
                 capability: "existing-session goal start"
             )
         }
         if state.goal?.status.isTerminal == false {
-            throw AgentCLIError.goalUnavailable(providerId: state.providerId, reason: "A goal is already active.")
+            throw AgentCLIError.goalUnavailable(harnessId: state.harnessId, reason: "A goal is already active.")
         }
         if state.isTurnActive {
             throw AgentCLIError.goalUnavailable(
-                providerId: state.providerId,
+                harnessId: state.harnessId,
                 reason: "Wait for the active turn to finish before starting a goal."
             )
         }
         if case let .blocked(reason) = state.inputAvailability {
-            throw AgentCLIError.goalUnavailable(providerId: state.providerId, reason: "Input is blocked: \(reason)")
+            throw AgentCLIError.goalUnavailable(harnessId: state.harnessId, reason: "Input is blocked: \(reason)")
         }
     }
 
     func performQueuedGoalAction(
         _ action: AgentGoalAction,
-        adapter: any AgentProviderAdapter,
+        adapter: any AgentHarnessAdapter,
         conversationId: AgentConversationID,
         processToken: UUID
     ) async throws {
         let context = try goalActionContext(conversationId: conversationId, processToken: processToken)
         guard let goal = context.goal else {
-            throw AgentCLIError.goalUnavailable(providerId: adapter.definition.id, reason: "No active goal is available.")
+            throw AgentCLIError.goalUnavailable(harnessId: adapter.definition.id, reason: "No active goal is available.")
         }
         try Self.validateGoalActionIsAvailable(
             action,
             in: adapter.availableGoalActions(for: goal, context: context),
-            providerId: adapter.definition.id
+            harnessId: adapter.definition.id
         )
         guard let data = try await adapter.encodeGoalAction(action, context: context) else {
             try await adapter.performGoalAction(action, context: context)
@@ -129,11 +129,11 @@ private extension DefaultAgentRuntime {
     static func validateGoalActionIsAvailable(
         _ action: AgentGoalAction,
         in availableActions: [AgentGoalAction],
-        providerId: AgentProviderID
+        harnessId: AgentHarnessID
     ) throws {
         guard availableActions.contains(action) else {
             throw AgentCLIError.goalUnavailable(
-                providerId: providerId,
+                harnessId: harnessId,
                 reason: "Goal action '\(action.rawValue)' is unavailable."
             )
         }
@@ -141,7 +141,7 @@ private extension DefaultAgentRuntime {
 
     /// Marks the turn active around the write so a failed goal start cannot strand the session as busy.
     func writeGoalStartInput(
-        _ encoded: AgentProviderEncodedGoalStart,
+        _ encoded: AgentHarnessEncodedGoalStart,
         conversationId: AgentConversationID,
         processToken: UUID
     ) async throws {
@@ -168,32 +168,32 @@ private extension DefaultAgentRuntime {
     func goalStartContext(
         conversationId: AgentConversationID,
         processToken: UUID
-    ) throws -> AgentProviderGoalStartContext {
+    ) throws -> AgentHarnessGoalStartContext {
         guard let state = states[conversationId], state.processToken == processToken else {
             throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
         }
         guard state.adapter.definition.capabilities.supportsExistingSessionGoalStart else {
             throw AgentCLIError.unsupportedCapability(
-                providerId: state.providerId,
+                harnessId: state.harnessId,
                 capability: "existing-session goal start"
             )
         }
         if state.goal?.status.isTerminal == false {
-            throw AgentCLIError.goalUnavailable(providerId: state.providerId, reason: "A goal is already active.")
+            throw AgentCLIError.goalUnavailable(harnessId: state.harnessId, reason: "A goal is already active.")
         }
         if state.isTurnActive {
             throw AgentCLIError.goalUnavailable(
-                providerId: state.providerId,
+                harnessId: state.harnessId,
                 reason: "Wait for the active turn to finish before starting a goal."
             )
         }
         if case let .blocked(reason) = state.inputAvailability {
-            throw AgentCLIError.goalUnavailable(providerId: state.providerId, reason: "Input is blocked: \(reason)")
+            throw AgentCLIError.goalUnavailable(harnessId: state.harnessId, reason: "Input is blocked: \(reason)")
         }
-        return AgentProviderGoalStartContext(
+        return AgentHarnessGoalStartContext(
             conversationId: conversationId,
             processToken: processToken,
-            providerSessionId: state.providerSessionId,
+            harnessSessionId: state.harnessSessionId,
             spawnConfig: state.spawnConfig,
             isTurnActive: state.isTurnActive,
             inputAvailability: state.inputAvailability
@@ -203,14 +203,14 @@ private extension DefaultAgentRuntime {
     func goalActionContext(
         conversationId: AgentConversationID,
         processToken: UUID
-    ) throws -> AgentProviderGoalActionContext {
+    ) throws -> AgentHarnessGoalActionContext {
         guard let state = states[conversationId], state.processToken == processToken else {
             throw AgentCLIError.invalidInput("No running process for conversation '\(conversationId.rawValue)'.")
         }
-        return AgentProviderGoalActionContext(
+        return AgentHarnessGoalActionContext(
             conversationId: conversationId,
             processToken: processToken,
-            providerSessionId: state.providerSessionId,
+            harnessSessionId: state.harnessSessionId,
             spawnConfig: state.spawnConfig,
             goal: state.goal,
             isTurnActive: state.isTurnActive,

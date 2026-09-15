@@ -8,9 +8,9 @@ final class CodexCodeModeHostConfigurationTests: XCTestCase {
         let installation = try CodexTestInstallation.make()
         defer { try? FileManager.default.removeItem(at: installation.root) }
         let resolver = RecordingExecutableResolver(path: installation.symlink.path)
-        let configuration = CodexProviderAdapter.Configuration(executableResolver: resolver)
+        let configuration = CodexHarnessAdapter.Configuration(executableResolver: resolver)
 
-        let resolved = await configuration.resolvingExecutableIfNeeded(for: CodexProviderDefinition.definition)
+        let resolved = await configuration.resolvingExecutableIfNeeded(for: CodexHarnessDefinition.definition)
 
         XCTAssertEqual(resolved.executablePath, installation.symlink.path)
         XCTAssertEqual(
@@ -22,12 +22,12 @@ final class CodexCodeModeHostConfigurationTests: XCTestCase {
     func testPreservesExplicitCodeModeHostOverride() async throws {
         let installation = try CodexTestInstallation.make()
         defer { try? FileManager.default.removeItem(at: installation.root) }
-        let configuration = CodexProviderAdapter.Configuration(
+        let configuration = CodexHarnessAdapter.Configuration(
             executablePath: installation.symlink.path,
             environment: ["CODEX_CODE_MODE_HOST_PATH": "/custom/codex-code-mode-host"]
         )
 
-        let resolved = await configuration.resolvingExecutableIfNeeded(for: CodexProviderDefinition.definition)
+        let resolved = await configuration.resolvingExecutableIfNeeded(for: CodexHarnessDefinition.definition)
 
         XCTAssertEqual(
             resolved.environment["CODEX_CODE_MODE_HOST_PATH"],

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Shell command description used by provider detection and process helpers.
+/// Shell command description used by harness detection and process helpers.
 public struct ShellCommand: Codable, Equatable, Hashable, Sendable {
     /// Executable path or name.
     public let executable: String

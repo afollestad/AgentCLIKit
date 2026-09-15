@@ -5,7 +5,7 @@ import XCTest
 final class CodexAppServerClientLifecycleTests: XCTestCase {
     func testConcurrentBootstrapsShareTransportStartAndInitialization() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-1", "thread-2"])
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
         let firstConfig = spawnConfig(path: "/tmp/first")
         let secondConfig = spawnConfig(path: "/tmp/second")
 
@@ -19,13 +19,13 @@ final class CodexAppServerClientLifecycleTests: XCTestCase {
         XCTAssertEqual(requestMethods.filter { $0 == "initialize" }.count, 1)
         XCTAssertEqual(requestMethods.filter { $0 == "thread/start" }.count, 2)
 
-        await adapter.shutdownProviderResources()
+        await adapter.shutdownHarnessResources()
     }
 
     func testShutdownDuringTransportStartStopsResourceAndRejectsLateLaunch() async {
         let gate = FakeCodexTransportStartGate()
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-1"], startGate: gate)
-        let adapter = CodexProviderAdapter(configuration: configuration(transport: transport))
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
         let config = spawnConfig(path: "/tmp/project")
         let launchTask = Task {
             try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
@@ -33,7 +33,7 @@ final class CodexAppServerClientLifecycleTests: XCTestCase {
         await gate.waitUntilStarted()
 
         let shutdownTask = Task {
-            await adapter.shutdownProviderResources()
+            await adapter.shutdownHarnessResources()
         }
         try? await Task.sleep(nanoseconds: 20_000_000)
         await gate.resume()
@@ -47,7 +47,7 @@ final class CodexAppServerClientLifecycleTests: XCTestCase {
 
         do {
             _ = try await adapter.makeLaunchConfiguration(spawnConfig: config, resumedSession: nil)
-            XCTFail("Expected future launches to fail after provider shutdown.")
+            XCTFail("Expected future launches to fail after harness shutdown.")
         } catch {
             XCTAssertTrue(error.localizedDescription.contains("client has shut down"))
         }
@@ -62,14 +62,14 @@ final class CodexAppServerClientLifecycleTests: XCTestCase {
     ) async {
         do {
             _ = try await launchTask.value
-            XCTFail("Expected pending launch to fail after provider shutdown.", file: file, line: line)
+            XCTFail("Expected pending launch to fail after harness shutdown.", file: file, line: line)
         } catch {
             XCTAssertTrue(error.localizedDescription.contains("client has shut down"), file: file, line: line)
         }
     }
 
-    private func configuration(transport: FakeCodexAppServerTransport) -> CodexProviderAdapter.Configuration {
-        CodexProviderAdapter.Configuration(
+    private func configuration(transport: FakeCodexAppServerTransport) -> CodexHarnessAdapter.Configuration {
+        CodexHarnessAdapter.Configuration(
             requestTimeout: 0.1,
             probeTimeout: 0.1,
             featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: false, supportsGoalMode: false),
@@ -79,6 +79,6 @@ final class CodexAppServerClientLifecycleTests: XCTestCase {
     }
 
     private func spawnConfig(path: String) -> AgentSpawnConfig {
-        AgentSpawnConfig(providerId: .codex, workingDirectory: URL(fileURLWithPath: path))
+        AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: path))
     }
 }

@@ -2,7 +2,7 @@ import Foundation
 
 @testable import AgentCLIKit
 
-// Provider doubles and status collectors shared by the status-update test files.
+// Harness doubles and status collectors shared by the status-update test files.
 
 actor StatusAccumulator {
     private(set) var statuses: [AgentRuntimeStatus] = []
@@ -12,29 +12,29 @@ actor StatusAccumulator {
     }
 }
 
-actor ProviderActivitySource {
-    private var continuation: AsyncStream<AgentProviderRuntimeEvent>.Continuation?
+actor HarnessActivitySource {
+    private var continuation: AsyncStream<AgentHarnessRuntimeEvent>.Continuation?
     var isReady: Bool {
         continuation != nil
     }
 
-    func stream() -> AsyncStream<AgentProviderRuntimeEvent> {
-        let stream = AsyncStream<AgentProviderRuntimeEvent>.makeStream()
+    func stream() -> AsyncStream<AgentHarnessRuntimeEvent> {
+        let stream = AsyncStream<AgentHarnessRuntimeEvent>.makeStream()
         continuation = stream.continuation
         return stream.stream
     }
 
-    func emit(_ event: AgentProviderRuntimeEvent) {
+    func emit(_ event: AgentHarnessRuntimeEvent) {
         continuation?.yield(event)
     }
 }
 
-struct StatusReportingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(
+struct StatusReportingHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(
         id: .claude,
         displayName: "Fake",
         executableNames: ["fake"],
-        capabilities: AgentProviderCapabilities(supportsGoalMode: true, supportedGoalActions: [.pause])
+        capabilities: AgentHarnessCapabilities(supportsGoalMode: true, supportedGoalActions: [.pause])
     )
     let command: AgentLaunchConfiguration
 
@@ -137,12 +137,12 @@ struct StatusReportingProviderAdapter: AgentProviderAdapter {
     }
 }
 
-struct GoalActionProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(
+struct GoalActionHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(
         id: .claude,
         displayName: "Fake",
         executableNames: ["fake"],
-        capabilities: AgentProviderCapabilities(supportsGoalMode: true, supportedGoalActions: [.delete])
+        capabilities: AgentHarnessCapabilities(supportsGoalMode: true, supportedGoalActions: [.delete])
     )
     let command: AgentLaunchConfiguration
     var hideActionsWhileTurnActive = false
@@ -188,27 +188,27 @@ struct GoalActionProviderAdapter: AgentProviderAdapter {
         return Data()
     }
 
-    func availableGoalActions(for goal: AgentGoalSnapshot, context: AgentProviderGoalActionContext) -> [AgentGoalAction] {
+    func availableGoalActions(for goal: AgentGoalSnapshot, context: AgentHarnessGoalActionContext) -> [AgentGoalAction] {
         guard !hideActionsWhileTurnActive || !context.isTurnActive else {
             return []
         }
         return goal.availableActions
     }
 
-    func encodeGoalAction(_ action: AgentGoalAction, context: AgentProviderGoalActionContext) async throws -> Data? {
+    func encodeGoalAction(_ action: AgentGoalAction, context: AgentHarnessGoalActionContext) async throws -> Data? {
         guard action == .delete else {
-            throw AgentCLIError.unsupportedCapability(providerId: definition.id, capability: "goal \(action.rawValue)")
+            throw AgentCLIError.unsupportedCapability(harnessId: definition.id, capability: "goal \(action.rawValue)")
         }
         return Data("goal-clear\n".utf8)
     }
 }
 
-struct GoalStartProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(
+struct GoalStartHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(
         id: .claude,
         displayName: "Fake",
         executableNames: ["fake"],
-        capabilities: AgentProviderCapabilities(
+        capabilities: AgentHarnessCapabilities(
             supportsGoalMode: true,
             supportsExistingSessionGoalStart: true,
             supportedGoalActions: [.delete]
@@ -245,15 +245,15 @@ struct GoalStartProviderAdapter: AgentProviderAdapter {
         return Data()
     }
 
-    func encodeGoalStart(_ objective: String, context: AgentProviderGoalStartContext) async throws -> AgentProviderEncodedGoalStart? {
-        AgentProviderEncodedGoalStart(data: Data("goal-start:\(objective)\n".utf8), marksTurnActive: true)
+    func encodeGoalStart(_ objective: String, context: AgentHarnessGoalStartContext) async throws -> AgentHarnessEncodedGoalStart? {
+        AgentHarnessEncodedGoalStart(data: Data("goal-start:\(objective)\n".utf8), marksTurnActive: true)
     }
 }
 
-struct ActivityReportingProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+struct ActivityReportingHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let command: AgentLaunchConfiguration
-    let activitySource: ProviderActivitySource
+    let activitySource: HarnessActivitySource
 
     func makeLaunchConfiguration(
         spawnConfig: AgentSpawnConfig,
@@ -270,7 +270,7 @@ struct ActivityReportingProviderAdapter: AgentProviderAdapter {
         Data()
     }
 
-    func runtimeEvents(context: AgentProviderRuntimeContext) async -> AsyncStream<AgentProviderRuntimeEvent> {
+    func runtimeEvents(context: AgentHarnessRuntimeContext) async -> AsyncStream<AgentHarnessRuntimeEvent> {
         await activitySource.stream()
     }
 }

@@ -9,7 +9,7 @@ final class DefaultAgentRuntimePlanReplayTests: XCTestCase {
             shell("printf 'message:Writing a test plan now.\\nplan-approval:write-replayed:write\\ndeferred\\nmessage:updated\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanFileReplayProviderAdapter(launchSequence: launches)
+            PlanFileReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -44,7 +44,7 @@ final class DefaultAgentRuntimePlanReplayTests: XCTestCase {
             shell("printf 'plan-approval:edit-new:edit\\nmessage:updated\\n'")
         ])
         let runtime = DefaultAgentRuntime(adapters: [
-            PlanFileReplayProviderAdapter(launchSequence: launches)
+            PlanFileReplayHarnessAdapter(launchSequence: launches)
         ])
         let conversationId: AgentConversationID = "conversation"
 
@@ -77,8 +77,8 @@ final class DefaultAgentRuntimePlanReplayTests: XCTestCase {
     )
 }
 
-private struct PlanFileReplayProviderAdapter: AgentProviderAdapter {
-    let definition = AgentProviderDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
+private struct PlanFileReplayHarnessAdapter: AgentHarnessAdapter {
+    let definition = AgentHarnessDefinition(id: .claude, displayName: "Fake", executableNames: ["fake"])
     let launchSequence: LaunchSequence
 
     func makeLaunchConfiguration(

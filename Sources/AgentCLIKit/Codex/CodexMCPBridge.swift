@@ -2,8 +2,8 @@ import Foundation
 
 /// Bridge between generic MCP config and Codex `config.toml`.
 public struct CodexMCPBridge: AgentMCPConfigAdapter {
-    /// Codex provider identifier.
-    public let providerId = CodexProviderAdapter.providerId
+    /// Codex harness identifier.
+    public let harnessId = CodexHarnessAdapter.harnessId
 
     /// Creates a Codex MCP bridge.
     public init() {}

@@ -116,7 +116,7 @@
           "summaryIndex": "number",
           "delta": "string"
         },
-        "v1Guidance": "Map to provider-neutral reasoning using summary metadata."
+        "v1Guidance": "Map to harness-neutral reasoning using summary metadata."
       },
       "textDelta": {
         "method": "item/reasoning/textDelta",
@@ -127,7 +127,7 @@
           "contentIndex": "number",
           "delta": "string"
         },
-        "v1Guidance": "Keep passively decoded for raw reasoning if a provider emits it; do not enable raw reasoning solely for v1."
+        "v1Guidance": "Keep passively decoded for raw reasoning if a harness emits it; do not enable raw reasoning solely for v1."
       }
     },
     "threadMetadata": {

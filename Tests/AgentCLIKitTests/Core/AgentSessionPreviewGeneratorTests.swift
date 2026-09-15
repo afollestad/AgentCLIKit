@@ -19,9 +19,9 @@ final class AgentSessionPreviewGeneratorTests: XCTestCase {
     func testTruncatesLongPromptsAtWordBoundaryWhenPossible() {
         XCTAssertEqual(
             AgentSessionPreviewGenerator.preview(
-                fromInitialPrompt: "Implement provider session preview metadata in AgentCLIKit for all providers"
+                fromInitialPrompt: "Implement harness session preview metadata in AgentCLIKit for all harnesses"
             ),
-            "Implement provider session preview metadata in..."
+            "Implement harness session preview metadata in..."
         )
     }
 

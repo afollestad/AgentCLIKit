@@ -139,7 +139,7 @@ final class ClaudeStreamDecoderStatusTests: XCTestCase {
         XCTAssertTrue(events.contains { $0 == .collaborationMode(AgentCollaborationModeEvent(mode: .default)) })
     }
 
-    func testRateLimitEventDecodesProviderStatus() throws {
+    func testRateLimitEventDecodesHarnessStatus() throws {
         let events = try ClaudeStreamDecoder().decodeLine(Self.rateLimitLine)
 
         XCTAssertEqual(events, [

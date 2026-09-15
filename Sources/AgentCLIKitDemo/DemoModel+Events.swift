@@ -224,28 +224,28 @@ extension DemoModel {
     }
 
     private func refreshSessionRecord(from envelope: AgentEventEnvelope) {
-        guard let providerSessionId = envelope.providerSessionId,
+        guard let harnessSessionId = envelope.harnessSessionId,
               let index = sessions.firstIndex(where: { $0.id == envelope.conversationId }) else {
             return
         }
         let current = sessions[index]
-        let eventProviderSessionName = Self.providerSessionName(from: envelope.event)
-        let eventProviderSessionPreview = Self.providerSessionPreview(from: envelope.event)
-        let isProviderSessionChange = current.record?.providerSessionId != providerSessionId
-        let providerSessionName = isProviderSessionChange
-            ? eventProviderSessionName
-            : eventProviderSessionName ?? current.record?.providerSessionName
-        let providerSessionPreview = isProviderSessionChange
-            ? eventProviderSessionPreview
-            : eventProviderSessionPreview ?? current.record?.providerSessionPreview
+        let eventHarnessSessionName = Self.harnessSessionName(from: envelope.event)
+        let eventHarnessSessionPreview = Self.harnessSessionPreview(from: envelope.event)
+        let isHarnessSessionChange = current.record?.harnessSessionId != harnessSessionId
+        let harnessSessionName = isHarnessSessionChange
+            ? eventHarnessSessionName
+            : eventHarnessSessionName ?? current.record?.harnessSessionName
+        let harnessSessionPreview = isHarnessSessionChange
+            ? eventHarnessSessionPreview
+            : eventHarnessSessionPreview ?? current.record?.harnessSessionPreview
         sessions[index] = DemoSession(
             id: current.id,
             record: AgentSessionRecord(
                 conversationId: envelope.conversationId,
-                providerId: envelope.providerId,
-                providerSessionId: providerSessionId,
-                providerSessionName: providerSessionName,
-                providerSessionPreview: providerSessionPreview,
+                harnessId: envelope.harnessId,
+                harnessSessionId: harnessSessionId,
+                harnessSessionName: harnessSessionName,
+                harnessSessionPreview: harnessSessionPreview,
                 generation: envelope.generation,
                 createdAt: current.record?.createdAt ?? current.createdAt,
                 updatedAt: envelope.createdAt,
@@ -255,14 +255,14 @@ extension DemoModel {
         )
     }
 
-    private static func providerSessionName(from event: AgentEvent) -> String? {
+    private static func harnessSessionName(from event: AgentEvent) -> String? {
         guard case let .sessionMetadata(metadata) = event else {
             return nil
         }
         return metadata.name?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
     }
 
-    private static func providerSessionPreview(from event: AgentEvent) -> String? {
+    private static func harnessSessionPreview(from event: AgentEvent) -> String? {
         guard case let .sessionMetadata(metadata) = event else {
             return nil
         }

@@ -102,7 +102,7 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "Bash")
-        XCTAssertEqual(pending.first?.approvalRequest?.providerSessionId, "session-123")
+        XCTAssertEqual(pending.first?.approvalRequest?.harnessSessionId, "session-123")
         XCTAssertEqual(pending.first?.approvalRequest?.conciseSummary, "git status")
         XCTAssertEqual(pending.first?.approvalRequest?.approvalIdentityInput, .object(["command": .string("git status")]))
         XCTAssertEqual(pending.first?.approvalRequest?.sessionApprovalRequest?.sessionApprovalGrant(for: .exact)?.matchValue, "git status")
@@ -245,7 +245,7 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(response.statusCode, 200)
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.kind, .prompt)
-        XCTAssertEqual(pending.first?.promptRequest?.providerSessionId, "session-123")
+        XCTAssertEqual(pending.first?.promptRequest?.harnessSessionId, "session-123")
         XCTAssertEqual(pending.first?.promptRequest?.prompt, "Pick one")
         XCTAssertEqual(pending.first?.promptRequest?.options, [
             AgentPromptOption(
@@ -315,7 +315,7 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(ClaudeHookResponseMapper.decision(from: response), .deferDecision)
         XCTAssertEqual(pending.first?.kind, .planModeExit)
         XCTAssertEqual(pending.first?.approvalRequest?.operation, "ExitPlanMode")
-        XCTAssertEqual(pending.first?.approvalRequest?.providerSessionId, "session-123")
+        XCTAssertEqual(pending.first?.approvalRequest?.harnessSessionId, "session-123")
     }
 
     func testSessionApprovedExitPlanModeEchoesOriginalToolInput() async {
