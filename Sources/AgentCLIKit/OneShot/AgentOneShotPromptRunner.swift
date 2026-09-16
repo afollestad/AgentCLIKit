@@ -118,6 +118,8 @@ public enum AgentOneShotPromptError: Error, Equatable, Sendable, LocalizedError 
     case malformedOutput(harnessId: AgentHarnessID, message: String, stdout: String, stderr: String)
     /// The harness reported an error through structured output.
     case harnessReportedError(harnessId: AgentHarnessID, message: String, stdout: String, stderr: String)
+    /// Disposable resources could not be removed; the original operation failure is retained when present.
+    case cleanupFailed(harnessId: AgentHarnessID, reason: String, operationFailure: String?)
 
     /// Human-readable description suitable for diagnostics and host UI.
     public var errorDescription: String? {
@@ -146,6 +148,8 @@ public enum AgentOneShotPromptError: Error, Equatable, Sendable, LocalizedError 
             "Harness '\(harnessId.rawValue)' one-shot prompt returned malformed structured output. \(message) \(stderr)"
         case let .harnessReportedError(harnessId, message, _, stderr):
             "Harness '\(harnessId.rawValue)' one-shot prompt reported an error. \(message) \(stderr)"
+        case let .cleanupFailed(harnessId, reason, operationFailure):
+            "Harness '\(harnessId.rawValue)' one-shot cleanup failed: \(reason) \(operationFailure ?? "")"
         }
     }
 }
@@ -190,8 +194,40 @@ public struct DefaultAgentOneShotPromptRunner: AgentOneShotPromptRunning {
             throw AgentOneShotPromptError.unsupportedHarness(request.harnessId)
         }
 
-        let command = try await adapter.makeOneShotPromptCommand(request: request)
-        let result = try await run(command, request: request)
+        let prepared: AgentPreparedOneShotPrompt
+        do { prepared = try await adapter.prepareOneShotPrompt(request: request) } catch is CancellationError {
+            throw AgentOneShotPromptError.cancelled(harnessId: request.harnessId)
+        }
+        let outcome: Result<AgentOneShotPromptResult, Error>
+        do {
+            let timeout: TimeInterval?
+            if let deadline = prepared.executionDeadline {
+                let remaining = deadline.timeIntervalSinceNow
+                guard remaining > 0 else {
+                    throw AgentOneShotPromptError.timedOut(harnessId: request.harnessId, timeout: 0)
+                }
+                timeout = min(request.timeout ?? remaining, remaining)
+            } else { timeout = request.timeout }
+            outcome = .success(try await generate(request, command: prepared.command, adapter: adapter, timeout: timeout))
+        } catch {
+            outcome = .failure(error)
+        }
+        do {
+            try prepared.cleanup()
+        } catch {
+            let failure: String?
+            if case let .failure(original) = outcome { failure = original.localizedDescription } else { failure = nil }
+            throw AgentOneShotPromptError.cleanupFailed(
+                harnessId: request.harnessId, reason: error.localizedDescription, operationFailure: failure
+            )
+        }
+        return try outcome.get()
+    }
+
+    private func generate(
+        _ request: AgentOneShotPromptRequest, command: ShellCommand, adapter: any AgentHarnessAdapter, timeout: TimeInterval?
+    ) async throws -> AgentOneShotPromptResult {
+        let result = try await run(command, request: request, timeout: timeout)
         if result.exitCode != 0 {
             throw classifyFailure(harnessId: request.harnessId, result: result)
         }
@@ -208,9 +244,9 @@ public struct DefaultAgentOneShotPromptRunner: AgentOneShotPromptRunning {
         return AgentOneShotPromptResult(harnessId: request.harnessId, text: trimmed, stdout: result.stdout, stderr: result.stderr)
     }
 
-    private func run(_ command: ShellCommand, request: AgentOneShotPromptRequest) async throws -> ShellCommandResult {
+    private func run(_ command: ShellCommand, request: AgentOneShotPromptRequest, timeout: TimeInterval?) async throws -> ShellCommandResult {
         do {
-            return try await runWithTimeout(command, timeout: request.timeout, harnessId: request.harnessId)
+            return try await runWithTimeout(command, timeout: timeout, harnessId: request.harnessId)
         } catch let error as AgentOneShotPromptError {
             throw error
         } catch is CancellationError {

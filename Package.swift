@@ -36,6 +36,8 @@ let package = Package(
                 "Claude/Hooks/CLAUDE.md",
                 "Codex/AGENTS.md",
                 "Codex/CLAUDE.md",
+                "OpenCode/AGENTS.md",
+                "OpenCode/CLAUDE.md",
                 "MCP/AGENTS.md",
                 "MCP/CLAUDE.md",
                 "Runtime/AGENTS.md",

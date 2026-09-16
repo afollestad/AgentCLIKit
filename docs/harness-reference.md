@@ -7,7 +7,7 @@ harness-neutral runtime, event, setup, and discovery protocols wherever possible
 
 Generic runtime, event, session, interaction, transcript, MCP, skills, and harness-detection code lives outside
 harness-specific folders. Claude-specific behavior lives under `Sources/AgentCLIKit/Claude/`. Codex-specific behavior
-lives under `Sources/AgentCLIKit/Codex/`.
+lives under `Sources/AgentCLIKit/Codex/`. OpenCode-specific behavior lives under `Sources/AgentCLIKit/OpenCode/`.
 
 Host apps should generally depend on:
 
@@ -30,7 +30,12 @@ Harness adapters own native launch, input encoding, output decoding, session ID 
 encoding, and native in-place reconfiguration when a harness can apply an `AgentSpawnConfig` without replacement.
 
 Sessionless project-level prompts use `AgentOneShotPromptRunning` instead of `AgentRuntime`. They return one final
-assistant message, do not create AgentCLIKit runtime state, and do not service approvals or harness prompts.
+assistant message, do not create AgentCLIKit runtime state, and do not service approvals or harness prompts. Gate them
+on `AgentHarnessCapabilities.supportsReadOnlyOneShotPrompts`. Custom process runners use `prepareOneShotPrompt(request:)`
+and retain its `AgentPreparedOneShotPrompt` until the process terminates. Honor the command's `inheritsEnvironment` policy
+and, when `executionDeadline` is present, reject expired preparations and cap process execution to the remaining time.
+Call `cleanup()` after success, cancellation, timeout, launch failure, or output parsing failure. Successful cleanup is
+idempotent; a cleanup failure can be retried and must not hide an earlier operation failure.
 
 Reusable approval scopes are harness-neutral. Hosts can back `AgentSessionApprovalPolicyStore` with app persistence, and
 Bash approval requests may include canonical `approvalIdentityToolInput` derived by `AgentCommandApprovalNormalizationPolicy`.
@@ -307,3 +312,56 @@ problems, and session persistence failures.
 
 Harness-specific metadata remains available on events for hosts that need richer rendering, but generic UI should prefer
 harness-neutral fields first.
+
+## OpenCode
+
+`OpenCodeHarnessAdapter` targets the OpenCode 1.x HTTP/SSE protocol from 1.18.31 onward. Server health/version validation
+runs before session work; unknown major versions and prereleases are rejected. Each runtime process generation uses
+its own authenticated loopback server and ephemeral host MCP configuration. Runtime launches do not rewrite user
+MCP settings. Permissions control OpenCode tool approvals; they are not an operating-system sandbox.
+
+- Use `permissionMode: "ask"` by default. `"configured"` retains native config rules; `"fullAccess"` allows tool actions.
+- Use `collaborationMode` for build/plan selection independently of permission policy.
+- Preserve `provider/model` strings and native variant IDs in `model` and `effort`. Models with identical names from
+  different providers remain separate choices. Check `OpenCodeModelMetadata.supportsImageInput` for the selected model.
+- Context limits and input/output limits come from provider metadata; unknown limits stay unknown.
+- Native forks preserve context. Moving a fork to another directory uses the V1 experimental control-plane move API;
+  it must succeed before reporting the destination working directory. Session operations use V1 endpoints only.
+- Archive and delete are native; unarchiving is unsupported because V1 does not clear its archive timestamp.
+- Native goals, Fast mode, hooks, and experimental background agents are not advertised.
+
+### Isolated one-shot prompts
+
+OpenCode one-shot prompts require `prepareOneShotPrompt(request:)`; the legacy command-only method is unsupported because
+it cannot express resource ownership. Preparation verifies the supported CLI version and selected model/variant through
+an isolated native catalog lookup, then returns `run --format json` with the prompt on stdin. Only the final successful
+model step supplies the result; intermediate tool preambles, truncated completion, and native errors are not final text.
+
+The disposable profile owns `HOME`, XDG directories, config, credentials, temporary files, and the native database.
+Only the selected global provider configuration and credentials are copied. Project configuration, external plugins,
+custom tools, external skills, Claude instructions, LSP, formatters, updates, and model-catalog downloads are disabled.
+Only bundled provider SDKs are supported. Managed configuration is rejected because it can override the required policy.
+Native permissions allow `read`, `glob`, and `grep`, and deny other tools and external directories. These are native tool
+restrictions, not an operating-system sandbox; hosts requiring a bounded evidence directory should provide an immutable,
+symlink-free packet outside a larger Git worktree. The temporary native session is removed when cleanup succeeds.
+
+OpenCode preparations cap execution at 20 minutes. API-key connections remain isolated to the selected provider.
+Supported OAuth connections are OpenAI and GitHub Copilot: OpenAI requires an access token valid beyond preparation and
+the execution deadline, and its rotating refresh credential is omitted from the worker. Copilot retains its native bearer
+credential, including enterprise metadata. Other OAuth flows and near-expiry OpenAI logins fail before launching a prompt;
+refresh a near-expiry login through the normal OpenCode session. Workers never write back to the user's auth store.
+
+### Read-only discovery and explicit MCP settings
+
+Default discovery returns a static OpenCode default-model option and never starts a server. Hosts opt into live data by
+sharing `OpenCodeDiscoveryProbe` with `OpenCodeHarnessSetup` and `OpenCodeModelOptionSource`. The probe requests health
+and `/provider`, checks the version, lists connected-provider models, and stops the temporary server. It does not create
+a session, initiate login, or call a config mutation API. Missing credentials are not assumed for local providers.
+The native executable still performs its own startup maintenance: OpenCode 1.18.31 can add a missing `$schema`, migrate
+a legacy config file, and install configured plugin dependencies. Read-only here describes SDK requests; it does not
+suppress those upstream behaviors or replace the user's provider configuration.
+
+`OpenCodeConfigStore` and `OpenCodeMCPService` are exclusively for explicit user settings edits. They select
+`$XDG_CONFIG_HOME/opencode` or `~/.config/opencode`, prefer existing `opencode.jsonc`, `opencode.json`, then legacy `config.json`, and preserve unrelated config
+bytes, comments, and unknown MCP entry fields. Native `OpenCodeMCPServerConfig` represents both local command arrays and
+remote URLs/headers/OAuth settings. Readiness checks and runtime host tools must never call these write APIs.

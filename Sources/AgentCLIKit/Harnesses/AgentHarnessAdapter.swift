@@ -17,6 +17,9 @@ public protocol AgentHarnessAdapter: Sendable {
     /// Builds a CLI command for a sessionless one-shot prompt.
     func makeOneShotPromptCommand(request: AgentOneShotPromptRequest) async throws -> ShellCommand
 
+    /// Prepares a one-shot command whose disposable resources must outlive its process and then be cleaned up.
+    func prepareOneShotPrompt(request: AgentOneShotPromptRequest) async throws -> AgentPreparedOneShotPrompt
+
     /// Extracts final assistant text from a completed sessionless one-shot command.
     func finalOneShotPromptText(
         stdout: String,

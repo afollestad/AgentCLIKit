@@ -312,6 +312,7 @@ public actor DefaultAgentRuntime: AgentRuntime {
         let previousWaitingState = states[conversationId]?.waitingState ?? .idle
         let previousInputAvailability = states[conversationId]?.inputAvailability ?? .available
         let previousResolvedInteractions = states[conversationId]?.resolvedInteractions ?? []
+        let processToken = states[conversationId]?.processToken
         // Mark before awaiting harness I/O so actor reentrancy cannot publish the same prompt as pending again.
         states[conversationId]?.resolvedInteractions.insert(resolution.id)
         states[conversationId]?.waitingState = .idle
@@ -320,10 +321,13 @@ public actor DefaultAgentRuntime: AgentRuntime {
         do {
             try await send(.interactionResolution(resolution), conversationId: conversationId)
         } catch {
-            states[conversationId]?.resolvedInteractions = previousResolvedInteractions
-            states[conversationId]?.waitingState = previousWaitingState
-            states[conversationId]?.inputAvailability = previousInputAvailability
-            publishStatus(conversationId: conversationId)
+            // A failed reply can retire or replace its generation; never restore that generation's waiting UI afterward.
+            if let state = states[conversationId], state.processToken == processToken, !state.lifecycleState.isTerminal {
+                states[conversationId]?.resolvedInteractions = previousResolvedInteractions
+                states[conversationId]?.waitingState = previousWaitingState
+                states[conversationId]?.inputAvailability = previousInputAvailability
+                publishStatus(conversationId: conversationId)
+            }
             throw error
         }
         guard let harnessPlanExit,

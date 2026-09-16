@@ -1,0 +1,66 @@
+[
+  {
+    "id": "evt_assistant",
+    "type": "message.updated",
+    "properties": {
+      "sessionID": "ses_root",
+      "info": {
+        "id": "msg_assistant",
+        "sessionID": "ses_root",
+        "role": "assistant",
+        "time": { "created": 1000 },
+        "parentID": "msg_user",
+        "modelID": "model",
+        "providerID": "provider",
+        "mode": "build",
+        "agent": "build",
+        "path": { "cwd": "/workspace", "root": "/workspace" },
+        "cost": 0,
+        "tokens": { "input": 0, "output": 0, "reasoning": 0, "cache": { "read": 0, "write": 0 } }
+      }
+    }
+  },
+  {
+    "id": "evt_text_start",
+    "type": "message.part.updated",
+    "properties": {
+      "sessionID": "ses_root",
+      "time": 1001,
+      "part": {
+        "id": "prt_text",
+        "sessionID": "ses_root",
+        "messageID": "msg_assistant",
+        "type": "text",
+        "text": "",
+        "time": { "start": 1001 }
+      }
+    }
+  },
+  {
+    "id": "evt_text_delta",
+    "type": "message.part.delta",
+    "properties": {
+      "sessionID": "ses_root",
+      "messageID": "msg_assistant",
+      "partID": "prt_text",
+      "field": "text",
+      "delta": "Hello"
+    }
+  },
+  {
+    "id": "evt_text_end",
+    "type": "message.part.updated",
+    "properties": {
+      "sessionID": "ses_root",
+      "time": 1002,
+      "part": {
+        "id": "prt_text",
+        "sessionID": "ses_root",
+        "messageID": "msg_assistant",
+        "type": "text",
+        "text": "Hello",
+        "time": { "start": 1001, "end": 1002 }
+      }
+    }
+  }
+]

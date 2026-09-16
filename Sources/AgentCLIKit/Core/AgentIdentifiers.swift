@@ -6,6 +6,8 @@ public enum AgentHarnessID: String, Codable, Hashable, Sendable, CaseIterable {
     case claude
     /// Codex harness backed by Codex App Server.
     case codex
+    /// OpenCode harness backed by its local HTTP server.
+    case opencode
 }
 
 /// Host-defined identifier for an app-level agent conversation.

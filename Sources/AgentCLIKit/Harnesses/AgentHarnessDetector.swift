@@ -6,6 +6,7 @@ public struct AgentHarnessDetector: Sendable {
     public static let defaultFallbackExecutableDirectories: [String] = [
         "~/.local/bin",
         "~/.claude/local",
+        "~/.opencode/bin",
         "/opt/homebrew/bin",
         "/usr/local/bin"
     ]
@@ -41,11 +42,15 @@ public struct AgentHarnessDetector: Sendable {
 
     /// Detects availability for every registered harness.
     public func availability(for definitions: [AgentHarnessDefinition]) async -> [AgentHarnessAvailability] {
-        var results: [AgentHarnessAvailability] = []
-        for definition in definitions {
-            results.append(await availability(for: definition))
+        await withTaskGroup(of: (Int, AgentHarnessAvailability).self) { group in
+            for (index, definition) in definitions.enumerated() {
+                group.addTask { (index, await availability(for: definition)) }
+            }
+            var results: [(Int, AgentHarnessAvailability)] = []
+            for await result in group { results.append(result) }
+            // Completion order must not change the registry ordering exposed to callers.
+            return results.sorted { $0.0 < $1.0 }.map(\.1)
         }
-        return results
     }
 
     private func resolveExecutable(_ executable: String) async -> String? {

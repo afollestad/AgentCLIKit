@@ -40,6 +40,24 @@ extension DefaultAgentRuntime {
             guard states[conversationId]?.processToken == processToken else {
                 return
             }
+            if case let .lifecycle(lifecycle) = event, lifecycle.state.isTerminal {
+                guard states[conversationId]?.lifecycleState.isTerminal == false else { return }
+                // Embedded servers own a separate native process. Their terminal event must retire
+                // the runtime process too, so the next explicit send can resume a fresh generation.
+                emitFailedContextCompactionsForTerminalProcess(
+                    conversationId: conversationId, reason: lifecycle.state.rawValue,
+                    message: "Context compaction did not finish before the harness process ended."
+                )
+                emitFailedSubAgentsForTerminalProcess(
+                    conversationId: conversationId, reason: lifecycle.state.rawValue,
+                    message: "Sub-agent did not finish before the harness process ended."
+                )
+                states[conversationId]?.stdin = nil
+                states[conversationId]?.stdinWriter = nil
+                emitLifecycle(lifecycle.state, conversationId: conversationId, exitCode: lifecycle.exitCode, message: lifecycle.message)
+                states[conversationId]?.process?.terminate()
+                return
+            }
             append(event, source: harnessEvent.source, conversationId: conversationId)
         }
     }

@@ -23,6 +23,11 @@ public extension AgentHarnessAdapter {
         throw AgentOneShotPromptError.unsupportedHarness(definition.id)
     }
 
+    /// Bridges existing command-only adapters, which have no disposable resources to release.
+    func prepareOneShotPrompt(request: AgentOneShotPromptRequest) async throws -> AgentPreparedOneShotPrompt {
+        try await AgentPreparedOneShotPrompt(command: makeOneShotPromptCommand(request: request))
+    }
+
     /// Throws by default for harnesses that do not support sessionless one-shot prompts.
     func finalOneShotPromptText(
         stdout: String,

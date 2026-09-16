@@ -27,7 +27,8 @@ func runSessionlessPrompt(projectURL: URL) async throws -> String {
 }
 ```
 
-Use `.claude` for Claude Code. One-shot prompts are read-only and cannot answer harness approval or prompt requests.
+Use `.claude` for Claude Code. Use `.opencode` with an explicit `model: "provider/model"` for OpenCode; its `effort` is an
+exact native variant or `nil` for the model default. One-shot prompts are read-only and cannot answer harness approval or prompt requests.
 
 ## One-Off Runtime Conversation
 
@@ -452,6 +453,28 @@ turn is still active, so `inputAvailability` alone is not the full turn-state mo
 tasks run inside the harness process, so a host that tears processes down between turns should wait for the count to
 return to zero. When one finishes, the runtime emits `.activity(.active)` with a `background-task:` turn id before the
 harness's follow-up response, then `.activity(.idle)` or a terminal usage event when that response ends.
+
+## OpenCode Discovery
+
+**Complete snippet.** A shared probe checks the installed server and connected model providers without creating a session.
+
+```swift
+import AgentCLIKit
+
+func openCodeDiscovery() -> DefaultAgentHarnessDiscoveryService {
+    let probe = OpenCodeDiscoveryProbe()
+    return DefaultAgentHarnessDiscoveryService(
+        harnessSetups: [OpenCodeHarnessSetup(probe: probe)],
+        modelOptionSource: DefaultAgentModelOptionSource(
+            openCodeSource: OpenCodeModelOptionSource(probe: probe)
+        )
+    )
+}
+```
+
+Use the selected `AgentModelOption.model` unchanged and pass a selected native variant's `value` as `AgentSpawnConfig.effort`.
+Check `supportsReadOnlyOneShotPrompts` before offering utility generation. OpenCode requires an exact provider/model and
+uses a disposable profile with native read-only tools; managed configuration and executable provider extensions cannot be isolated.
 
 ## Where To Look Next
 

@@ -7,7 +7,8 @@ public struct AgentHarnessSessionActionRouter: Sendable {
         self.init {
             AgentHarnessAdapterSet(adapters: [
                 ClaudeHarnessAdapter(),
-                CodexHarnessAdapter()
+                CodexHarnessAdapter(),
+                OpenCodeHarnessAdapter()
             ])
         }
     }

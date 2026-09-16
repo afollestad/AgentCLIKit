@@ -28,9 +28,11 @@ final class DemoModel: ObservableObject {
     init() {
         let store = JSONFileAgentSessionStore(fileURL: Self.sessionStoreURL())
         let hookDecisionProvider = DemoHookDecisionProvider()
+        let openCodeProbe = OpenCodeDiscoveryProbe()
         let harnessSetups: [any AgentHarnessSetup] = [
             ClaudeHarnessSetup(configStore: ClaudeConfigStore()),
-            CodexHarnessSetup()
+            CodexHarnessSetup(),
+            OpenCodeHarnessSetup(probe: openCodeProbe)
         ]
         let codexFeatureSupportChecker = DefaultCodexFeatureSupportChecker()
         let codexConfiguration = CodexHarnessAdapter.Configuration(featureSupportChecker: codexFeatureSupportChecker)
@@ -42,7 +44,8 @@ final class DemoModel: ObservableObject {
             projectTrustService: projectTrustService,
             harnessSetups: harnessSetups,
             modelOptionSource: DefaultAgentModelOptionSource(
-                codexSource: CodexAppServerModelOptionSource(configuration: codexConfiguration)
+                codexSource: CodexAppServerModelOptionSource(configuration: codexConfiguration),
+                openCodeSource: OpenCodeModelOptionSource(probe: openCodeProbe)
             ),
             capabilitySource: DefaultAgentHarnessCapabilitySource(
                 codexSource: CodexHarnessCapabilitySource(configuration: codexConfiguration)

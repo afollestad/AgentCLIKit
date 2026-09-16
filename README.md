@@ -2,22 +2,22 @@
 
 AgentCLIKit is a Swift package for macOS apps that run local agent CLIs through one harness-neutral runtime API.
 
-Claude Code and Codex are **harnesses**: they run models and manage agent sessions and tools. Anthropic and OpenAI are
+Claude Code, Codex, and OpenCode are **harnesses**: they run models and manage agent sessions and tools. Anthropic and OpenAI are
 **model providers**. The SDK uses harness terminology for the CLI integration layer.
 
 It gives host apps a reusable layer for:
 
-- Launching Claude Code or Codex App Server.
+- Launching Claude Code, Codex App Server, or a private OpenCode HTTP server.
 - Running sessionless one-shot prompts for project-level tasks that should not create harness sessions.
 - Sending user messages and steering active turns.
 - Receiving harness-neutral events for messages, tools, usage, tasks, sub-agent lifecycle, session metadata,
   permission/collaboration state, context compaction, lifecycle, and interactions.
 - Persisting harness session IDs and harness-reported names so conversations can resume.
 - Checking harness readiness, project trust, speed support, model options, and model-scoped effort options.
-- Exposing host-owned MCP tools and additional workspace roots to either built-in harness without changing global harness config.
+- Exposing host-owned MCP tools and additional workspace roots to built-in harnesses without changing global harness config.
 
 Host apps still own UI, durable app data, queueing policy, notifications, and product-specific workflow decisions.
-AgentCLIKit owns process launch, harness sessions, stdin/stdout coordination, App Server transport, event replay, status,
+AgentCLIKit owns process launch, harness sessions, stdin/stdout coordination, App Server and HTTP/SSE transports, event replay, status,
 interaction resolution, and sessionless one-shot harness prompts.
 
 ## Harness Naming Migration
@@ -51,7 +51,7 @@ For local app development, prefer a path dependency pointed at this checkout:
 .package(path: "../AgentCLIKit")
 ```
 
-Host machines also need the harness CLI installed. Built-in adapters support Claude Code and Codex App Server, and resolve
+Host machines also need the harness CLI installed. Built-in adapters support Claude Code, Codex App Server, and OpenCode 1.18.31 or newer within 1.x, and resolve
 harness executables through the shared harness detector and executable resolver.
 
 ## Quick Start
@@ -173,7 +173,16 @@ For one final answer without a runtime conversation, use `DefaultAgentOneShotPro
 read-only mode and does not create AgentCLIKit runtime state. Codex uses `codex exec --ephemeral --json` rather than Codex
 App Server; the CLI may still emit a transient `thread.started` id, but the run is not expected to persist a harness
 thread. Claude uses `claude -p --safe-mode --no-session-persistence --output-format stream-json` with native read-only
-tools restricted to file inspection. One-shot runs cannot service approvals or harness prompts.
+tools restricted to file inspection. OpenCode uses `run --format json` in a disposable profile, copies only the selected
+provider connection, and permits native `read`, `glob`, and `grep` tools. It requires an exact `provider/model`; `effort`
+is the exact native variant, or `nil` for its default. Its temporary session database is removed after the process exits.
+One-shot runs cannot service approvals or harness prompts.
+
+Hosts using their own process runner should call `adapter.prepareOneShotPrompt(request:)`, run its `command`, then call
+`cleanup()` after process termination on every exit path. Honor `ShellCommand.inheritsEnvironment`: `false` replaces the
+parent environment completely. If `executionDeadline` is present, reject expired preparations and cap execution to the
+time remaining. `DefaultAgentOneShotPromptRunner` owns these steps. The command-only adapter API remains
+available for harnesses that need no disposable resources; OpenCode requires preparation.
 
 Use `runtime.reconfigure(conversationId:config:)` to apply changed settings to a started conversation. The result tells
 the host what happened:
@@ -246,6 +255,15 @@ trust table and can report credential-source readiness without exposing token co
 
 ## Harness Notes
 
+OpenCode uses an authenticated loopback HTTP server and SSE events. Its model options retain provider/model identity
+and native variants. Share an opt-in `OpenCodeDiscoveryProbe` between `OpenCodeHarnessSetup` and
+`OpenCodeModelOptionSource` to check the supported server version and connected providers without creating sessions.
+OpenCode supports core sessions, native forks, permissions/questions, MCP, planning, compaction, and model-supported
+images, and isolated read-only one-shot prompts. Native goals, Fast mode, hooks, unarchiving, and experimental background
+agents are not exposed; check `supportsReadOnlyOneShotPrompts` before offering utility generation. OpenCode permission modes are
+`configured`, `ask` (the default), and `fullAccess`; these control tool approval and do not provide an OS sandbox.
+
+
 Claude and Codex share the host-facing runtime API, but their native transports differ:
 
 | Area | Claude | Codex |
@@ -260,7 +278,7 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Host tools and extra roots | Inline process MCP config and `--add-dir` | Per-thread MCP config and `runtimeWorkspaceRoots` |
 | Archive/delete | Validated no-op | App Server `thread/archive`, `thread/unarchive`, and `thread/delete` |
 
-Both built-in harnesses expose harness-neutral events, sessions, harness session metadata, usage, tool events, task
+Claude and Codex expose harness-neutral events, sessions, harness session metadata, usage, tool events, task
 events, typed sub-agent lifecycle, permission/collaboration state, prompt/approval interactions, MCP support, and
 context compaction lifecycle events. Inspect `AgentHarnessDefinition.capabilities` before showing harness-specific UI.
 
@@ -280,7 +298,7 @@ Run the macOS demo with:
 
 The demo builds and launches `AgentCLIKitDemo`. It shows harness readiness, harness/model/effort/speed selection, persisted
 session records, live output rendering, status snapshots, cancellation, Claude prompt handling, and Codex live model
-loading through App Server.
+loading through App Server, plus OpenCode provider discovery.
 
 Useful entry points:
 

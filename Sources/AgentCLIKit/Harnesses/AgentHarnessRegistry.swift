@@ -65,7 +65,8 @@ public extension AgentHarnessRegistry {
     static var builtInDefinitions: [AgentHarnessDefinition] {
         [
             ClaudeHarnessDefinition.definition,
-            CodexHarnessDefinition.definition
+            CodexHarnessDefinition.definition,
+            OpenCodeHarnessDefinition.definition
         ]
     }
 

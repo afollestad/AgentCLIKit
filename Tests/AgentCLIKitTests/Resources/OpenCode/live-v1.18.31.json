@@ -1,0 +1,3920 @@
+{
+  "version": "1.18.31",
+  "responses": {
+    "health": {
+      "healthy": true,
+      "version": "1.18.31"
+    },
+    "created": {
+      "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+      "slug": "curious-lagoon",
+      "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+      "directory": "/tmp/opencode-fixture/source workspace",
+      "path": "",
+      "cost": 0,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "reasoning": 0,
+        "cache": {
+          "read": 0,
+          "write": 0
+        }
+      },
+      "title": "Deterministic fixture session",
+      "version": "1.18.31",
+      "time": {
+        "created": 1789520961303,
+        "updated": 1789520961303
+      }
+    },
+    "messages": [
+      {
+        "info": {
+          "id": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "role": "user",
+          "time": {
+            "created": 1789520961312
+          },
+          "summary": {
+            "diffs": []
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          }
+        },
+        "parts": [
+          {
+            "id": "prt_0a7c2df23001Vi2PvSo1AiORvK",
+            "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+            "messageID": "msg_0a7c2df20001Qf04vX5LTsryZe",
+            "type": "text",
+            "text": "FIXTURE_TEXT"
+          }
+        ]
+      },
+      {
+        "info": {
+          "id": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "role": "assistant",
+          "time": {
+            "created": 1789520961488,
+            "completed": 1789520962176
+          },
+          "parentID": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "finish": "stop"
+        },
+        "parts": [
+          {
+            "id": "prt_0a7c2e245001AmYggBBXUI609r",
+            "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+            "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+            "type": "step-start",
+            "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          },
+          {
+            "id": "prt_0a7c2e246001vIBs4vYFobO54D",
+            "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+            "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+            "type": "text",
+            "text": "Fixture text complete.",
+            "time": {
+              "start": 1789520962118,
+              "end": 1789520962119
+            }
+          },
+          {
+            "id": "prt_0a7c2e263001KPHyw1q0Ie0dmf",
+            "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+            "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+            "type": "step-finish",
+            "reason": "stop",
+            "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+            "cost": 0,
+            "tokens": {
+              "total": 16,
+              "input": 11,
+              "output": 5,
+              "reasoning": 0,
+              "cache": {
+                "read": 0,
+                "write": 0
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "resumed": {
+      "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+      "slug": "curious-lagoon",
+      "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+      "directory": "/tmp/opencode-fixture/source workspace",
+      "path": "",
+      "summary": {
+        "additions": 0,
+        "deletions": 0,
+        "files": 0
+      },
+      "cost": 0,
+      "tokens": {
+        "input": 11,
+        "output": 5,
+        "reasoning": 0,
+        "cache": {
+          "read": 0,
+          "write": 0
+        }
+      },
+      "title": "Deterministic fixture session",
+      "agent": "build",
+      "model": {
+        "id": "fixture",
+        "providerID": "fixture",
+        "variant": "default"
+      },
+      "version": "1.18.31",
+      "time": {
+        "created": 1789520961303,
+        "updated": 1789520962179
+      }
+    },
+    "forked": {
+      "id": "ses_f583d1a35ffe0SCg0DwKdBDYC2",
+      "slug": "shiny-wizard",
+      "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+      "directory": "/tmp/opencode-fixture/source workspace",
+      "path": "",
+      "cost": 0,
+      "tokens": {
+        "input": 0,
+        "output": 0,
+        "reasoning": 0,
+        "cache": {
+          "read": 0,
+          "write": 0
+        }
+      },
+      "title": "Deterministic fixture session (fork #1)",
+      "version": "1.18.31",
+      "time": {
+        "created": 1789520963018,
+        "updated": 1789520963018
+      }
+    },
+    "movedFork": {
+      "id": "ses_f583d1a35ffe0SCg0DwKdBDYC2",
+      "slug": "shiny-wizard",
+      "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+      "directory": "/tmp/opencode-fixture/fork workspace",
+      "path": "",
+      "cost": 0,
+      "tokens": {
+        "input": 66,
+        "output": 30,
+        "reasoning": 0,
+        "cache": {
+          "read": 0,
+          "write": 0
+        }
+      },
+      "title": "Deterministic fixture session (fork #1)",
+      "version": "1.18.31",
+      "time": {
+        "created": 1789520963018,
+        "updated": 1789520963128
+      }
+    },
+    "forkResume": {
+      "info": {
+        "parentID": "msg_0a7c2e6660014MfvdkJWSb1gA7",
+        "role": "assistant",
+        "mode": "build",
+        "agent": "build",
+        "path": {
+          "cwd": "/tmp/opencode-fixture/fork workspace",
+          "root": "/tmp/opencode-fixture/fork workspace"
+        },
+        "cost": 0,
+        "tokens": {
+          "total": 16,
+          "input": 11,
+          "output": 5,
+          "reasoning": 0,
+          "cache": {
+            "write": 0,
+            "read": 0
+          }
+        },
+        "modelID": "fixture",
+        "providerID": "fixture",
+        "time": {
+          "created": 1789520963271,
+          "completed": 1789520963614
+        },
+        "finish": "stop",
+        "id": "msg_0a7c2e6c7001UBZ9esqs34LhAY",
+        "sessionID": "ses_f583d1a35ffe0SCg0DwKdBDYC2"
+      },
+      "parts": [
+        {
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start",
+          "id": "prt_0a7c2e7e5001PhQa4IOuDW7VoN",
+          "sessionID": "ses_f583d1a35ffe0SCg0DwKdBDYC2",
+          "messageID": "msg_0a7c2e6c7001UBZ9esqs34LhAY"
+        },
+        {
+          "type": "text",
+          "text": "Fixture text complete.",
+          "time": {
+            "start": 1789520963558,
+            "end": 1789520963558
+          },
+          "id": "prt_0a7c2e7e6001F7OG8yQJLwsY80",
+          "sessionID": "ses_f583d1a35ffe0SCg0DwKdBDYC2",
+          "messageID": "msg_0a7c2e6c7001UBZ9esqs34LhAY"
+        },
+        {
+          "reason": "stop",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-finish",
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0,
+          "id": "prt_0a7c2e8040013udD69cyUP1Ihk",
+          "sessionID": "ses_f583d1a35ffe0SCg0DwKdBDYC2",
+          "messageID": "msg_0a7c2e6c7001UBZ9esqs34LhAY"
+        }
+      ]
+    }
+  },
+  "events": [
+    {
+      "id": "evt_0a7c2df0e001I39V7OwFyBAp3s",
+      "type": "server.connected",
+      "properties": {}
+    },
+    {
+      "id": "evt_0a7c2df18001xPgUZxFHcN7Pk0",
+      "type": "session.created",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "version": "1.18.31",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520961303
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2df21001iuViQpCdbCgXVq",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520961312
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2df23001MPUyWayKn0JCx4",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "role": "user",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "time": {
+            "created": 1789520961312
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2dfc9001aJh0FH3Zt8JEm5",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "text",
+          "text": "FIXTURE_TEXT",
+          "messageID": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "id": "prt_0a7c2df23001Vi2PvSo1AiORvK"
+        },
+        "time": 1789520961481
+      }
+    },
+    {
+      "id": "evt_0a7c2dfcb001fg2O8QfpA9a1qN",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520961482
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2dfce001oP8LPqApyW1Ggb",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2dfd0001O1fbiSdtToHqMG",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+          "parentID": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520961488
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e042001TgAHPdCWpCsrfD",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520961602
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e0430017S8Waur27ChQns",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e043002okYaZx08aGpbJU",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520961312
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "id": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "summary": {
+            "diffs": []
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2360010xW7NLXvnzYDK2",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e245001SHb011MGOlDaLP",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e245001AmYggBBXUI609r",
+          "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start"
+        },
+        "time": 1789520962117
+      }
+    },
+    {
+      "id": "evt_0a7c2e246001RmWy5gggT6xSH5",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e246001vIBs4vYFobO54D",
+          "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "",
+          "time": {
+            "start": 1789520962118
+          }
+        },
+        "time": 1789520962118
+      }
+    },
+    {
+      "id": "evt_0a7c2e247001ZqlDA4AL1Rb6iS",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+        "partID": "prt_0a7c2e246001vIBs4vYFobO54D",
+        "field": "text",
+        "delta": "Fixture "
+      }
+    },
+    {
+      "id": "evt_0a7c2e2470022W07tHVkAnl7sD",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+        "partID": "prt_0a7c2e246001vIBs4vYFobO54D",
+        "field": "text",
+        "delta": "text complete."
+      }
+    },
+    {
+      "id": "evt_0a7c2e248001XxB2fPn7NlItKY",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e246001vIBs4vYFobO54D",
+          "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "Fixture text complete.",
+          "time": {
+            "start": 1789520962118,
+            "end": 1789520962119
+          }
+        },
+        "time": 1789520962120
+      }
+    },
+    {
+      "id": "evt_0a7c2e264001ZOo5fF83mgFyDl",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e263001KPHyw1q0Ie0dmf",
+          "reason": "stop",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "messageID": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "step-finish",
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        },
+        "time": 1789520962148
+      }
+    },
+    {
+      "id": "evt_0a7c2e265001Tg21RAHQ9LSoNJ",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+          "parentID": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520961488
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e280001rVhIpV2sruKems",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2dfd00018u4SFbY0tikhZi",
+          "parentID": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520961488,
+            "completed": 1789520962176
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2810012pOFZEWUqrAgG1",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e283001nG0e9A6NfywkXd",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "idle"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e283002UBLk2tRcRgRdRF",
+      "type": "session.idle",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+      }
+    },
+    {
+      "id": "evt_0a7c2e283003x076d2diWOUqnm",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962179
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e284001f4pxlckUcfF4RJ",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e28f0014du4QBLdl8HLor",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "role": "user",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "time": {
+            "created": 1789520962191
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e290001Jl7TVQh95d3yGN",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "text",
+          "text": "FIXTURE_QUESTION",
+          "messageID": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "id": "prt_0a7c2e28f002vxsGgS0w0d3qWC"
+        },
+        "time": 1789520962192
+      }
+    },
+    {
+      "id": "evt_0a7c2e291001xvHxoW5Z055OXL",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962192
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2920019i5zYLzWDJb4b3",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2920020Q702lDqQFhfT8",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e292001ETAoMIzghYO1EI",
+          "parentID": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962194
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e29b001LwZoeVknmSUaBb",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520961312
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "summary": {
+            "diffs": []
+          },
+          "id": "msg_0a7c2df20001Qf04vX5LTsryZe",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2ba001jCw7YEjGGy7jGL",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962233
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2ba002JMyasCikyNVMfK",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e2bb001EAHChjLRGafitC",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962191
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "id": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "summary": {
+            "diffs": []
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2bc001gi1ZTylq179DSi",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2bf0018hlVe5U4HT3V2x",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e2be001q3rcZeISXQpafo",
+          "messageID": "msg_0a7c2e292001ETAoMIzghYO1EI",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start"
+        },
+        "time": 1789520962238
+      }
+    },
+    {
+      "id": "evt_0a7c2e2bf0024wVTEctQArdEKk",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e2bf001wuw0XU4tAbBfUU",
+          "messageID": "msg_0a7c2e292001ETAoMIzghYO1EI",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "tool",
+          "tool": "question",
+          "callID": "call_fixture_question",
+          "state": {
+            "status": "pending",
+            "input": {},
+            "raw": ""
+          }
+        },
+        "time": 1789520962239
+      }
+    },
+    {
+      "id": "evt_0a7c2e2c1002ZEynhyGSzVC5th",
+      "type": "question.asked",
+      "properties": {
+        "id": "que_0a7c2e2c10014efZqp8QC7xtB3",
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "questions": [
+          {
+            "question": "Choose a fixture?",
+            "header": "Fixture",
+            "options": [
+              {
+                "label": "First",
+                "description": "Use the first fixture"
+              },
+              {
+                "label": "Second",
+                "description": "Use the second fixture"
+              }
+            ]
+          }
+        ],
+        "tool": {
+          "messageID": "msg_0a7c2e292001ETAoMIzghYO1EI",
+          "callID": "call_fixture_question"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2c2001f9MuLYCbK4g09E",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "tool",
+          "tool": "question",
+          "callID": "call_fixture_question",
+          "state": {
+            "status": "running",
+            "input": {
+              "questions": [
+                {
+                  "header": "Fixture",
+                  "question": "Choose a fixture?",
+                  "options": [
+                    {
+                      "label": "First",
+                      "description": "Use the first fixture"
+                    },
+                    {
+                      "label": "Second",
+                      "description": "Use the second fixture"
+                    }
+                  ]
+                }
+              ]
+            },
+            "time": {
+              "start": 1789520962242
+            }
+          },
+          "id": "prt_0a7c2e2bf001wuw0XU4tAbBfUU",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "messageID": "msg_0a7c2e292001ETAoMIzghYO1EI"
+        },
+        "time": 1789520962242
+      }
+    },
+    {
+      "id": "evt_0a7c2e2c5001nyv2cfymliHEXZ",
+      "type": "question.replied",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "requestID": "que_0a7c2e2c10014efZqp8QC7xtB3",
+        "answers": [
+          [
+            "First"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "evt_0a7c2e2c60014lzrghH1uKjeFg",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "tool",
+          "tool": "question",
+          "callID": "call_fixture_question",
+          "state": {
+            "status": "completed",
+            "input": {
+              "questions": [
+                {
+                  "header": "Fixture",
+                  "question": "Choose a fixture?",
+                  "options": [
+                    {
+                      "label": "First",
+                      "description": "Use the first fixture"
+                    },
+                    {
+                      "label": "Second",
+                      "description": "Use the second fixture"
+                    }
+                  ]
+                }
+              ]
+            },
+            "output": "User has answered your questions: \"Choose a fixture?\"=\"First\". You can now continue with the user's answers in mind.",
+            "metadata": {
+              "answers": [
+                [
+                  "First"
+                ]
+              ],
+              "truncated": false
+            },
+            "title": "Asked 1 question",
+            "time": {
+              "start": 1789520962242,
+              "end": 1789520962246
+            }
+          },
+          "id": "prt_0a7c2e2bf001wuw0XU4tAbBfUU",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "messageID": "msg_0a7c2e292001ETAoMIzghYO1EI"
+        },
+        "time": 1789520962246
+      }
+    },
+    {
+      "id": "evt_0a7c2e2e1001oGZYHfniDCYqo6",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e2e1001YAc8k7MhaOOSKT",
+          "reason": "tool-calls",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "messageID": "msg_0a7c2e292001ETAoMIzghYO1EI",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "step-finish",
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        },
+        "time": 1789520962273
+      }
+    },
+    {
+      "id": "evt_0a7c2e2e2001ZagR3NtdYqGHPc",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e292001ETAoMIzghYO1EI",
+          "parentID": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962194
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "tool-calls"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2f9001IoHtklIPULU3PR",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e292001ETAoMIzghYO1EI",
+          "parentID": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962194,
+            "completed": 1789520962297
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "tool-calls"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2fa001r4oVNFfyKbq3S4",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2fa0022v3tSO4D4VapUL",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+          "parentID": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962298
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2fb001Mwray0a9Mo2XVr",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962299
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e2fb002eUagt3u02M7vBi",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e317001ufIkDPYo00VViE",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e31b001S3FJ1kUr65p3e0",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e31b001fGyHG5ogYTnsXb",
+          "messageID": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start"
+        },
+        "time": 1789520962331
+      }
+    },
+    {
+      "id": "evt_0a7c2e31c001tzk9KI4t8NiZ2s",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e31c001XoxZ2MYA4Srq0F",
+          "messageID": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "",
+          "time": {
+            "start": 1789520962332
+          }
+        },
+        "time": 1789520962332
+      }
+    },
+    {
+      "id": "evt_0a7c2e31c002vD6scuVSyiCnz7",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+        "partID": "prt_0a7c2e31c001XoxZ2MYA4Srq0F",
+        "field": "text",
+        "delta": "Fixture "
+      }
+    },
+    {
+      "id": "evt_0a7c2e31c003AgiWP3wBKQqmOI",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+        "partID": "prt_0a7c2e31c001XoxZ2MYA4Srq0F",
+        "field": "text",
+        "delta": "question complete."
+      }
+    },
+    {
+      "id": "evt_0a7c2e31d001Dp3es1NpF5bs9b",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e31c001XoxZ2MYA4Srq0F",
+          "messageID": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "Fixture question complete.",
+          "time": {
+            "start": 1789520962332,
+            "end": 1789520962333
+          }
+        },
+        "time": 1789520962333
+      }
+    },
+    {
+      "id": "evt_0a7c2e32d001gYYbJ59vW6Bwbs",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962191
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "summary": {
+            "diffs": []
+          },
+          "id": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e349001xNuwmctacS95ry",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e348001UQoFB7lxwsmSUO",
+          "reason": "stop",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "messageID": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "step-finish",
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        },
+        "time": 1789520962377
+      }
+    },
+    {
+      "id": "evt_0a7c2e34a001kuQwU8Uw5dJmzW",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+          "parentID": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962298
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e3670018zlgVe6zJBo0bq",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e2fa001Ucb6SRQohLEkR7",
+          "parentID": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962298,
+            "completed": 1789520962407
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e368001VeBUNgtELoZa5u",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e369001rsgRDmgIvvL23A",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "idle"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e3690021gb79stZVtxd3l",
+      "type": "session.idle",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+      }
+    },
+    {
+      "id": "evt_0a7c2e369003VSzGPblB3flZmL",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 22,
+            "output": 10,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962409
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e36a0018lzqne5f0hGbj1",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e36c001PoVzCAcBXxTYyb",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "role": "user",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "time": {
+            "created": 1789520962412
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e36d0012OGGYzCfRooDfk",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "text",
+          "text": "FIXTURE_PERMISSION",
+          "messageID": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "id": "prt_0a7c2e36c002KwrNSU8zwrfY4G"
+        },
+        "time": 1789520962413
+      }
+    },
+    {
+      "id": "evt_0a7c2e36d002hatWtukAPecnWq",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 22,
+            "output": 10,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962413
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e36e0018bdPTZBNERl0j6",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e36f001trRFOfyrDrChzy",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e36f001TVSjnnXDQy6Dl4",
+          "parentID": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962415
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e37c001zpECtK4S0IcJ2i",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962191
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "summary": {
+            "diffs": []
+          },
+          "id": "msg_0a7c2e28f001hcLDVhKsHtQt12",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e3c2001wDDaz65mPYcyN5",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 22,
+            "output": 10,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962498
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e3c3001LA81ysEq4dDa1i",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e3c4001nCfs5HuQFsy70d",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962412
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "id": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "summary": {
+            "diffs": []
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e3c4002tcoaK97cWzmM4h",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e3c70019c8lgULrcuHOJ7",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e3c6001tMag9OgQyrGHcN",
+          "messageID": "msg_0a7c2e36f001TVSjnnXDQy6Dl4",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start"
+        },
+        "time": 1789520962503
+      }
+    },
+    {
+      "id": "evt_0a7c2e3c7002vD6ZwesJBB2tai",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e3c7001MMvfhkVYs90azf",
+          "messageID": "msg_0a7c2e36f001TVSjnnXDQy6Dl4",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "tool",
+          "tool": "bash",
+          "callID": "call_fixture_permission",
+          "state": {
+            "status": "pending",
+            "input": {},
+            "raw": ""
+          }
+        },
+        "time": 1789520962503
+      }
+    },
+    {
+      "id": "evt_0a7c2e3ca001ajvGAtMHBiga6w",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "tool",
+          "tool": "bash",
+          "callID": "call_fixture_permission",
+          "state": {
+            "status": "running",
+            "input": {
+              "command": "printf fixture-tool",
+              "description": "Print fixture text"
+            },
+            "time": {
+              "start": 1789520962505
+            }
+          },
+          "id": "prt_0a7c2e3c7001MMvfhkVYs90azf",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "messageID": "msg_0a7c2e36f001TVSjnnXDQy6Dl4"
+        },
+        "time": 1789520962506
+      }
+    },
+    {
+      "id": "evt_0a7c2e3d4002I9VIyWa3iBme4n",
+      "type": "permission.asked",
+      "properties": {
+        "id": "per_0a7c2e3d4001ydy5nimxkOXcBl",
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "permission": "bash",
+        "patterns": [
+          "printf fixture-tool"
+        ],
+        "metadata": {
+          "command": "printf fixture-tool"
+        },
+        "always": [
+          "printf *"
+        ],
+        "tool": {
+          "messageID": "msg_0a7c2e36f001TVSjnnXDQy6Dl4",
+          "callID": "call_fixture_permission"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e3d9001z0qWRSkXMKeME5",
+      "type": "permission.replied",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "requestID": "per_0a7c2e3d4001ydy5nimxkOXcBl",
+        "reply": "once"
+      }
+    },
+    {
+      "id": "evt_0a7c2e3da001T3d9Z1U2S5uvuD",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "tool",
+          "tool": "bash",
+          "callID": "call_fixture_permission",
+          "state": {
+            "metadata": {
+              "output": ""
+            },
+            "status": "running",
+            "input": {
+              "command": "printf fixture-tool",
+              "description": "Print fixture text"
+            },
+            "time": {
+              "start": 1789520962505
+            }
+          },
+          "id": "prt_0a7c2e3c7001MMvfhkVYs90azf",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "messageID": "msg_0a7c2e36f001TVSjnnXDQy6Dl4"
+        },
+        "time": 1789520962522
+      }
+    },
+    {
+      "id": "evt_0a7c2e3de001p8Ttj6JxZW8dIC",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "tool",
+          "tool": "bash",
+          "callID": "call_fixture_permission",
+          "state": {
+            "metadata": {
+              "output": "fixture-tool"
+            },
+            "status": "running",
+            "input": {
+              "command": "printf fixture-tool",
+              "description": "Print fixture text"
+            },
+            "time": {
+              "start": 1789520962505
+            }
+          },
+          "id": "prt_0a7c2e3c7001MMvfhkVYs90azf",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "messageID": "msg_0a7c2e36f001TVSjnnXDQy6Dl4"
+        },
+        "time": 1789520962526
+      }
+    },
+    {
+      "id": "evt_0a7c2e3e0001Dx3GZjPrkx8WPT",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "tool",
+          "tool": "bash",
+          "callID": "call_fixture_permission",
+          "state": {
+            "status": "completed",
+            "input": {
+              "command": "printf fixture-tool",
+              "description": "Print fixture text"
+            },
+            "output": "fixture-tool",
+            "metadata": {
+              "output": "fixture-tool",
+              "exit": 0,
+              "truncated": false
+            },
+            "title": "printf fixture-tool",
+            "time": {
+              "start": 1789520962505,
+              "end": 1789520962528
+            }
+          },
+          "id": "prt_0a7c2e3c7001MMvfhkVYs90azf",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "messageID": "msg_0a7c2e36f001TVSjnnXDQy6Dl4"
+        },
+        "time": 1789520962528
+      }
+    },
+    {
+      "id": "evt_0a7c2e3fa001tW2LGqZejso14d",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e3fa001QhDaXKcNxsi9DT",
+          "reason": "tool-calls",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "messageID": "msg_0a7c2e36f001TVSjnnXDQy6Dl4",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "step-finish",
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        },
+        "time": 1789520962554
+      }
+    },
+    {
+      "id": "evt_0a7c2e3fb001twL8n9cFrvNwRJ",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e36f001TVSjnnXDQy6Dl4",
+          "parentID": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962415
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "tool-calls"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e417001xbBTRQrK3LXpEl",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e36f001TVSjnnXDQy6Dl4",
+          "parentID": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962415,
+            "completed": 1789520962583
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "tool-calls"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e417002w2tHFtwyY7fv0Q",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e418001K1ouhH5MdAwbZD",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e418001ci3cwaZaW64YdR",
+          "parentID": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962584
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e419001qqogEKIpx8W6h0",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 22,
+            "output": 10,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962585
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e419002gv1JJ9q212wzAb",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e43a001NiDZEJ13DO08Pi",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e43d0019gXwHHirmd73lP",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e43d001uPXFNpIGnUOQsx",
+          "messageID": "msg_0a7c2e418001ci3cwaZaW64YdR",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start"
+        },
+        "time": 1789520962621
+      }
+    },
+    {
+      "id": "evt_0a7c2e43e0014B7YUc2coa0BUo",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e43e001HgCYtAb1h07VHl",
+          "messageID": "msg_0a7c2e418001ci3cwaZaW64YdR",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "",
+          "time": {
+            "start": 1789520962622
+          }
+        },
+        "time": 1789520962622
+      }
+    },
+    {
+      "id": "evt_0a7c2e43f001KeN4rFmitLwwK8",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e418001ci3cwaZaW64YdR",
+        "partID": "prt_0a7c2e43e001HgCYtAb1h07VHl",
+        "field": "text",
+        "delta": "Fixture "
+      }
+    },
+    {
+      "id": "evt_0a7c2e43f002tleiGb26GJpw4o",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e418001ci3cwaZaW64YdR",
+        "partID": "prt_0a7c2e43e001HgCYtAb1h07VHl",
+        "field": "text",
+        "delta": "permission complete."
+      }
+    },
+    {
+      "id": "evt_0a7c2e43f0038U5lwhXHTYuz1r",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e43e001HgCYtAb1h07VHl",
+          "messageID": "msg_0a7c2e418001ci3cwaZaW64YdR",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "Fixture permission complete.",
+          "time": {
+            "start": 1789520962622,
+            "end": 1789520962623
+          }
+        },
+        "time": 1789520962623
+      }
+    },
+    {
+      "id": "evt_0a7c2e44c001u5hUoG4IaS0kJb",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962412
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "summary": {
+            "diffs": []
+          },
+          "id": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4690015RxnuuMakX2VZE",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e469001iajfUlKCVGwDZ9",
+          "reason": "stop",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "messageID": "msg_0a7c2e418001ci3cwaZaW64YdR",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "step-finish",
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        },
+        "time": 1789520962665
+      }
+    },
+    {
+      "id": "evt_0a7c2e46a001gcIKYZY6bhGu5o",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e418001ci3cwaZaW64YdR",
+          "parentID": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962584
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e486001cCTVnGXzRussZW",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e418001ci3cwaZaW64YdR",
+          "parentID": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962584,
+            "completed": 1789520962694
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e487001C8jaPw7a8iZ4ia",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e488001jDy5xftPnOuZT8",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "idle"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e488002NBLauXF4lmFZSP",
+      "type": "session.idle",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+      }
+    },
+    {
+      "id": "evt_0a7c2e488003P31FeZKVhHcbpP",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 33,
+            "output": 15,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962696
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e488004H22qF5EpZl6fWp",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e48e001faGxByef6c6Trj",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e48e001JH4auP8C2pZwAh",
+          "role": "user",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "agent": "build",
+          "time": {
+            "created": 1789520962702
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e48f001y0DiMGpgaB6Tww",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e48f001s6hIFhJ0UygMqC",
+          "messageID": "msg_0a7c2e48e001JH4auP8C2pZwAh",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "compaction",
+          "auto": false
+        },
+        "time": 1789520962703
+      }
+    },
+    {
+      "id": "evt_0a7c2e490001itDc40DaJ24LZn",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e491001whZt2ggg3Qt3hn",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e491001pPRWyKLekPvQuF",
+          "role": "assistant",
+          "parentID": "msg_0a7c2e48e001JH4auP8C2pZwAh",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "mode": "compaction",
+          "agent": "compaction",
+          "summary": true,
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "output": 0,
+            "input": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962705
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e49c001KoJYg4N7Ci0p1d",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962412
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "summary": {
+            "diffs": []
+          },
+          "id": "msg_0a7c2e36c001cb6noDYq35a01b",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4b8001wgnZQjeCjS8snA",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4bd001ord4YUJ23ksj9p",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e4bd0012lq9Coz6ro105H",
+          "messageID": "msg_0a7c2e491001pPRWyKLekPvQuF",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start"
+        },
+        "time": 1789520962749
+      }
+    },
+    {
+      "id": "evt_0a7c2e4bd002WMmVp35Yx2W7Q2",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e4bd002rzA4PJIM62LeC8",
+          "messageID": "msg_0a7c2e491001pPRWyKLekPvQuF",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "",
+          "time": {
+            "start": 1789520962749
+          }
+        },
+        "time": 1789520962749
+      }
+    },
+    {
+      "id": "evt_0a7c2e4be001AE8qQxFgwzc1Jo",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e491001pPRWyKLekPvQuF",
+        "partID": "prt_0a7c2e4bd002rzA4PJIM62LeC8",
+        "field": "text",
+        "delta": "Fixture "
+      }
+    },
+    {
+      "id": "evt_0a7c2e4be002XXmcc1XhzMF3EL",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e491001pPRWyKLekPvQuF",
+        "partID": "prt_0a7c2e4bd002rzA4PJIM62LeC8",
+        "field": "text",
+        "delta": "question complete."
+      }
+    },
+    {
+      "id": "evt_0a7c2e4be003m02sE91shkk3G1",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e4bd002rzA4PJIM62LeC8",
+          "messageID": "msg_0a7c2e491001pPRWyKLekPvQuF",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "Fixture question complete.",
+          "time": {
+            "start": 1789520962749,
+            "end": 1789520962750
+          }
+        },
+        "time": 1789520962750
+      }
+    },
+    {
+      "id": "evt_0a7c2e4d8001ZiwbNBN3YklKMl",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e4d8001o3XHtiEISYeP60",
+          "reason": "stop",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "messageID": "msg_0a7c2e491001pPRWyKLekPvQuF",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "step-finish",
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        },
+        "time": 1789520962776
+      }
+    },
+    {
+      "id": "evt_0a7c2e4d9001PiSb4XgX6VPfco",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e491001pPRWyKLekPvQuF",
+          "role": "assistant",
+          "parentID": "msg_0a7c2e48e001JH4auP8C2pZwAh",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "mode": "compaction",
+          "agent": "compaction",
+          "summary": true,
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962705
+          },
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f0001Xn9vdgM8lJqj6J",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e491001pPRWyKLekPvQuF",
+          "role": "assistant",
+          "parentID": "msg_0a7c2e48e001JH4auP8C2pZwAh",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "mode": "compaction",
+          "agent": "compaction",
+          "summary": true,
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962705,
+            "completed": 1789520962800
+          },
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f10013JaRjl6pjjzZc8",
+      "type": "session.compacted",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f10021m4K9A3x7n163R",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f1003tp7ivNfTjeDRoq",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "idle"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f10041kZP6v3hcEVjZj",
+      "type": "session.idle",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f2001Qf4o8ax6KQtuVN",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 44,
+            "output": 20,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962801
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f20024Q6clWyAhr1fhK",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f4001pHkxHc4xF3AZiL",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e4f4001Xxeu8KfSL7EZ4F",
+          "role": "user",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "time": {
+            "created": 1789520962804
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f50012E9cuwfgawPtu2",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "text",
+          "text": "FIXTURE_STEER",
+          "messageID": "msg_0a7c2e4f4001Xxeu8KfSL7EZ4F",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "id": "prt_0a7c2e4f4002uIIv8zf0zLig6F"
+        },
+        "time": 1789520962805
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f5002ammhBp91d4aW8F",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 44,
+            "output": 20,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962805
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f6001co63oemIzzp7y8",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e4f6002H2lDSa2tnrsDU6",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+          "parentID": "msg_0a7c2e4f4001Xxeu8KfSL7EZ4F",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962806
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e505001C5tpHKoWl5GaI6",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "agent": "build",
+          "time": {
+            "created": 1789520962702
+          },
+          "id": "msg_0a7c2e48e001JH4auP8C2pZwAh",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "summary": {
+            "diffs": []
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e525001zzRZQrI3h9dkrh",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 44,
+            "output": 20,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962852
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e5250022z2YaBcaaRQLXv",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e526001jjKb78mweyfww1",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962804
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "id": "msg_0a7c2e4f4001Xxeu8KfSL7EZ4F",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "summary": {
+            "diffs": []
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e526002BNfS6FQJ3fBGMG",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e52a001wmGXbEjPP6f3qd",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e529001QffAs1b1eQHfuT",
+          "role": "user",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "time": {
+            "created": 1789520962857
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e52a0022ddxoGXZvqgNCg",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "type": "text",
+          "text": "FIXTURE_FOLLOWUP",
+          "messageID": "msg_0a7c2e529001QffAs1b1eQHfuT",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "id": "prt_0a7c2e529002z6DAe4bfJrBiOa"
+        },
+        "time": 1789520962858
+      }
+    },
+    {
+      "id": "evt_0a7c2e52a003vHHHgYg1wQjiy2",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 44,
+            "output": 20,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962858
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e52b001abMuO1nwwhq6mw",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e52b001qQO385BI5ECxWp",
+          "messageID": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start"
+        },
+        "time": 1789520962859
+      }
+    },
+    {
+      "id": "evt_0a7c2e52c001jIXWPrPgASIRbm",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e52c001dALV6RGYL2Eay5",
+          "messageID": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "",
+          "time": {
+            "start": 1789520962860
+          }
+        },
+        "time": 1789520962860
+      }
+    },
+    {
+      "id": "evt_0a7c2e52c002z1nYOVz4kK3PzL",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+        "partID": "prt_0a7c2e52c001dALV6RGYL2Eay5",
+        "field": "text",
+        "delta": "Fixture "
+      }
+    },
+    {
+      "id": "evt_0a7c2e52d001Ank72fKdt92AeX",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+        "partID": "prt_0a7c2e52c001dALV6RGYL2Eay5",
+        "field": "text",
+        "delta": "steer complete."
+      }
+    },
+    {
+      "id": "evt_0a7c2e52d002TunNEtZedPOw9i",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e52c001dALV6RGYL2Eay5",
+          "messageID": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "Fixture steer complete.",
+          "time": {
+            "start": 1789520962860,
+            "end": 1789520962861
+          }
+        },
+        "time": 1789520962861
+      }
+    },
+    {
+      "id": "evt_0a7c2e54a001vj8z6euitbl0cM",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e54a001RS7c7CkhrlNUaL",
+          "reason": "stop",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "messageID": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "step-finish",
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        },
+        "time": 1789520962890
+      }
+    },
+    {
+      "id": "evt_0a7c2e54b001E2cdRuBE03l18J",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+          "parentID": "msg_0a7c2e4f4001Xxeu8KfSL7EZ4F",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962806
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e562001AHbLqzvWmkiEmt",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e4f6001p4McU9okEuYmYE",
+          "parentID": "msg_0a7c2e4f4001Xxeu8KfSL7EZ4F",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962806,
+            "completed": 1789520962914
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e563001H9unE3H3HvrvZR",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e563002zbHN4Pd1viK96n",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e563001vynRkycMaWlGgr",
+          "parentID": "msg_0a7c2e529001QffAs1b1eQHfuT",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962915
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e5650015RTZ0Ugy3SyEvY",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 55,
+            "output": 25,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520962917
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e565002gYxHGj5LDY744J",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e5830018GxnhCngO7rFUj",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e585001pilwlT3Hya33rF",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e585001FVLpJFmoakabE0",
+          "messageID": "msg_0a7c2e563001vynRkycMaWlGgr",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "type": "step-start"
+        },
+        "time": 1789520962949
+      }
+    },
+    {
+      "id": "evt_0a7c2e586001SVWmuHOq5gdvb4",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e586001y7dcxpeV2z9BCW",
+          "messageID": "msg_0a7c2e563001vynRkycMaWlGgr",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "",
+          "time": {
+            "start": 1789520962950
+          }
+        },
+        "time": 1789520962950
+      }
+    },
+    {
+      "id": "evt_0a7c2e587001JBVe7hgneBcHZ1",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e563001vynRkycMaWlGgr",
+        "partID": "prt_0a7c2e586001y7dcxpeV2z9BCW",
+        "field": "text",
+        "delta": "Fixture "
+      }
+    },
+    {
+      "id": "evt_0a7c2e587002zoYbhMm6EAYmgn",
+      "type": "message.part.delta",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "messageID": "msg_0a7c2e563001vynRkycMaWlGgr",
+        "partID": "prt_0a7c2e586001y7dcxpeV2z9BCW",
+        "field": "text",
+        "delta": "followup complete."
+      }
+    },
+    {
+      "id": "evt_0a7c2e5870032JXz3qALMWKbDX",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e586001y7dcxpeV2z9BCW",
+          "messageID": "msg_0a7c2e563001vynRkycMaWlGgr",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "text",
+          "text": "Fixture followup complete.",
+          "time": {
+            "start": 1789520962950,
+            "end": 1789520962951
+          }
+        },
+        "time": 1789520962951
+      }
+    },
+    {
+      "id": "evt_0a7c2e592001Ev3Wi32Hd06xHA",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962804
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "summary": {
+            "diffs": []
+          },
+          "id": "msg_0a7c2e4f4001Xxeu8KfSL7EZ4F",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e5a9001Wd0BEIHAJcvGHf",
+      "type": "message.part.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "part": {
+          "id": "prt_0a7c2e5a9001fsKRO2xRCHeHHQ",
+          "reason": "stop",
+          "snapshot": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+          "messageID": "msg_0a7c2e563001vynRkycMaWlGgr",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "type": "step-finish",
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "cost": 0
+        },
+        "time": 1789520962985
+      }
+    },
+    {
+      "id": "evt_0a7c2e5aa001gFlxD3ZuhGz0w1",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e563001vynRkycMaWlGgr",
+          "parentID": "msg_0a7c2e529001QffAs1b1eQHfuT",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962915
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e5c6001njV4uXDPiGgMsP",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "msg_0a7c2e563001vynRkycMaWlGgr",
+          "parentID": "msg_0a7c2e529001QffAs1b1eQHfuT",
+          "role": "assistant",
+          "mode": "build",
+          "agent": "build",
+          "path": {
+            "cwd": "/tmp/opencode-fixture/source workspace",
+            "root": "/tmp/opencode-fixture/source workspace"
+          },
+          "cost": 0,
+          "tokens": {
+            "total": 16,
+            "input": 11,
+            "output": 5,
+            "reasoning": 0,
+            "cache": {
+              "write": 0,
+              "read": 0
+            }
+          },
+          "modelID": "fixture",
+          "providerID": "fixture",
+          "time": {
+            "created": 1789520962915,
+            "completed": 1789520963014
+          },
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "finish": "stop"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e5c70011DUg3z9GmCxaQa",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "busy"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e5c8001Xk7tI680e4LymC",
+      "type": "session.status",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "status": {
+          "type": "idle"
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e5c80020y5FjopBQup8KR",
+      "type": "session.idle",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb"
+      }
+    },
+    {
+      "id": "evt_0a7c2e5c8003GEB8HeJJukSqYt",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 66,
+            "output": 30,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520963016
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e5c8004jR1fKa3BUSaG2O",
+      "type": "session.diff",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "diff": []
+      }
+    },
+    {
+      "id": "evt_0a7c2e5e0002mryDKJfkiSNzSr",
+      "type": "message.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "role": "user",
+          "time": {
+            "created": 1789520962857
+          },
+          "agent": "build",
+          "model": {
+            "providerID": "fixture",
+            "modelID": "fixture"
+          },
+          "id": "msg_0a7c2e529001QffAs1b1eQHfuT",
+          "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "summary": {
+            "diffs": []
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e878001zZRzQU4T0phvtg",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 66,
+            "output": 30,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520963016,
+            "archived": 123456789
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_0a7c2e87c001puw1vIwgDZ1r76",
+      "type": "session.updated",
+      "properties": {
+        "sessionID": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+        "info": {
+          "id": "ses_f583d20e8ffeLLa6nKLWNBIuBb",
+          "slug": "curious-lagoon",
+          "projectID": "395a6c561bfce8e7c9d6c52626a5eae77f34490d",
+          "directory": "/tmp/opencode-fixture/source workspace",
+          "path": "",
+          "title": "Deterministic fixture session",
+          "agent": "build",
+          "model": {
+            "id": "fixture",
+            "providerID": "fixture",
+            "variant": "default"
+          },
+          "version": "1.18.31",
+          "summary": {
+            "additions": 0,
+            "deletions": 0,
+            "files": 0
+          },
+          "cost": 0,
+          "tokens": {
+            "input": 66,
+            "output": 30,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1789520961303,
+            "updated": 1789520963016,
+            "archived": 0
+          }
+        }
+      }
+    }
+  ],
+  "archiveClear": {
+    "emptyTime": {
+      "created": 1789520961303,
+      "updated": 1789520963016,
+      "archived": 123456789
+    },
+    "nullTime": {
+      "created": 1789520961303,
+      "updated": 1789520963016,
+      "archived": 123456789
+    },
+    "zeroTime": {
+      "created": 1789520961303,
+      "updated": 1789520963016,
+      "archived": 0
+    },
+    "zeroIsVisible": false
+  },
+  "limitations": [
+    "V1 PATCH cannot clear the native archive timestamp."
+  ],
+  "providerRequestCount": 9,
+  "eventTypes": [
+    "message.part.delta",
+    "message.part.updated",
+    "message.updated",
+    "permission.asked",
+    "permission.replied",
+    "question.asked",
+    "question.replied",
+    "server.connected",
+    "session.compacted",
+    "session.created",
+    "session.diff",
+    "session.idle",
+    "session.status",
+    "session.updated"
+  ]
+}

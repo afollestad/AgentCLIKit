@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 /// Shell command description used by harness detection and process helpers.
 public struct ShellCommand: Codable, Equatable, Hashable, Sendable {
@@ -6,8 +11,10 @@ public struct ShellCommand: Codable, Equatable, Hashable, Sendable {
     public let executable: String
     /// Command-line arguments.
     public let arguments: [String]
-    /// Environment overrides. Values are merged over the process environment.
+    /// Environment values, interpreted according to `inheritsEnvironment`.
     public let environment: [String: String]
+    /// Whether environment values override the parent process environment. False replaces it completely.
+    public let inheritsEnvironment: Bool
     /// Optional working directory.
     public let workingDirectory: URL?
     /// Optional text written to standard input, then closed.
@@ -18,12 +25,14 @@ public struct ShellCommand: Codable, Equatable, Hashable, Sendable {
         executable: String,
         arguments: [String] = [],
         environment: [String: String] = [:],
+        inheritsEnvironment: Bool = true,
         workingDirectory: URL? = nil,
         standardInput: String? = nil
     ) {
         self.executable = executable
         self.arguments = arguments
         self.environment = environment
+        self.inheritsEnvironment = inheritsEnvironment
         self.workingDirectory = workingDirectory
         self.standardInput = standardInput
     }
@@ -34,6 +43,7 @@ public struct ShellCommand: Codable, Equatable, Hashable, Sendable {
         self.executable = try container.decode(String.self, forKey: .executable)
         self.arguments = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
         self.environment = try container.decodeIfPresent([String: String].self, forKey: .environment) ?? [:]
+        self.inheritsEnvironment = try container.decodeIfPresent(Bool.self, forKey: .inheritsEnvironment) ?? true
         self.workingDirectory = try container.decodeIfPresent(URL.self, forKey: .workingDirectory)
         self.standardInput = try container.decodeIfPresent(String.self, forKey: .standardInput)
     }
@@ -90,6 +100,7 @@ public struct ProcessShellRunner: ShellRunning {
                 }
                 throw AgentCLIError.commandLaunchFailed(executable: command.executable, reason: error.localizedDescription)
             }
+            cancellationHandler.didLaunch()
             if Task.isCancelled {
                 cancellationHandler.terminate()
             }
@@ -101,6 +112,8 @@ public struct ProcessShellRunner: ShellRunning {
             async let stderrData = Task.detached { pipes.stderr.fileHandleForReading.readDataToEndOfFile() }.value
 
             await terminationObserver.waitForTermination()
+            cancellationHandler.terminate()
+            await cancellationHandler.waitForTeardown()
             if let stdinWriter {
                 await stdinWriter.value
             }
@@ -128,7 +141,9 @@ public struct ProcessShellRunner: ShellRunning {
         let launch = launchConfiguration(for: command)
         process.executableURL = launch.executableURL
         process.arguments = launch.arguments
-        if !command.environment.isEmpty {
+        if !command.inheritsEnvironment {
+            process.environment = command.environment
+        } else if !command.environment.isEmpty {
             process.environment = ProcessInfo.processInfo.environment.merging(command.environment) { _, new in new }
         }
         if let workingDirectory = command.workingDirectory {
@@ -176,9 +191,13 @@ private struct ProcessPipes {
     let stderr: Pipe
 }
 
-private final class ProcessCancellationHandler: @unchecked Sendable {
+/// Cancellation before launch publication is completed by the runner's post-launch check, once group ownership is known.
+final class ProcessCancellationHandler: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
+    private var ownedGroup: pid_t?
+    private var hasLaunched = false
+    private var teardown: Task<Void, Never>?
 
     // Cancellation can arrive before or after launch, so keep process lookup synchronized for teardown.
     func setProcess(_ process: Process) {
@@ -193,12 +212,48 @@ private final class ProcessCancellationHandler: @unchecked Sendable {
         }
     }
 
-    func terminate() {
-        let process = lock.withLock { self.process }
-        guard process?.isRunning == true else {
-            return
+    /// Foundation creates a child process group on supported platforms; confirm ownership before ever signaling it.
+    func didLaunch() {
+        lock.withLock {
+            guard let process else { return }
+            hasLaunched = true
+            let identifier = process.processIdentifier
+            guard identifier > 0, identifier != getpgrp() else { return }
+            if getpgid(identifier) == identifier || !process.isRunning && Self.groupExists(identifier) {
+                ownedGroup = identifier
+            }
         }
-        process?.terminate()
+    }
+
+    func terminate() {
+        lock.withLock {
+            guard hasLaunched, teardown == nil, let process,
+                  process.isRunning || ownedGroup.map(Self.groupExists) == true else { return }
+            let group = ownedGroup
+            if let group { kill(-group, SIGTERM) } else if process.isRunning { process.terminate() }
+            // Retire the owned group before removing resources, including children that inherited no output pipes.
+            teardown = Task.detached {
+                let deadline = Date().addingTimeInterval(1)
+                while process.isRunning || group.map(Self.groupExists) == true {
+                    if Date() >= deadline {
+                        // SIGKILL prevents more user-mode work; orphan zombies may retain the group until their new parent reaps them.
+                        if let group { kill(-group, SIGKILL) } else if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                        return
+                    }
+                    // Stop tracking as soon as the owned group disappears, before its identifier can be reused.
+                    try? await Task.sleep(for: .milliseconds(10))
+                }
+            }
+        }
+    }
+
+    func waitForTeardown() async {
+        let task = lock.withLock { teardown }
+        await task?.value
+    }
+
+    private static func groupExists(_ identifier: pid_t) -> Bool {
+        kill(-identifier, 0) == 0 || errno == EPERM
     }
 }
 

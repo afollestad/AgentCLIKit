@@ -253,96 +253,9 @@ public struct DefaultAgentHarnessCapabilitySource: AgentHarnessCapabilitySource 
         switch definition.id {
         case .codex:
             await codexSource.capabilities(for: definition, availability: availability)
-        case .claude:
+        case .claude, .opencode:
             definition.capabilities
         }
-    }
-}
-
-/// Source of selectable harness model options.
-public protocol AgentModelOptionSource: Sendable {
-    /// Returns model options for the harness.
-    func modelOptions(for harnessId: AgentHarnessID) async -> [AgentModelOption]
-}
-
-/// Static model option source.
-public struct StaticAgentModelOptionSource: AgentModelOptionSource {
-    private let optionsByHarness: [AgentHarnessID: [AgentModelOption]]
-
-    /// Creates a static model option source.
-    public init(optionsByHarness: [AgentHarnessID: [AgentModelOption]] = [:]) {
-        self.optionsByHarness = optionsByHarness
-    }
-
-    /// Returns static model options for the harness.
-    public func modelOptions(for harnessId: AgentHarnessID) async -> [AgentModelOption] {
-        optionsByHarness[harnessId] ?? AgentDefaultModelOptions.harnessDefault(for: harnessId)
-    }
-}
-
-/// Built-in model option source that routes to harness-specific defaults.
-public struct DefaultAgentModelOptionSource: AgentModelOptionSource {
-    private let claudeSource: any AgentModelOptionSource
-    private let codexSource: (any AgentModelOptionSource)?
-
-    /// Creates the default model option source.
-    /// - Parameters:
-    ///   - claudeSource: Source for Claude model options.
-    ///   - codexSource: Optional live or host-provided source for Codex model options.
-    public init(
-        claudeSource: any AgentModelOptionSource = ClaudeModelOptionSource(),
-        codexSource: (any AgentModelOptionSource)? = nil
-    ) {
-        self.claudeSource = claudeSource
-        self.codexSource = codexSource
-    }
-
-    /// Returns model options from the matching harness-specific source.
-    public func modelOptions(for harnessId: AgentHarnessID) async -> [AgentModelOption] {
-        switch harnessId {
-        case .claude:
-            return await claudeSource.modelOptions(for: harnessId)
-        case .codex:
-            guard let codexSource else {
-                return AgentDefaultModelOptions.staticOptions(for: harnessId)
-            }
-            return await codexSource.modelOptions(for: harnessId)
-        }
-    }
-}
-
-/// Built-in static model options used as safe discovery fallbacks.
-public enum AgentDefaultModelOptions {
-    /// Returns the static model options a host can show before harness discovery completes.
-    ///
-    /// For harnesses whose catalog is authored in the package (Claude), this is exactly the list discovery later
-    /// reports, so a cold-start UI and a discovered one render the same labels and effort ladders. Harnesses whose
-    /// model list requires a live source (Codex) fall back to the single harness-default option.
-    public static func staticOptions(for harnessId: AgentHarnessID) -> [AgentModelOption] {
-        switch harnessId {
-        case .claude:
-            return ClaudeModelOptionSource.staticModelOptions
-        case .codex:
-            return harnessDefault(for: harnessId, description: "Use the Codex default model.")
-        }
-    }
-
-    /// Returns a harness-default model option.
-    public static func harnessDefault(
-        for harnessId: AgentHarnessID,
-        label: String = "Harness default",
-        description: String? = nil
-    ) -> [AgentModelOption] {
-        [
-            AgentModelOption(
-                harnessId: harnessId,
-                id: "default",
-                model: nil,
-                label: label,
-                description: description,
-                isDefault: true
-            )
-        ]
     }
 }
 
@@ -400,15 +313,16 @@ public struct DefaultAgentHarnessDiscoveryService: AgentHarnessDiscoveryService 
             (await executableDetector.availability(for: definitions)).map { ($0.harnessId, $0) },
             uniquingKeysWith: { _, new in new }
         )
-        var statuses: [AgentHarnessID: AgentHarnessStatus] = [:]
-        for definition in definitions {
-            statuses[definition.id] = await status(
-                definition: definition,
-                availability: availabilityByHarness[definition.id],
-                projectURL: projectURL
-            )
+        return await withTaskGroup(of: AgentHarnessStatus.self) { group in
+            for definition in definitions {
+                group.addTask {
+                    await status(definition: definition, availability: availabilityByHarness[definition.id], projectURL: projectURL)
+                }
+            }
+            var statuses: [AgentHarnessID: AgentHarnessStatus] = [:]
+            for await status in group { statuses[status.harnessId] = status }
+            return statuses
         }
-        return statuses
     }
 
     /// Returns statuses for installed harnesses only.

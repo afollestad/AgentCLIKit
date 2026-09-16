@@ -17,6 +17,7 @@ Read the nearest `AGENTS.md` before editing. Current scopes:
 - `Sources/AgentCLIKit/Claude/AGENTS.md`: Claude harness adapter, config, stream decoding, and hook server behavior.
 - `Sources/AgentCLIKit/Claude/Hooks/AGENTS.md`: Claude hook transport.
 - `Sources/AgentCLIKit/Codex/AGENTS.md`: Codex App Server metadata, wire formats, config, and permission semantics.
+- `Sources/AgentCLIKit/OpenCode/AGENTS.md`: OpenCode HTTP/SSE adapter, provider discovery, and native JSON/JSONC config.
 - `Sources/AgentCLIKit/MCP/AGENTS.md`: harness-neutral MCP config and process-scoped host tools.
 - `Sources/AgentCLIKit/Runtime/AGENTS.md`: runtime process lifecycle, replay buffers, and deferred-tool resume behavior.
 - `Sources/AgentCLIKitDemo/AGENTS.md`: macOS demo app.

@@ -10,20 +10,25 @@ public struct AgentHarnessAdapterSet: Sendable {
         adapters.map(\.definition)
     }
 
-    /// Built-in AgentCLIKit harnesses using their default configuration.
-    public static let `default` = AgentHarnessAdapterSet(adapters: [
-        ClaudeHarnessAdapter(),
-        CodexHarnessAdapter()
-    ])
+    /// Creates independent built-in adapters; shutting down one runtime must not close another runtime's clients.
+    public static var `default`: AgentHarnessAdapterSet {
+        AgentHarnessAdapterSet(adapters: [
+            ClaudeHarnessAdapter(),
+            CodexHarnessAdapter(),
+            OpenCodeHarnessAdapter()
+        ])
+    }
 
     /// Creates the built-in harness set with custom harness configurations.
     public static func `default`(
         claude: ClaudeHarnessAdapter.Configuration,
-        codex: CodexHarnessAdapter.Configuration = CodexHarnessAdapter.Configuration()
+        codex: CodexHarnessAdapter.Configuration = CodexHarnessAdapter.Configuration(),
+        opencode: OpenCodeHarnessAdapter.Configuration = OpenCodeHarnessAdapter.Configuration()
     ) -> AgentHarnessAdapterSet {
         AgentHarnessAdapterSet(adapters: [
             ClaudeHarnessAdapter(configuration: claude),
-            CodexHarnessAdapter(configuration: codex)
+            CodexHarnessAdapter(configuration: codex),
+            OpenCodeHarnessAdapter(configuration: opencode)
         ])
     }
 

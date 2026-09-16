@@ -6,7 +6,7 @@ final class AgentHarnessTests: XCTestCase {
     func testHarnessIDIncludesCodex() throws {
         let decoded = try JSONDecoder().decode(AgentHarnessID.self, from: Data(#""codex""#.utf8))
 
-        XCTAssertEqual(AgentHarnessID.allCases, [.claude, .codex])
+        XCTAssertEqual(AgentHarnessID.allCases, [.claude, .codex, .opencode])
         XCTAssertEqual(decoded, .codex)
         XCTAssertEqual(decoded.rawValue, "codex")
     }
@@ -14,15 +14,15 @@ final class AgentHarnessTests: XCTestCase {
     func testDefaultAdapterSetExposesBuiltInRuntimeDefinitions() {
         let adapterSet = AgentHarnessAdapterSet.default
 
-        XCTAssertEqual(adapterSet.definitions.map(\.id), [.claude, .codex])
-        XCTAssertEqual(adapterSet.definitions.map(\.displayName), ["Claude", "Codex"])
+        XCTAssertEqual(adapterSet.definitions.map(\.id), [.claude, .codex, .opencode])
+        XCTAssertEqual(adapterSet.definitions.map(\.displayName), ["Claude", "Codex", "OpenCode"])
     }
 
     func testBuiltInHarnessDefinitionsIncludeClaudeAndCodexWithoutRuntimeAdapters() {
         let definitions = AgentHarnessRegistry.builtInDefinitions
 
-        XCTAssertEqual(definitions.map(\.id), [.claude, .codex])
-        XCTAssertEqual(definitions.map(\.displayName), ["Claude", "Codex"])
+        XCTAssertEqual(definitions.map(\.id), [.claude, .codex, .opencode])
+        XCTAssertEqual(definitions.map(\.displayName), ["Claude", "Codex", "OpenCode"])
         XCTAssertTrue(definitions[0].capabilities.supportsHooks)
         XCTAssertFalse(definitions[0].capabilities.supportsSessionArchiving)
         XCTAssertFalse(definitions[0].capabilities.supportsSessionUnarchiving)
@@ -99,10 +99,10 @@ final class AgentHarnessTests: XCTestCase {
             FakeHarnessAdapter(command: AgentLaunchConfiguration(executable: "/usr/bin/true"))
         ])
 
-        XCTAssertEqual(adapterSet.adapters.count, 2)
+        XCTAssertEqual(adapterSet.adapters.count, 3)
         XCTAssertEqual(adapterSet.definitions.first?.id, .claude)
         XCTAssertEqual(adapterSet.definitions.first?.displayName, "Fake")
-        XCTAssertEqual(adapterSet.definitions.last?.id, .codex)
+        XCTAssertEqual(adapterSet.definitions.last?.id, .opencode)
     }
 
     func testDefaultAdapterSetAcceptsClaudeConfiguration() async throws {
@@ -124,7 +124,7 @@ final class AgentHarnessTests: XCTestCase {
 
         let definitions = await registry.allDefinitions()
 
-        XCTAssertEqual(definitions.map(\.id), [.claude, .codex])
+        XCTAssertEqual(definitions.map(\.id), [.claude, .codex, .opencode])
     }
 
     func testRegistryUsesLastDuplicateDefinition() async {

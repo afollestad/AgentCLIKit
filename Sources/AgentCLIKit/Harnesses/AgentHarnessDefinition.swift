@@ -96,6 +96,8 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
     public let supportsSessionDeletion: Bool
     /// Whether the harness can receive local image files as structured message attachments.
     public let supportsLocalImageInput: Bool
+    /// Whether utility prompts enforce read-only tools without creating a persistent session.
+    public let supportsReadOnlyOneShotPrompts: Bool
 
     /// Creates harness capability metadata.
     public init(
@@ -123,7 +125,8 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         supportsSessionArchiving: Bool = false,
         supportsSessionUnarchiving: Bool = false,
         supportsSessionDeletion: Bool = false,
-        supportsLocalImageInput: Bool = false
+        supportsLocalImageInput: Bool = false,
+        supportsReadOnlyOneShotPrompts: Bool = false
     ) {
         self.supportsSessionResume = supportsSessionResume
         self.supportsHooks = supportsHooks
@@ -150,6 +153,7 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         self.supportsSessionUnarchiving = supportsSessionUnarchiving
         self.supportsSessionDeletion = supportsSessionDeletion
         self.supportsLocalImageInput = supportsLocalImageInput
+        self.supportsReadOnlyOneShotPrompts = supportsReadOnlyOneShotPrompts
     }
 
     /// Decodes capability metadata, defaulting additive fields for older persisted values.
@@ -184,6 +188,7 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         self.supportsSessionUnarchiving = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionUnarchiving) ?? false
         self.supportsSessionDeletion = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionDeletion) ?? false
         self.supportsLocalImageInput = try container.decodeIfPresent(Bool.self, forKey: .supportsLocalImageInput) ?? false
+        self.supportsReadOnlyOneShotPrompts = try container.decodeIfPresent(Bool.self, forKey: .supportsReadOnlyOneShotPrompts) ?? false
     }
 
     /// Encodes capability metadata using current public keys.
@@ -214,6 +219,7 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         try container.encode(supportsSessionUnarchiving, forKey: .supportsSessionUnarchiving)
         try container.encode(supportsSessionDeletion, forKey: .supportsSessionDeletion)
         try container.encode(supportsLocalImageInput, forKey: .supportsLocalImageInput)
+        try container.encode(supportsReadOnlyOneShotPrompts, forKey: .supportsReadOnlyOneShotPrompts)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -243,6 +249,7 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         case supportsSessionUnarchiving
         case supportsSessionDeletion
         case supportsLocalImageInput
+        case supportsReadOnlyOneShotPrompts
     }
 }
 
@@ -273,7 +280,8 @@ extension AgentHarnessCapabilities {
             supportsSessionArchiving: self.supportsSessionArchiving,
             supportsSessionUnarchiving: self.supportsSessionUnarchiving,
             supportsSessionDeletion: self.supportsSessionDeletion,
-            supportsLocalImageInput: self.supportsLocalImageInput
+            supportsLocalImageInput: self.supportsLocalImageInput,
+            supportsReadOnlyOneShotPrompts: self.supportsReadOnlyOneShotPrompts
         )
     }
 
@@ -308,7 +316,8 @@ extension AgentHarnessCapabilities {
             supportsSessionArchiving: self.supportsSessionArchiving,
             supportsSessionUnarchiving: self.supportsSessionUnarchiving,
             supportsSessionDeletion: self.supportsSessionDeletion,
-            supportsLocalImageInput: self.supportsLocalImageInput
+            supportsLocalImageInput: self.supportsLocalImageInput,
+            supportsReadOnlyOneShotPrompts: self.supportsReadOnlyOneShotPrompts
         )
     }
 }
