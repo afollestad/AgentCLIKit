@@ -243,6 +243,10 @@ showing speed controls, and use `AgentModelOption.supportedEffortOptions` and
 `AgentDefaultModelOptions.staticOptions(for:)` — for Claude it is exactly the list discovery reports, so a cold start
 never shows a raw model id.
 
+Claude's catalog includes Opus 5.5 (`claude-opus-5-5`) with `low`, `medium`, `high`, `xhigh`, and `max` effort,
+defaulting to `medium`. The `opus` short name selects Opus 5.5; older pinned Opus versions remain selectable with
+their existing effort defaults.
+
 Use `DefaultAgentProjectTrustService` when the user chooses to trust a project:
 
 ```swift

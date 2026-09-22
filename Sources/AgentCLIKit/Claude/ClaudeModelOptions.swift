@@ -108,9 +108,15 @@ enum ClaudeModelCatalog {
             defaultEffort: "high"
         ),
         Entry(
+            id: "claude-opus-5-5",
+            label: "Opus 5.5",
+            shortName: "opus",
+            supportedEfforts: fullEfforts,
+            defaultEffort: "medium"
+        ),
+        Entry(
             id: "claude-opus-5",
             label: "Opus 5",
-            shortName: "opus",
             supportedEfforts: fullEfforts,
             defaultEffort: "high"
         ),

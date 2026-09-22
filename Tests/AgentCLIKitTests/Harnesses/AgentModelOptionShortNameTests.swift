@@ -11,6 +11,7 @@ final class AgentModelOptionShortNameTests: XCTestCase {
         XCTAssertEqual(options.map(\.id), [
             "claude-fable-5-1",
             "claude-fable-5",
+            "claude-opus-5-5",
             "claude-opus-5",
             "claude-opus-4-8",
             "claude-opus-4-7",
@@ -23,6 +24,7 @@ final class AgentModelOptionShortNameTests: XCTestCase {
             "fable",
             "claude-fable-5",
             "opus",
+            "claude-opus-5",
             "claude-opus-4-8",
             "claude-opus-4-7",
             "claude-opus-4-6",

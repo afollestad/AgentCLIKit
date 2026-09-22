@@ -106,6 +106,7 @@ final class AgentHarnessDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(claudeOptions.map(\.id), [
             "claude-fable-5-1",
             "claude-fable-5",
+            "claude-opus-5-5",
             "claude-opus-5",
             "claude-opus-4-8",
             "claude-opus-4-7",
@@ -117,6 +118,7 @@ final class AgentHarnessDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(claudeOptions.map(\.label), [
             "Fable 5.1",
             "Fable 5",
+            "Opus 5.5",
             "Opus 5",
             "Opus 4.8",
             "Opus 4.7",
@@ -135,7 +137,7 @@ final class AgentHarnessDiscoveryServiceTests: XCTestCase {
 
         XCTAssertEqual(staticOptions, discovered)
         XCTAssertEqual(staticOptions.filter(\.isDefault).map(\.id), ["claude-sonnet-5"])
-        XCTAssertEqual(staticOptions.first { $0.id == "claude-opus-5" }?.label, "Opus 5")
+        XCTAssertEqual(staticOptions.first { $0.id == "claude-opus-5-5" }?.label, "Opus 5.5")
     }
 
     func testStaticOptionsKeepCodexOnHarnessDefault() async {
@@ -159,6 +161,7 @@ final class AgentHarnessDiscoveryServiceTests: XCTestCase {
         }
 
         XCTAssertEqual(efforts("claude-sonnet-5"), ["low", "medium", "high", "xhigh", "max"])
+        XCTAssertEqual(efforts("claude-opus-5-5"), ["low", "medium", "high", "xhigh", "max"])
         XCTAssertEqual(efforts("claude-opus-4-8"), ["low", "medium", "high", "xhigh", "max"])
         // `xhigh` postdates these two, so their ladders stop at `high`.
         XCTAssertEqual(efforts("claude-sonnet-4-6"), ["low", "medium", "high", "max"])
@@ -166,6 +169,7 @@ final class AgentHarnessDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(efforts("claude-haiku-4-5"), ["low", "medium", "high"])
         XCTAssertEqual(defaultEffort("claude-sonnet-5"), "high")
         XCTAssertEqual(defaultEffort("claude-fable-5-1"), "high")
+        XCTAssertEqual(defaultEffort("claude-opus-5-5"), "medium")
         XCTAssertEqual(defaultEffort("claude-opus-5"), "high")
         XCTAssertEqual(defaultEffort("claude-haiku-4-5"), "medium")
         XCTAssertEqual(
