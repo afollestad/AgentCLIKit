@@ -378,6 +378,20 @@ public actor CodexConfigStore {
         }
     }
 
+    /// MCP servers a Codex thread in `workingDirectory` would start from user config and, when user config trusts
+    /// the directory, its project config. Read once without observing either file; an unreadable layer lists nothing.
+    /// Only the directory's own project layer is read, so a parent project's servers are not listed.
+    static func configuredMCPServerNames(codexHomeDirectoryURL: URL, workingDirectory: URL) -> Set<String> {
+        let userText = (try? readText(fileURL: codexHomeDirectoryURL.appendingPathComponent("config.toml"))) ?? ""
+        var names = Set(((try? mcpServerConfigs(from: userText)) ?? [:]).keys)
+        guard snapshot(from: userText, revision: 0).isTrustedProject(path: workingDirectory.path),
+              let projectText = try? readText(fileURL: projectConfigFileURL(for: workingDirectory)) else {
+            return names
+        }
+        names.formUnion(((try? mcpServerConfigs(from: projectText)) ?? [:]).keys)
+        return names
+    }
+
     static func mcpServerConfigs(from text: String) throws -> [String: CodexMCPServerConfig] {
         let document = CodexTOMLDocument(text: text)
         var builders: [String: CodexMCPServerConfigBuilder] = [:]

@@ -240,10 +240,7 @@ extension CodexAppServerClient {
         }
         mergeSpeedModeConfig(spawnConfig: spawnConfig, supportsFastMode: supportsFastMode, into: &config)
         mergeIntegrationIsolationConfig(spawnConfig: spawnConfig, into: &config)
-        if spawnConfig.integrationIsolation.contains(.shellNetwork) {
-            // Explicit so a user config that grants workspace-write network cannot reopen it.
-            config["sandbox_workspace_write.network_access"] = .bool(false)
-        }
+        mergeLaunchIsolationConfig(spawnConfig: spawnConfig, hostToolEndpoint: hostToolEndpoint, into: &config)
         if let hostToolEndpoint {
             let toolApprovals = Dictionary(uniqueKeysWithValues: hostToolEndpoint.enabledToolNames.map {
                 ($0, JSONValue.object(["approval_mode": .string("approve")]))
