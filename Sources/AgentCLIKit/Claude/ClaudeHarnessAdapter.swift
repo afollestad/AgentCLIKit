@@ -277,6 +277,10 @@ public struct ClaudeHarnessAdapter: AgentHarnessAdapter {
             spawnConfig: spawnConfig,
             endpoint: hostToolEndpoint
         )
+        if spawnConfig.integrationIsolation.contains(.nativeIntegrations) {
+            // Claude then ignores every MCP configuration except `--mcp-config`, which is where host tools arrive.
+            arguments.append("--strict-mcp-config")
+        }
         arguments.append(contentsOf: ["--model", ClaudeModelAliases.normalizedModel(spawnConfig.model)])
         if let effort = ClaudeModelAliases.normalizedEffort(spawnConfig.effort, model: spawnConfig.model) {
             arguments.append(contentsOf: ["--effort", effort])

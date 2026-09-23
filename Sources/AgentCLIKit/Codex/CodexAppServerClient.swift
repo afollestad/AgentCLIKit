@@ -127,7 +127,8 @@ actor CodexAppServerClient {
         }
         if context.currentConfig.hostTools != context.newConfig.hostTools ||
             context.currentConfig.hostToolServer != context.newConfig.hostToolServer ||
-            context.currentConfig.additionalWorkspaceRoots != context.newConfig.additionalWorkspaceRoots {
+            context.currentConfig.additionalWorkspaceRoots != context.newConfig.additionalWorkspaceRoots ||
+            context.currentConfig.integrationIsolation != context.newConfig.integrationIsolation {
             return context.isTurnActive || binding.activeTurnId != nil ? .nextTurnRequired : .restartRequired
         }
         guard !context.isTurnActive, binding.activeTurnId == nil else {

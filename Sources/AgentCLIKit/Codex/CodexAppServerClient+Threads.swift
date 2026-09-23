@@ -73,6 +73,7 @@ extension CodexAppServerClient {
         // A loaded thread ignores resume overrides. Fork to apply explicit roots even without host tools; otherwise
         // resuming after suspension can retain revoked grants. An empty root list deliberately preserves native roots.
         let requiresLaunchOverrides = hostToolEndpoint != nil || !spawnConfig.additionalWorkspaceRoots.isEmpty
+            || !spawnConfig.integrationIsolation.isEmpty
         return requiresLaunchOverrides ? resumedSession?.harnessSessionId : nil
     }
 
@@ -202,6 +203,10 @@ extension CodexAppServerClient {
         if let permissionMode = spawnConfig.permissionMode {
             params["approvalPolicy"] = .string(permissionMode)
         }
+        if spawnConfig.integrationIsolation.contains(.shellNetwork) {
+            // Overrides the user's `sandbox_mode`; read-only is the only mode without shell network by default.
+            params["sandbox"] = .string("read-only")
+        }
         if let workspaceRoots = runtimeWorkspaceRoots(spawnConfig) {
             params["runtimeWorkspaceRoots"] = .array(workspaceRoots.map(JSONValue.string))
         }
@@ -233,6 +238,7 @@ extension CodexAppServerClient {
             config["model_reasoning_summary"] = .string(reasoningSummaryMode.rawValue)
         }
         mergeSpeedModeConfig(spawnConfig: spawnConfig, supportsFastMode: supportsFastMode, into: &config)
+        mergeIntegrationIsolationConfig(spawnConfig: spawnConfig, into: &config)
         if let hostToolEndpoint {
             let toolApprovals = Dictionary(uniqueKeysWithValues: hostToolEndpoint.enabledToolNames.map {
                 ($0, JSONValue.object(["approval_mode": .string("approve")]))

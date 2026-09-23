@@ -116,7 +116,25 @@ extension CodexAppServerClient {
     func stickyConfig(spawnConfig: AgentSpawnConfig, supportsFastMode: Bool) -> JSONValue? {
         var config: [String: JSONValue] = [:]
         mergeSpeedModeConfig(spawnConfig: spawnConfig, supportsFastMode: supportsFastMode, into: &config)
+        mergeIntegrationIsolationConfig(spawnConfig: spawnConfig, into: &config)
         return config.isEmpty ? nil : .object(config)
+    }
+
+    /// Withholds connector apps and plugins, which also removes plugin-provided MCP servers and skills.
+    ///
+    /// Writes into the same `features` object as fast mode, and runs for sticky settings as well as thread launch,
+    /// because a later `features` override that omitted these keys could otherwise restore them.
+    func mergeIntegrationIsolationConfig(spawnConfig: AgentSpawnConfig, into config: inout [String: JSONValue]) {
+        guard spawnConfig.integrationIsolation.contains(.nativeIntegrations) else {
+            return
+        }
+        var features: [String: JSONValue] = [:]
+        if case let .object(existingFeatures)? = config["features"] {
+            features = existingFeatures
+        }
+        features["apps"] = .bool(false)
+        features["plugins"] = .bool(false)
+        config["features"] = .object(features)
     }
 
     func mergeSpeedModeConfig(

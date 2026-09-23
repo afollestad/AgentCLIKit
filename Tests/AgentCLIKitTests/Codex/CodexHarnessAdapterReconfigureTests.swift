@@ -121,6 +121,66 @@ final class CodexHarnessAdapterReconfigureTests: XCTestCase {
         XCTAssertEqual(turnStartParams["config"], settingsParams["config"])
     }
 
+    /// A sticky `features` override that omitted the isolation keys could restore apps and plugins mid-thread.
+    func testSpeedChangesKeepIntegrationIsolationInStickyFeatures() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(
+            transport: transport,
+            featureSupportChecker: FixedCodexFeatureSupportChecker(supportsFastMode: true)
+        ))
+        let spawnConfig = AgentSpawnConfig(
+            harnessId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            integrationIsolation: .nativeIntegrations
+        )
+        let updatedConfig = AgentSpawnConfig(
+            harnessId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            speedMode: .fast,
+            integrationIsolation: .nativeIntegrations
+        )
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        _ = stream
+        try await waitForBinding()
+        let result = try await adapter.reconfigure(context: reconfigureContext(currentConfig: spawnConfig, newConfig: updatedConfig))
+        _ = try await adapter.encodeInput(
+            .userMessage(AgentMessageInput(text: "Start work")),
+            context: inputContext(threadId: "thread-123", spawnConfig: updatedConfig, isTurnActive: false)
+        )
+
+        let requestLog = await transport.requestLog
+        let settingsParams = try XCTUnwrap(requestLog.first { $0.method == "thread/settings/update" }?.params?.objectValue)
+        let turnStartParams = try XCTUnwrap(requestLog.first { $0.method == "turn/start" }?.params?.objectValue)
+        XCTAssertEqual(result, .appliedInPlace)
+        XCTAssertEqual(settingsParams["config"], .object([
+            "features": .object(["fast_mode": .bool(true), "apps": .bool(false), "plugins": .bool(false)])
+        ]))
+        XCTAssertEqual(turnStartParams["config"], settingsParams["config"])
+    }
+
+    func testChangingIntegrationIsolationRequiresRelaunch() async throws {
+        let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
+        let adapter = CodexHarnessAdapter(configuration: configuration(transport: transport))
+        let spawnConfig = AgentSpawnConfig(harnessId: .codex, workingDirectory: URL(fileURLWithPath: "/tmp/project"))
+        let isolatedConfig = AgentSpawnConfig(
+            harnessId: .codex,
+            workingDirectory: URL(fileURLWithPath: "/tmp/project"),
+            integrationIsolation: .shellNetwork
+        )
+
+        _ = try await adapter.makeLaunchConfiguration(spawnConfig: spawnConfig, resumedSession: nil)
+        let stream = await adapter.runtimeEvents(context: runtimeContext(threadId: "thread-123", spawnConfig: spawnConfig))
+        _ = stream
+        try await waitForBinding()
+        let result = try await adapter.reconfigure(context: reconfigureContext(currentConfig: spawnConfig, newConfig: isolatedConfig))
+
+        let requestMethods = await transport.requestMethods
+        XCTAssertEqual(result, .restartRequired)
+        XCTAssertFalse(requestMethods.contains("thread/settings/update"))
+    }
+
     func testUnsupportedFastModeReconfigureFailsWithoutSettingsUpdate() async throws {
         let transport = FakeCodexAppServerTransport(threadIds: ["thread-123"])
         let adapter = CodexHarnessAdapter(configuration: configuration(

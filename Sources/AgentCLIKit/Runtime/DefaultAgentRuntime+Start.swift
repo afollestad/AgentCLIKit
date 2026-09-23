@@ -93,6 +93,10 @@ extension DefaultAgentRuntime {
         guard let adapter = adapters[config.harnessId] else {
             throw AgentCLIError.harnessNotRegistered(config.harnessId)
         }
+        // Fail closed: running unisolated would hand the agent the integrations the host asked to withhold.
+        guard config.integrationIsolation.isSubset(of: adapter.definition.capabilities.supportedIntegrationIsolation) else {
+            throw AgentCLIError.unsupportedCapability(harnessId: config.harnessId, capability: "integration isolation")
+        }
 
         let previous = states[conversationId]
         let generation = options.fresh ? (previous?.generation ?? 0) + 1 : max(previous?.generation ?? 0, 1)

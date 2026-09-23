@@ -34,7 +34,8 @@ public enum CodexHarnessDefinition {
             supportsSessionUnarchiving: true,
             supportsSessionDeletion: true,
             supportsLocalImageInput: true,
-            supportsReadOnlyOneShotPrompts: true
+            supportsReadOnlyOneShotPrompts: true,
+            supportedIntegrationIsolation: [.nativeIntegrations, .shellNetwork]
         ),
         supportedPermissionModes: [
             AgentHarnessOption(

@@ -391,7 +391,8 @@ public actor DefaultAgentRuntime: AgentRuntime {
         }
         if state.spawnConfig.hostTools != config.hostTools ||
             state.spawnConfig.hostToolServer != config.hostToolServer ||
-            state.spawnConfig.additionalWorkspaceRoots != config.additionalWorkspaceRoots {
+            state.spawnConfig.additionalWorkspaceRoots != config.additionalWorkspaceRoots ||
+            state.spawnConfig.integrationIsolation != config.integrationIsolation {
             guard !state.isTurnActive, state.waitingState == .idle else {
                 return .nextTurnRequired
             }

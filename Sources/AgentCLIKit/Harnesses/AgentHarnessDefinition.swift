@@ -98,6 +98,8 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
     public let supportsLocalImageInput: Bool
     /// Whether utility prompts enforce read-only tools without creating a persistent session.
     public let supportsReadOnlyOneShotPrompts: Bool
+    /// Integration isolation options this harness honors per conversation.
+    public let supportedIntegrationIsolation: AgentIntegrationIsolation
 
     /// Creates harness capability metadata.
     public init(
@@ -126,7 +128,8 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         supportsSessionUnarchiving: Bool = false,
         supportsSessionDeletion: Bool = false,
         supportsLocalImageInput: Bool = false,
-        supportsReadOnlyOneShotPrompts: Bool = false
+        supportsReadOnlyOneShotPrompts: Bool = false,
+        supportedIntegrationIsolation: AgentIntegrationIsolation = []
     ) {
         self.supportsSessionResume = supportsSessionResume
         self.supportsHooks = supportsHooks
@@ -154,6 +157,7 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         self.supportsSessionDeletion = supportsSessionDeletion
         self.supportsLocalImageInput = supportsLocalImageInput
         self.supportsReadOnlyOneShotPrompts = supportsReadOnlyOneShotPrompts
+        self.supportedIntegrationIsolation = supportedIntegrationIsolation
     }
 
     /// Decodes capability metadata, defaulting additive fields for older persisted values.
@@ -189,6 +193,10 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         self.supportsSessionDeletion = try container.decodeIfPresent(Bool.self, forKey: .supportsSessionDeletion) ?? false
         self.supportsLocalImageInput = try container.decodeIfPresent(Bool.self, forKey: .supportsLocalImageInput) ?? false
         self.supportsReadOnlyOneShotPrompts = try container.decodeIfPresent(Bool.self, forKey: .supportsReadOnlyOneShotPrompts) ?? false
+        self.supportedIntegrationIsolation = try container.decodeIfPresent(
+            AgentIntegrationIsolation.self,
+            forKey: .supportedIntegrationIsolation
+        ) ?? []
     }
 
     /// Encodes capability metadata using current public keys.
@@ -220,6 +228,7 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         try container.encode(supportsSessionDeletion, forKey: .supportsSessionDeletion)
         try container.encode(supportsLocalImageInput, forKey: .supportsLocalImageInput)
         try container.encode(supportsReadOnlyOneShotPrompts, forKey: .supportsReadOnlyOneShotPrompts)
+        try container.encode(supportedIntegrationIsolation, forKey: .supportedIntegrationIsolation)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -250,6 +259,7 @@ public struct AgentHarnessCapabilities: Codable, Equatable, Sendable {
         case supportsSessionDeletion
         case supportsLocalImageInput
         case supportsReadOnlyOneShotPrompts
+        case supportedIntegrationIsolation
     }
 }
 
@@ -281,7 +291,8 @@ extension AgentHarnessCapabilities {
             supportsSessionUnarchiving: self.supportsSessionUnarchiving,
             supportsSessionDeletion: self.supportsSessionDeletion,
             supportsLocalImageInput: self.supportsLocalImageInput,
-            supportsReadOnlyOneShotPrompts: self.supportsReadOnlyOneShotPrompts
+            supportsReadOnlyOneShotPrompts: self.supportsReadOnlyOneShotPrompts,
+            supportedIntegrationIsolation: self.supportedIntegrationIsolation
         )
     }
 
@@ -317,7 +328,8 @@ extension AgentHarnessCapabilities {
             supportsSessionUnarchiving: self.supportsSessionUnarchiving,
             supportsSessionDeletion: self.supportsSessionDeletion,
             supportsLocalImageInput: self.supportsLocalImageInput,
-            supportsReadOnlyOneShotPrompts: self.supportsReadOnlyOneShotPrompts
+            supportsReadOnlyOneShotPrompts: self.supportsReadOnlyOneShotPrompts,
+            supportedIntegrationIsolation: self.supportedIntegrationIsolation
         )
     }
 }

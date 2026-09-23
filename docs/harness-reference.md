@@ -16,6 +16,7 @@ Host apps should generally depend on:
 - `AgentOneShotPromptRunning`
 - `AgentCollaborationMode`
 - `AgentSpeedMode`
+- `AgentIntegrationIsolation`
 - `AgentEventEnvelope`
 - `AgentEvent`
 - `AgentInput`
@@ -51,6 +52,11 @@ Harness-neutral speed lives in `speedMode`: `.fast` requests faster harness beha
 behavior, and `nil` means the host is not overriding speed. Inspect
 `AgentHarnessCapabilities.supportsSpeedMode` before showing or sending `.fast`.
 
+Harness-neutral integration isolation lives in `integrationIsolation`. `.nativeIntegrations` withholds harness-native
+connectors, apps, and plugins while keeping host tools; `.shellNetwork` runs the agent's shell commands without network
+access. Request only options in `AgentHarnessCapabilities.supportedIntegrationIsolation`: an unsupported option fails the
+launch with `AgentCLIError.unsupportedCapability` instead of running unisolated. Changing it replaces the process.
+
 Harness-neutral local image input lives in `AgentMessageInput.attachments`. Setup sends can carry the same data through
 `AgentSpawnConfig.initialPromptAttachments` and `initialPromptMetadata`. Inspect
 `AgentHarnessCapabilities.supportsLocalImageInput` before staging image attachments; unsupported harnesses throw
@@ -77,6 +83,7 @@ Inspect `AgentHarnessDefinition.capabilities` before showing harness-specific UI
 | Approvals | Supported through hooks | Supported through App Server requests |
 | Plan/default collaboration | `AgentSpawnConfig.collaborationMode`; Claude maps plan to internal `--permission-mode plan` | `AgentSpawnConfig.collaborationMode`; requires a concrete model |
 | Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `AgentSpawnConfig.speedMode` when Codex reports `fast_mode` support |
+| Integration isolation | `.nativeIntegrations` via `--strict-mcp-config`; no shell sandbox | Per-thread `features.apps`/`features.plugins` off and `sandbox: "read-only"` |
 | Local image input | Not supported; send image references as prompt text when desired | Supported through App Server `localImage` user input |
 | Runtime reconfigure | Process replacement or resume path | Idle threads use `thread/settings/update`; active turns require next-turn staging |
 | Host tools and roots | Inline process-scoped MCP config plus `--add-dir` | Thread-scoped MCP config plus `runtimeWorkspaceRoots` |

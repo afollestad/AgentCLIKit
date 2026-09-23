@@ -57,6 +57,11 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
     public let hostToolServer: AgentHostToolServerMetadata
     /// Host-owned MCP tools exposed only for this process launch.
     public let hostTools: [AgentHostToolDefinition]
+    /// Harness integrations withheld from this conversation.
+    ///
+    /// An empty set leaves harness behavior unchanged. Hosts should request only options listed in
+    /// `AgentHarnessCapabilities.supportedIntegrationIsolation`.
+    public let integrationIsolation: AgentIntegrationIsolation
 
     /// Creates a spawn configuration.
     public init(
@@ -78,7 +83,8 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         initialPromptMetadata: [String: JSONValue] = [:],
         additionalWorkspaceRoots: [URL] = [],
         hostToolServer: AgentHostToolServerMetadata = AgentHostToolServerMetadata(),
-        hostTools: [AgentHostToolDefinition] = []
+        hostTools: [AgentHostToolDefinition] = [],
+        integrationIsolation: AgentIntegrationIsolation = []
     ) {
         self.harnessId = harnessId
         self.workingDirectory = workingDirectory
@@ -99,6 +105,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.additionalWorkspaceRoots = Self.normalizedWorkspaceRoots(additionalWorkspaceRoots)
         self.hostToolServer = hostToolServer
         self.hostTools = hostTools
+        self.integrationIsolation = integrationIsolation
     }
 
     /// Decodes spawn configuration, defaulting additive fields for older persisted values.
@@ -126,6 +133,10 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         self.hostToolServer = try container.decodeIfPresent(AgentHostToolServerMetadata.self, forKey: .hostToolServer)
             ?? AgentHostToolServerMetadata()
         self.hostTools = try container.decodeIfPresent([AgentHostToolDefinition].self, forKey: .hostTools) ?? []
+        self.integrationIsolation = try container.decodeIfPresent(
+            AgentIntegrationIsolation.self,
+            forKey: .integrationIsolation
+        ) ?? []
     }
 
     private static func normalizedWorkspaceRoots(_ roots: [URL]) -> [URL] {
@@ -158,6 +169,7 @@ public struct AgentSpawnConfig: Codable, Equatable, Sendable {
         case additionalWorkspaceRoots
         case hostToolServer
         case hostTools
+        case integrationIsolation
     }
 }
 

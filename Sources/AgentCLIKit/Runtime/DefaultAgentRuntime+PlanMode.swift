@@ -338,7 +338,8 @@ private extension AgentSpawnConfig {
             initialPromptMetadata: initialPromptMetadata,
             additionalWorkspaceRoots: additionalWorkspaceRoots,
             hostToolServer: hostToolServer,
-            hostTools: hostTools
+            hostTools: hostTools,
+            integrationIsolation: integrationIsolation
         )
     }
 }
