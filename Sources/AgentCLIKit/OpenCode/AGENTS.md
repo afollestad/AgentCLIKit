@@ -6,3 +6,4 @@
 - Validate server versions through `OpenCodeVersionSupport` before using the protocol; unknown major versions must not silently enable capabilities.
 - Keep native goals, Fast mode, and hooks unsupported until their complete host-facing contracts are implemented and verified.
 - Prepare read-only one-shot commands with disposable profiles; never route them through the command-only API or copy executable provider extensions.
+- `.nativeIntegrations` probes `opencode debug config` with the server's own environment for MCP server names and disables each with a partial `enabled: false` entry, which OpenCode deep-merges; pair it with `serve --pure`. OpenCode has no shell sandbox, so never advertise `.shellNetwork`.

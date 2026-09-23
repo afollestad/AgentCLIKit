@@ -11,14 +11,27 @@ extension OpenCodeClient {
             executable = resolved
         } else { executable = configuration.executablePath }
         var environment = configuration.environment.merging(config.environment) { _, value in value }
-        if let endpoint {
+        let isolatesIntegrations = config.integrationIsolation.contains(.nativeIntegrations)
+        let withheld = isolatesIntegrations
+            ? await configuredMCPServerNames(executable: executable, directory: config.workingDirectory, environment: environment)
+                .subtracting([endpoint?.serverName].compactMap { $0 })
+            : []
+        if endpoint != nil || !withheld.isEmpty {
             let inherited = environment["OPENCODE_CONFIG_CONTENT"] ?? ProcessInfo.processInfo.environment["OPENCODE_CONFIG_CONTENT"]
             let document = try OpenCodeJSONCDocument(data: Data((inherited ?? "{}").utf8))
             var mcp = document.root["mcp"]?.ocObject ?? [:]
-            mcp[endpoint.serverName] = .object([
-                "type": .string("remote"), "url": .string(endpoint.url.absoluteString), "enabled": .bool(true),
-                "oauth": .bool(false), "headers": .object(["Authorization": .string("Bearer \(endpoint.bearerToken)")])
-            ])
+            // OpenCode deep-merges this layer, so `enabled: false` alone disables a server another layer defines.
+            for name in withheld {
+                var entry = mcp[name]?.ocObject ?? [:]
+                entry["enabled"] = .bool(false)
+                mcp[name] = .object(entry)
+            }
+            if let endpoint {
+                mcp[endpoint.serverName] = .object([
+                    "type": .string("remote"), "url": .string(endpoint.url.absoluteString), "enabled": .bool(true),
+                    "oauth": .bool(false), "headers": .object(["Authorization": .string("Bearer \(endpoint.bearerToken)")])
+                ])
+            }
             // OpenCode permission object order is meaningful: preserve every unrelated byte,
             // including user rules whose last matching entry wins.
             let output = try document.replacingRootMember("mcp", with: JSONEncoder().encode(JSONValue.object(mcp)))
@@ -27,8 +40,33 @@ extension OpenCodeClient {
         return OpenCodeServerConfiguration(
             executablePath: executable, workingDirectory: config.workingDirectory, environment: environment,
             startupTimeout: configuration.startupTimeout, requestTimeout: configuration.requestTimeout,
-            shutdownTimeout: configuration.shutdownTimeout
+            shutdownTimeout: configuration.shutdownTimeout, excludesExternalPlugins: isolatesIntegrations
         )
+    }
+
+    /// Every MCP server OpenCode would start in `directory`, across all its config layers, from `opencode debug
+    /// config` run with the server's own environment. A failed or slow probe lists nothing rather than blocking launch.
+    private func configuredMCPServerNames(executable: String, directory: URL, environment: [String: String]) async -> Set<String> {
+        let command = ShellCommand(
+            executable: executable, arguments: ["debug", "config"], environment: environment, workingDirectory: directory
+        )
+        let runner = configuration.oneShotShellRunner
+        let result = await withTaskGroup(of: ShellCommandResult?.self) { group in
+            group.addTask { try? await runner.run(command) }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+        guard let result, result.exitCode == 0,
+              let root = try? JSONSerialization.jsonObject(with: Data(result.stdout.utf8)) as? [String: Any],
+              let mcp = root["mcp"] as? [String: Any] else {
+            return []
+        }
+        return Set(mcp.keys)
     }
 
     func selectedModel(_ state: OpenCodeGeneration) -> JSONValue? {

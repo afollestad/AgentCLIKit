@@ -78,7 +78,8 @@ public actor ClaudeHookCoordinator {
         permissionMode: String? = nil,
         workingDirectory: URL? = nil,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser,
-        timeoutSeconds: Int = ClaudeHookPolicy.defaultHookTimeoutSeconds
+        timeoutSeconds: Int = ClaudeHookPolicy.defaultHookTimeoutSeconds,
+        isolatesShellNetwork: Bool = false
     ) async throws -> ClaudeHookLaunchConfiguration {
         let port = try await ensureListenerPort()
         try ensureCoordinatorIsActive()
@@ -101,7 +102,8 @@ public actor ClaudeHookCoordinator {
             includePreToolUse: ClaudeHookPolicy.shouldEnableHooks(permissionMode: permissionMode),
             preCompactEndpointURL: endpoints.preCompact,
             postCompactEndpointURL: endpoints.postCompact,
-            timeoutSeconds: timeoutSeconds
+            timeoutSeconds: timeoutSeconds,
+            sandbox: isolatesShellNetwork ? .networkIsolated : nil
         )
         try await writeSettings(settings, to: settingsURL, token: token.value)
         launchTokens[processToken] = token.value

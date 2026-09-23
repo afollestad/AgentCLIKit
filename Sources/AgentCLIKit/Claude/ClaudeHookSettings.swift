@@ -14,6 +14,8 @@ public struct ClaudeHookSettings: Equatable, Sendable {
     public let tokenEnvironmentVariable: String
     /// Claude hook timeout in seconds.
     public let timeoutSeconds: Int
+    /// Sandbox block the launch also passes on its own; repeated here because Claude honors only the last settings.
+    let sandbox: ClaudeSandboxSettings?
 
     /// Creates Claude hook settings.
     public init(
@@ -24,12 +26,33 @@ public struct ClaudeHookSettings: Equatable, Sendable {
         tokenEnvironmentVariable: String = "AGENTCLIKIT_CLAUDE_HOOK_TOKEN",
         timeoutSeconds: Int = ClaudeHookPolicy.defaultHookTimeoutSeconds
     ) {
+        self.init(
+            endpointURL: endpointURL,
+            includePreToolUse: includePreToolUse,
+            preCompactEndpointURL: preCompactEndpointURL,
+            postCompactEndpointURL: postCompactEndpointURL,
+            tokenEnvironmentVariable: tokenEnvironmentVariable,
+            timeoutSeconds: timeoutSeconds,
+            sandbox: nil
+        )
+    }
+
+    init(
+        endpointURL: URL,
+        includePreToolUse: Bool,
+        preCompactEndpointURL: URL?,
+        postCompactEndpointURL: URL?,
+        tokenEnvironmentVariable: String = "AGENTCLIKIT_CLAUDE_HOOK_TOKEN",
+        timeoutSeconds: Int,
+        sandbox: ClaudeSandboxSettings?
+    ) {
         self.endpointURL = endpointURL
         self.includePreToolUse = includePreToolUse
         self.preCompactEndpointURL = preCompactEndpointURL
         self.postCompactEndpointURL = postCompactEndpointURL
         self.tokenEnvironmentVariable = tokenEnvironmentVariable
         self.timeoutSeconds = timeoutSeconds
+        self.sandbox = sandbox
     }
 
     /// Encodes Claude-compatible settings JSON.
@@ -56,7 +79,7 @@ public struct ClaudeHookSettings: Equatable, Sendable {
                 matcher(ClaudeHookPolicy.compactMatcher, endpointURL: postCompactEndpointURL)
             ]
         }
-        return ClaudeHookSettingsPayload(hooks: hooks)
+        return ClaudeHookSettingsPayload(hooks: hooks, sandbox: sandbox)
     }
 
     private func matcher(_ matcher: String, endpointURL: URL) -> ClaudeHookMatcher {

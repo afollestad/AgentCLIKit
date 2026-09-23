@@ -281,6 +281,9 @@ public struct ClaudeHarnessAdapter: AgentHarnessAdapter {
             // Claude then ignores every MCP configuration except `--mcp-config`, which is where host tools arrive.
             arguments.append("--strict-mcp-config")
         }
+        if let sandbox = Self.sandboxSettings(for: spawnConfig) {
+            arguments.append(contentsOf: ["--settings", try sandbox.settingsArgument()])
+        }
         arguments.append(contentsOf: ["--model", ClaudeModelAliases.normalizedModel(spawnConfig.model)])
         if let effort = ClaudeModelAliases.normalizedEffort(spawnConfig.effort, model: spawnConfig.model) {
             arguments.append(contentsOf: ["--effort", effort])
@@ -378,6 +381,10 @@ public struct ClaudeHarnessAdapter: AgentHarnessAdapter {
         return await hookCoordinator.runtimeEvents(context: context)
     }
 
+    static func sandboxSettings(for spawnConfig: AgentSpawnConfig) -> ClaudeSandboxSettings? {
+        spawnConfig.integrationIsolation.contains(.shellNetwork) ? .networkIsolated : nil
+    }
+
     /// Adds generated Claude hook settings and bearer token environment for this launch when hook setup succeeds.
     public func prepareLaunchConfiguration(
         _ launch: AgentLaunchConfiguration,
@@ -394,7 +401,8 @@ public struct ClaudeHarnessAdapter: AgentHarnessAdapter {
                 processToken: processToken,
                 permissionMode: effectivePermissionMode(for: spawnConfig),
                 workingDirectory: launch.workingDirectory ?? spawnConfig.workingDirectory,
-                homeDirectory: homeDirectory
+                homeDirectory: homeDirectory,
+                isolatesShellNetwork: spawnConfig.integrationIsolation.contains(.shellNetwork)
             )
             var arguments = launch.arguments
             arguments.append(contentsOf: hooks.arguments)

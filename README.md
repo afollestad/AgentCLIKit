@@ -279,7 +279,7 @@ Claude and Codex share the host-facing runtime API, but their native transports 
 | Models | Built-in `ClaudeModelOptionSource` | Static fallback or opt-in live `model/list` |
 | Plan mode | `collaborationMode: .plan` maps to Claude's internal `--permission-mode plan` | Idle threads use `thread/settings/update`; plan mode requires a concrete model |
 | Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `speedMode: .fast` when Codex reports `fast_mode` support |
-| Integration isolation | `.nativeIntegrations` only (`--strict-mcp-config`) | `.nativeIntegrations` and `.shellNetwork` per thread |
+| Integration isolation | `.nativeIntegrations` (`--strict-mcp-config`) and `.shellNetwork` (Bash sandbox, network off) | `.nativeIntegrations` and `.shellNetwork` per thread |
 | Native fork | `--resume <source> --fork-session` | App Server `thread/fork` |
 | Host tools and extra roots | Inline process MCP config and `--add-dir` | Per-thread MCP config and `runtimeWorkspaceRoots` |
 | Archive/delete | Validated no-op | App Server `thread/archive`, `thread/unarchive`, and `thread/delete` |

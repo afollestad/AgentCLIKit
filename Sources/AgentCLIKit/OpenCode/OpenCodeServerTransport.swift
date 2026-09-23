@@ -8,6 +8,8 @@ public struct OpenCodeServerConfiguration: Sendable {
     public let startupTimeout: TimeInterval
     public let requestTimeout: TimeInterval
     public let shutdownTimeout: TimeInterval
+    /// Starts the server with `--pure`, which loads no external plugins.
+    public let excludesExternalPlugins: Bool
 
     public init(
         executablePath: String,
@@ -15,7 +17,8 @@ public struct OpenCodeServerConfiguration: Sendable {
         environment: [String: String] = [:],
         startupTimeout: TimeInterval = 10,
         requestTimeout: TimeInterval = 30,
-        shutdownTimeout: TimeInterval = 3
+        shutdownTimeout: TimeInterval = 3,
+        excludesExternalPlugins: Bool = false
     ) {
         self.executablePath = executablePath
         self.workingDirectory = workingDirectory
@@ -23,6 +26,7 @@ public struct OpenCodeServerConfiguration: Sendable {
         self.startupTimeout = startupTimeout
         self.requestTimeout = requestTimeout
         self.shutdownTimeout = shutdownTimeout
+        self.excludesExternalPlugins = excludesExternalPlugins
     }
 }
 
@@ -87,7 +91,7 @@ public actor OpenCodeHTTPServerTransport: OpenCodeServerTransport {
         let out = Pipe()
         let err = Pipe()
         child.executableURL = URL(fileURLWithPath: configuration.executablePath)
-        child.arguments = ["serve", "--hostname", "127.0.0.1", "--port", "0"]
+        child.arguments = ["serve", "--hostname", "127.0.0.1", "--port", "0"] + (configuration.excludesExternalPlugins ? ["--pure"] : [])
         child.currentDirectoryURL = configuration.workingDirectory
         var environment = ProcessInfo.processInfo.environment.merging(configuration.environment) { _, value in value }
         environment["OPENCODE_SERVER_USERNAME"] = "opencode"

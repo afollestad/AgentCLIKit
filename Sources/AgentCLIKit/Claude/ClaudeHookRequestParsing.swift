@@ -117,6 +117,7 @@ extension ClaudeHookRequest {
 
 struct ClaudeHookSettingsPayload: Codable {
     let hooks: [String: [ClaudeHookMatcher]]
+    var sandbox: ClaudeSandboxSettings?
 }
 
 struct ClaudeHookMatcher: Codable {

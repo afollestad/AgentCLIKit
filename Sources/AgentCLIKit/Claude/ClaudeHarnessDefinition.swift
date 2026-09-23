@@ -32,7 +32,7 @@ public enum ClaudeHarnessDefinition {
             supportsPermissionPrompts: true,
             supportsModelOptions: true,
             supportsReadOnlyOneShotPrompts: true,
-            supportedIntegrationIsolation: [.nativeIntegrations]
+            supportedIntegrationIsolation: [.nativeIntegrations, .shellNetwork]
         ),
         supportedPermissionModes: [
             AgentHarnessOption(

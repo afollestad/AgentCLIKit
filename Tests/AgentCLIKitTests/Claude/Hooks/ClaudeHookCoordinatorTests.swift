@@ -40,6 +40,38 @@ final class ClaudeHookCoordinatorTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: launch.settingsFileURL.path))
     }
 
+    /// Claude honors only the last `--settings`, and this file is appended after the launch's own sandbox flag.
+    func testNetworkIsolatedLaunchCarriesTheSandboxInItsHookSettings() async throws {
+        let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
+        let server = ClaudeHookServer(tokenStore: tokenStore, interactionStore: InMemoryAgentInteractionStore())
+        let supportDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: supportDirectory) }
+        let coordinator = ClaudeHookCoordinator(
+            tokenStore: tokenStore,
+            server: server,
+            supportDirectory: supportDirectory,
+            makeListener: { _, _ in StubHookTransport(port: 4567) }
+        )
+
+        let isolated = try await coordinator.prepareLaunch(
+            conversationId: "isolated", processToken: UUID(), isolatesShellNetwork: true
+        )
+        let plain = try await coordinator.prepareLaunch(conversationId: "plain", processToken: UUID())
+
+        let isolatedSettings = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: isolated.settingsFileURL)) as? [String: Any]
+        )
+        let sandbox = try XCTUnwrap(isolatedSettings["sandbox"] as? [String: Any])
+        XCTAssertEqual(sandbox["enabled"] as? Bool, true)
+        XCTAssertEqual(sandbox["allowUnsandboxedCommands"] as? Bool, false)
+        XCTAssertEqual((sandbox["network"] as? [String: Any])?["strictAllowlist"] as? Bool, true)
+        XCTAssertNotNil(isolatedSettings["hooks"])
+        let plainSettings = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: plain.settingsFileURL)) as? [String: Any]
+        )
+        XCTAssertNil(plainSettings["sandbox"])
+    }
+
     func testCoordinatorShutdownRemovesActiveLaunchSettingsAndInvalidatesTokens() async throws {
         let tokenStore = AgentHookTokenStore(now: { Date(timeIntervalSince1970: 10) })
         let interactionStore = InMemoryAgentInteractionStore()

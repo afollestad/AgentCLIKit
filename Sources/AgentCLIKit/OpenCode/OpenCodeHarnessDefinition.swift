@@ -29,7 +29,8 @@ public enum OpenCodeHarnessDefinition {
             supportsSessionArchiving: true,
             supportsSessionDeletion: true,
             supportsLocalImageInput: true,
-            supportsReadOnlyOneShotPrompts: true
+            supportsReadOnlyOneShotPrompts: true,
+            supportedIntegrationIsolation: [.nativeIntegrations]
         ),
         supportedPermissionModes: [
             AgentHarnessOption(
