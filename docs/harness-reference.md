@@ -83,7 +83,7 @@ Inspect `AgentHarnessDefinition.capabilities` before showing harness-specific UI
 | Approvals | Supported through hooks | Supported through App Server requests |
 | Plan/default collaboration | `AgentSpawnConfig.collaborationMode`; Claude maps plan to internal `--permission-mode plan` | `AgentSpawnConfig.collaborationMode`; requires a concrete model |
 | Speed mode | Not supported; Claude's fast-like `--bare` path disables hooks | `AgentSpawnConfig.speedMode` when Codex reports `fast_mode` support |
-| Integration isolation | `.nativeIntegrations` via `--strict-mcp-config`; no shell sandbox | Per-thread `features.apps`/`features.plugins` off and `sandbox: "read-only"` |
+| Integration isolation | `.nativeIntegrations` via `--strict-mcp-config`; no shell sandbox | Per-thread `features.apps`/`features.plugins` off; `sandbox: "workspace-write"` with network off |
 | Local image input | Not supported; send image references as prompt text when desired | Supported through App Server `localImage` user input |
 | Runtime reconfigure | Process replacement or resume path | Idle threads use `thread/settings/update`; active turns require next-turn staging |
 | Host tools and roots | Inline process-scoped MCP config plus `--add-dir` | Thread-scoped MCP config plus `runtimeWorkspaceRoots` |

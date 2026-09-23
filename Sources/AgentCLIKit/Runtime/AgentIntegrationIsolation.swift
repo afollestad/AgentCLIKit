@@ -16,6 +16,7 @@ public struct AgentIntegrationIsolation: OptionSet, Codable, Hashable, Sendable 
     /// Withholds harness-native connectors, apps, plugins, and user-configured MCP servers the harness can drop per
     /// conversation. Host tools stay available.
     public static let nativeIntegrations = AgentIntegrationIsolation(rawValue: 1 << 0)
-    /// Runs the agent's shell commands without network access.
+    /// Runs the agent's shell commands without network access. Writes to the working directory and temp directories
+    /// stay allowed where the harness can express that.
     public static let shellNetwork = AgentIntegrationIsolation(rawValue: 1 << 1)
 }

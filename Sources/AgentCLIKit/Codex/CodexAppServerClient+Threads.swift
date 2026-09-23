@@ -204,8 +204,9 @@ extension CodexAppServerClient {
             params["approvalPolicy"] = .string(permissionMode)
         }
         if spawnConfig.integrationIsolation.contains(.shellNetwork) {
-            // Overrides the user's `sandbox_mode`; read-only is the only mode without shell network by default.
-            params["sandbox"] = .string("read-only")
+            // Overrides the user's `sandbox_mode`. Workspace-write keeps the working directory, runtime roots, and
+            // temp directories writable (agents and skills write scratch files); `threadConfig` pins its network off.
+            params["sandbox"] = .string("workspace-write")
         }
         if let workspaceRoots = runtimeWorkspaceRoots(spawnConfig) {
             params["runtimeWorkspaceRoots"] = .array(workspaceRoots.map(JSONValue.string))
@@ -239,6 +240,10 @@ extension CodexAppServerClient {
         }
         mergeSpeedModeConfig(spawnConfig: spawnConfig, supportsFastMode: supportsFastMode, into: &config)
         mergeIntegrationIsolationConfig(spawnConfig: spawnConfig, into: &config)
+        if spawnConfig.integrationIsolation.contains(.shellNetwork) {
+            // Explicit so a user config that grants workspace-write network cannot reopen it.
+            config["sandbox_workspace_write.network_access"] = .bool(false)
+        }
         if let hostToolEndpoint {
             let toolApprovals = Dictionary(uniqueKeysWithValues: hostToolEndpoint.enabledToolNames.map {
                 ($0, JSONValue.object(["approval_mode": .string("approve")]))

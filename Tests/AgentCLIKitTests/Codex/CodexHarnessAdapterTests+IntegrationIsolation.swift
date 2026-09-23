@@ -32,14 +32,15 @@ extension CodexHarnessAdapterTests {
 
         let requests = await transport.requestParams
         let params = try XCTUnwrap(requests["thread/start"]?.objectValue)
-        XCTAssertEqual(params["sandbox"], .string("read-only"))
+        XCTAssertEqual(params["sandbox"], .string("workspace-write"))
         XCTAssertEqual(params["approvalPolicy"], .string("never"))
         XCTAssertEqual(params["config"], .object([
             "features": .object([
                 "fast_mode": .bool(true),
                 "apps": .bool(false),
                 "plugins": .bool(false)
-            ])
+            ]),
+            "sandbox_workspace_write.network_access": .bool(false)
         ]))
     }
 
@@ -73,8 +74,8 @@ extension CodexHarnessAdapterTests {
             )
         let networkRequests = await networkTransport.requestParams
         let networkParams = try XCTUnwrap(networkRequests["thread/start"]?.objectValue)
-        XCTAssertEqual(networkParams["sandbox"], .string("read-only"))
-        XCTAssertNil(networkParams["config"])
+        XCTAssertEqual(networkParams["sandbox"], .string("workspace-write"))
+        XCTAssertEqual(networkParams["config"], .object(["sandbox_workspace_write.network_access": .bool(false)]))
     }
 
     func testUnisolatedStartLeavesSandboxAndFeaturesToUserConfig() async throws {
@@ -117,9 +118,10 @@ extension CodexHarnessAdapterTests {
         XCTAssertEqual(requestMethods, ["initialize", "thread/fork"])
         XCTAssertEqual(launch.sessionContinuity, .forked)
         XCTAssertEqual(params["threadId"], .string("thread-existing"))
-        XCTAssertEqual(params["sandbox"], .string("read-only"))
+        XCTAssertEqual(params["sandbox"], .string("workspace-write"))
         XCTAssertEqual(params["config"], .object([
-            "features": .object(["apps": .bool(false), "plugins": .bool(false)])
+            "features": .object(["apps": .bool(false), "plugins": .bool(false)]),
+            "sandbox_workspace_write.network_access": .bool(false)
         ]))
     }
 
