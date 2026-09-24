@@ -162,7 +162,6 @@ public actor ClaudeConfigStore {
         var projects = root[ClaudeConfigKey.projects] as? [String: Any] ?? [:]
         var project = projects[path] as? [String: Any] ?? [:]
         project[ClaudeConfigKey.hasTrustDialogAccepted] = true
-        project[ClaudeConfigKey.hasCompletedProjectOnboarding] = true
         projects[path] = project
         root[ClaudeConfigKey.projects] = projects
         root.removeValue(forKey: ClaudeConfigKey.legacyTrustedProjects)
@@ -242,8 +241,7 @@ public actor ClaudeConfigStore {
         if let projects = root[ClaudeConfigKey.projects] as? [String: Any] {
             return Set(projects.compactMap { path, value in
                 guard let project = value as? [String: Any],
-                      project[ClaudeConfigKey.hasTrustDialogAccepted] as? Bool == true,
-                      project[ClaudeConfigKey.hasCompletedProjectOnboarding] as? Bool == true else {
+                      project[ClaudeConfigKey.hasTrustDialogAccepted] as? Bool == true else {
                     return nil
                 }
                 return path
@@ -311,8 +309,7 @@ public actor ClaudeConfigStore {
         }
         return Set(projects.compactMap { path, value in
             guard let project = value as? [String: Any],
-                  project[ClaudeConfigKey.hasTrustDialogAccepted] as? Bool == true,
-                  project[ClaudeConfigKey.hasCompletedProjectOnboarding] as? Bool == true else {
+                  project[ClaudeConfigKey.hasTrustDialogAccepted] as? Bool == true else {
                 return nil
             }
             return AgentPathHelpers.canonicalPath(URL(fileURLWithPath: path))
@@ -332,9 +329,8 @@ public actor ClaudeConfigStore {
         var projects = existingProjects
         for path in trustedProjects {
             var project = projects[path] as? [String: Any] ?? [:]
-            // Claude stores per-project settings here too, so only touch the trust flags AgentCLIKit owns.
+            // Claude stores per-project settings here too, so only touch the trust flag AgentCLIKit owns.
             project[ClaudeConfigKey.hasTrustDialogAccepted] = true
-            project[ClaudeConfigKey.hasCompletedProjectOnboarding] = true
             projects[path] = project
         }
         return projects
@@ -364,8 +360,9 @@ private enum ClaudeConfigKey {
     static let projects = "projects"
     static let mcpServers = "mcpServers"
     static let legacyTrustedProjects = "trustedProjects"
+    /// The sole trust flag. Claude strips `hasCompletedProjectOnboarding` when it rewrites the file,
+    /// so requiring that flag too makes accepted trust revert.
     static let hasTrustDialogAccepted = "hasTrustDialogAccepted"
-    static let hasCompletedProjectOnboarding = "hasCompletedProjectOnboarding"
 }
 
 private final class ClaudeConfigSnapshotCache: @unchecked Sendable {

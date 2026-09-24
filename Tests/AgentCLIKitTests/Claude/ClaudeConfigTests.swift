@@ -24,7 +24,6 @@ final class ClaudeConfigTests: XCTestCase {
         let mcpServers = root["mcpServers"] as? [String: Any]
         let persistedServer = mcpServers?["server"] as? [String: Any]
         XCTAssertEqual(trustedProject?["hasTrustDialogAccepted"] as? Bool, true)
-        XCTAssertEqual(trustedProject?["hasCompletedProjectOnboarding"] as? Bool, true)
         XCTAssertEqual(persistedServer?["command"] as? String, "server")
     }
 
@@ -83,8 +82,7 @@ final class ClaudeConfigTests: XCTestCase {
         {
           "projects": {
             "/tmp/project": {
-              "hasTrustDialogAccepted": true,
-              "hasCompletedProjectOnboarding": true
+              "hasTrustDialogAccepted": true
             }
           }
         }
@@ -95,8 +93,7 @@ final class ClaudeConfigTests: XCTestCase {
         {
           "projects": {
             "/tmp/other": {
-              "hasTrustDialogAccepted": true,
-              "hasCompletedProjectOnboarding": true
+              "hasTrustDialogAccepted": true
             }
           }
         }
@@ -130,8 +127,7 @@ final class ClaudeConfigTests: XCTestCase {
         {
           "projects": {
             "/tmp/observed": {
-              "hasTrustDialogAccepted": true,
-              "hasCompletedProjectOnboarding": true
+              "hasTrustDialogAccepted": true
             }
           }
         }
@@ -157,7 +153,6 @@ final class ClaudeConfigTests: XCTestCase {
         let project = (root["projects"] as? [String: Any])?["/tmp/project"] as? [String: Any]
         XCTAssertEqual(setup.harnessId, .claude)
         XCTAssertEqual(project?["hasTrustDialogAccepted"] as? Bool, true)
-        XCTAssertEqual(project?["hasCompletedProjectOnboarding"] as? Bool, true)
         XCTAssertEqual(setup.cachedProjectTrustStatus(for: projectURL), .trusted)
         let statusAfterTrust = try await setup.projectTrustStatus(for: projectURL)
         XCTAssertEqual(statusAfterTrust, .trusted)
@@ -203,7 +198,6 @@ final class ClaudeConfigTests: XCTestCase {
         let otherProject = projects?["/tmp/other"] as? [String: Any]
         XCTAssertEqual(managedProject?["customSetting"] as? String, "keep-managed")
         XCTAssertEqual(managedProject?["hasTrustDialogAccepted"] as? Bool, true)
-        XCTAssertEqual(managedProject?["hasCompletedProjectOnboarding"] as? Bool, true)
         XCTAssertEqual(otherProject?["customSetting"] as? String, "keep-other")
     }
 
