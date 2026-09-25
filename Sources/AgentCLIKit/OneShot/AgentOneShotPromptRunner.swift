@@ -229,6 +229,11 @@ public struct DefaultAgentOneShotPromptRunner: AgentOneShotPromptRunning {
     ) async throws -> AgentOneShotPromptResult {
         let result = try await run(command, request: request, timeout: timeout)
         if result.exitCode != 0 {
+            if let reported = await adapter.reportedOneShotPromptFailure(
+                stdout: result.stdout, stderr: result.stderr, request: request
+            ) {
+                throw reported
+            }
             throw classifyFailure(harnessId: request.harnessId, result: result)
         }
 
@@ -289,19 +294,7 @@ public struct DefaultAgentOneShotPromptRunner: AgentOneShotPromptRunning {
         result: ShellCommandResult
     ) -> AgentOneShotPromptError {
         let message = diagnosticMessage(stdout: result.stdout, stderr: result.stderr)
-        let normalized = message.lowercased()
-        if normalized.contains("model") && (normalized.contains("unavailable") || normalized.contains("not available")) {
-            return .unavailableModel(harnessId: harnessId, message: message)
-        }
-        if normalized.contains("approval") ||
-            (normalized.contains("permission") && (normalized.contains("denied") || normalized.contains("required"))) {
-            return .approvalRequired(harnessId: harnessId, message: message)
-        }
-        if normalized.contains("askuserquestion") ||
-            (normalized.contains("prompt") && (normalized.contains("required") || normalized.contains("requested"))) {
-            return .promptRequired(harnessId: harnessId, message: message)
-        }
-        return .commandFailed(
+        return AgentOneShotPromptError.classified(harnessId: harnessId, message: message) ?? .commandFailed(
             harnessId: harnessId,
             exitCode: result.exitCode,
             stdout: result.stdout,

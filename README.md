@@ -182,8 +182,10 @@ One-shot runs cannot service approvals or harness prompts.
 Hosts using their own process runner should call `adapter.prepareOneShotPrompt(request:)`, run its `command`, then call
 `cleanup()` after process termination on every exit path. Honor `ShellCommand.inheritsEnvironment`: `false` replaces the
 parent environment completely. If `executionDeadline` is present, reject expired preparations and cap execution to the
-time remaining. `DefaultAgentOneShotPromptRunner` owns these steps. The command-only adapter API remains
-available for harnesses that need no disposable resources; OpenCode requires preparation.
+time remaining. After an unsuccessful exit, `adapter.reportedOneShotPromptFailure(stdout:stderr:request:)` returns the
+error the harness reported in stdout, if any; harnesses can exit with an empty stderr. `DefaultAgentOneShotPromptRunner`
+owns these steps. The command-only adapter API remains available for harnesses that need no disposable resources; OpenCode
+requires preparation.
 
 Use `runtime.reconfigure(conversationId:config:)` to apply changed settings to a started conversation. The result tells
 the host what happened:

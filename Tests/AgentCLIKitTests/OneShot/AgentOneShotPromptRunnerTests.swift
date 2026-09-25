@@ -146,6 +146,64 @@ final class AgentOneShotPromptRunnerTests: XCTestCase {
         }
     }
 
+    func testClaudeOneShotReportsResultErrorFromFailedExit() async throws {
+        let request = AgentOneShotPromptRequest(harnessId: .claude, workingDirectory: Self.workingDirectory, prompt: "Say hello")
+        let expectedCommand = Self.claudeCommand(prompt: "Say hello", model: "sonnet")
+        let shellRunner = FakeShellRunner(results: [
+            expectedCommand: .success(ShellCommandResult(
+                exitCode: 1,
+                stdout: """
+                {"type":"assistant","message":{"content":[{"type":"text","text":"intermediate"}]}}
+                {"type":"result","subtype":"success","is_error":true,"result":"API Error: 400 bad request"}
+                """,
+                stderr: "[claude-code:api_error]\n"
+            ))
+        ])
+        let runner = Self.runner(shellRunner: shellRunner, executablePath: "/opt/claude")
+
+        do {
+            _ = try await runner.generate(request)
+            XCTFail("Expected reported error")
+        } catch let error as AgentOneShotPromptError {
+            guard case let .harnessReportedError(harnessId, message, _, _) = error else {
+                return XCTFail("Unexpected error: \(error)")
+            }
+            XCTAssertEqual(harnessId, .claude)
+            XCTAssertEqual(message, "API Error: 400 bad request")
+            XCTAssertEqual(error.localizedDescription.components(separatedBy: "[claude-code:api_error]").count, 2)
+        }
+    }
+
+    func testCodexOneShotReportsFailedTurn() async throws {
+        let request = AgentOneShotPromptRequest(harnessId: .codex, workingDirectory: Self.workingDirectory, prompt: "Say hello")
+        let expectedCommand = Self.codexCommand(prompt: "Say hello")
+        let body = #"{\"type\":\"error\",\"status\":400,\"error\":{\"message\":\"The 'x' model is not supported.\"}}"#
+        let shellRunner = FakeShellRunner(results: [
+            expectedCommand: .success(ShellCommandResult(
+                exitCode: 1,
+                stdout: """
+                {"type":"thread.started","thread_id":"thread-123"}
+                {"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata not found."}}
+                {"type":"turn.started"}
+                {"type":"error","message":"\(body)"}
+                {"type":"turn.failed","error":{"message":"\(body)"}}
+                """,
+                stderr: ""
+            ))
+        ])
+        let runner = Self.runner(shellRunner: shellRunner, executablePath: "/opt/codex")
+
+        do {
+            _ = try await runner.generate(request)
+            XCTFail("Expected reported error")
+        } catch AgentOneShotPromptError.harnessReportedError(let harnessId, let message, _, _) {
+            XCTAssertEqual(harnessId, .codex)
+            XCTAssertEqual(message, "The 'x' model is not supported.")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testOneShotTimeoutCancelsShellCommand() async throws {
         let runner = Self.runner(shellRunner: SuspendedShellRunner(), executablePath: "/opt/codex")
         let request = AgentOneShotPromptRequest(

@@ -36,7 +36,8 @@ on `AgentHarnessCapabilities.supportsReadOnlyOneShotPrompts`. Custom process run
 and retain its `AgentPreparedOneShotPrompt` until the process terminates. Honor the command's `inheritsEnvironment` policy
 and, when `executionDeadline` is present, reject expired preparations and cap process execution to the remaining time.
 Call `cleanup()` after success, cancellation, timeout, launch failure, or output parsing failure. Successful cleanup is
-idempotent; a cleanup failure can be retried and must not hide an earlier operation failure.
+idempotent; a cleanup failure can be retried and must not hide an earlier operation failure. After an unsuccessful exit,
+`reportedOneShotPromptFailure(stdout:stderr:request:)` returns the error the harness reported in stdout, if any.
 
 Reusable approval scopes are harness-neutral. Hosts can back `AgentSessionApprovalPolicyStore` with app persistence, and
 Bash approval requests may include canonical `approvalIdentityToolInput` derived by `AgentCommandApprovalNormalizationPolicy`.
@@ -157,7 +158,9 @@ and `AgentSessionRecord.harnessSessionPreview`.
 
 Codex one-shot prompts intentionally do not use Codex App Server. They run `codex exec --ephemeral --json --sandbox
 read-only -c 'approval_policy="never"' -C <cwd> -` and parse the final `agent_message` from stdout JSONL. Codex can still
-emit a transient `thread.started` event in that stream; the sessionless contract is that no harness thread is persisted.
+emit a transient `thread.started` event in that stream; the sessionless contract is that no harness thread is persisted. A
+`turn.failed` event fails the prompt with its error message; top-level `error` events alone do not, since they include retry
+notices.
 
 Codex uses the same `AgentSpawnConfig.collaborationMode` API. `turn/start` and idle-thread `thread/settings/update`
 share the same sticky settings payload for `cwd`, `model`, `approvalPolicy`, `effort`, `collaborationMode`, and

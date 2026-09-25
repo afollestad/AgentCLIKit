@@ -111,22 +111,12 @@ extension ClaudeHarnessAdapter {
         stdout: String,
         stderr: String
     ) -> AgentOneShotPromptError {
-        let fallback = [message, stderr]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let result = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallback = [result, stderr.trimmingCharacters(in: .whitespacesAndNewlines)]
             .filter { !$0.isEmpty }
             .joined(separator: "\n")
-        let normalized = fallback.lowercased()
-        if normalized.contains("model") && (normalized.contains("unavailable") || normalized.contains("not available")) {
-            return .unavailableModel(harnessId: .claude, message: fallback)
-        }
-        if normalized.contains("approval") ||
-            (normalized.contains("permission") && (normalized.contains("denied") || normalized.contains("required"))) {
-            return .approvalRequired(harnessId: .claude, message: fallback)
-        }
-        if normalized.contains("askuserquestion") ||
-            (normalized.contains("prompt") && (normalized.contains("required") || normalized.contains("requested"))) {
-            return .promptRequired(harnessId: .claude, message: fallback)
-        }
-        return .harnessReportedError(harnessId: .claude, message: fallback, stdout: stdout, stderr: stderr)
+        // `harnessReportedError` describes itself with stderr appended, so its message carries only the result text.
+        return AgentOneShotPromptError.classified(harnessId: .claude, message: fallback)
+            ?? .harnessReportedError(harnessId: .claude, message: result, stdout: stdout, stderr: stderr)
     }
 }

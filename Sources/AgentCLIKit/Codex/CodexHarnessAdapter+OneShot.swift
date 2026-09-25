@@ -55,6 +55,12 @@ extension CodexHarnessAdapter {
                 continue
             }
             let object = try Self.oneShotJSONObject(from: trimmed, stdout: stdout, stderr: stderr)
+            // Only `turn.failed` is fatal; top-level `error` events also carry retry notices for turns that recover.
+            if object["type"] as? String == "turn.failed" {
+                let message = Self.oneShotFailureMessage(from: object)
+                throw AgentOneShotPromptError.classified(harnessId: .codex, message: message)
+                    ?? .harnessReportedError(harnessId: .codex, message: message, stdout: stdout, stderr: stderr)
+            }
             if object["type"] as? String == "item.completed",
                let item = object["item"] as? [String: Any],
                item["type"] as? String == "agent_message",
@@ -66,6 +72,18 @@ extension CodexHarnessAdapter {
             }
         }
         return finalText ?? ""
+    }
+
+    /// API failures arrive as a JSON-encoded response body inside `error.message`; its inner message is the readable part.
+    private static func oneShotFailureMessage(from event: [String: Any]) -> String {
+        let message = ((event["error"] as? [String: Any])?["message"] as? String ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let body = try? JSONSerialization.jsonObject(with: Data(message.utf8)) as? [String: Any],
+              let inner = (body["error"] as? [String: Any])?["message"] as? String,
+              !inner.isEmpty else {
+            return message
+        }
+        return inner
     }
 
     private static func oneShotJSONObject(
